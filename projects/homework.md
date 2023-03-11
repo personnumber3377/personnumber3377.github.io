@@ -903,6 +903,561 @@ Now, I am not convinced that this tool is useful, so lets actually try it on ano
 Now here is a very interesting problem: Let the sides of a triangle be of lengths 356, 558 and 762 . The triangle is divided along the middle of the biggest angle. How many percent is the smaller one of the bigger one? This problem can be solved by using the law of sines: sin(a)/x=sin(b)/y=sin(c)/z  where a b c are the angles of the opposite side of the sides x, y and z. Our tool now does not have the law of sines in it, but you can just use the sympy solver to solve the equation directly. However, technically you can use my tool to solve the problem, because you can figure out the points by using the circle and the intersection tool, then you can halve the angle by just taking a point which is halway through one of the sides of the triangle. Then you can just use the mindistobjdot to get the height of the triangle and you can calculate the area of the tiny triangle and then you can subtract that from the original triangle to get the area of the bigger triangle and then you are basically done. To do this using a script file as input to solve this problem, I need to implement the passing arguments by index and also assign variables to any value in the shell, because then I do not have to manually set the return values of an operation to operands to another command. Anyway, maybe I will do that soon. (To be continued.....)
 
 
+Now it is unix time 1678233587 and now I am going to try to actually calculate that problem using my tool:
+
+First we want to figure out the points of the triangle. I am going to pick the 356 length side to be the distance between (0,0) and (356,0) . Then I am going to set a circle of radius 762 at (0,0) and a circle of radius 558 at (356, 0). Then we want to get the intersection of those two and that is our third point of the triangle:
+
+
+
+```
+circle xc=0 yc=0 r=762
+circle0.name = origincircle
+circle xc=356 yc=0 r=558
+circle0.name = anothercircle
+intersect anothercircle origincircle
+quit
+
+```
+
+
+
+```
+Intersections are at points: [(49502/89, -4*sqrt(134302070)/89), (49502/89, 4*sqrt(134302070)/89)]
+```
+
+There is our third point. Now we need to figure out the largest angle:
+
+sin(x)/356=sin(y)/558
+
+sin(y)/558=sin(z)/762
+
+and
+
+x+y+z=180 degrees
+
+Now if we solve these equations by just using a normal calculator:
+```
+[sin(x)/356=sin(y)/558, sin(y)/558=sin(z)/762, x+y+z=180]
+```
+
+we get:
+```
+[[25.854419252,43.1199594033,111.025621345]]
+```
+
+as x,y,z . Therefore angle z aka the angle which is opposite from the line which goes from the origin to the intersection point which we calculated. When the angle is halved, the intersection point is therefore halway of the intersecting line, therefore the point for the new triangle is (49502/89, 4*sqrt(134302070)/89)/2  because it is halway through the line. Now, there is a formula for the area of a triangle given its corners and it is:
+
+
+A = 1/2*(x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))
+
+so we just plug in the numbers:
+
+and we get a widly wrong answer. I was actually mistaken, going halfway through the line does not necessarily give you half the angle. We need to solve this using the angle. We know that the line passes through the point (356,0) and it impacts the x-axis in roughly 55.5 degrees. The derivative of the line is tan(55.5) . Lets solve it using a normal calculator:
+```
+[m*356+b=0,m=tan(55.5)]
+```
+```
+[[1.45500902867,-517.983214207]]
+```
+
+so the line is 1.455009*x-517=y  aka  1.455*x-y-517=0 aka a=1.455 b=-1 and c=517 . Now we need to find the intersection point between this and the side of the triangle which we can actually use our tool for with the set_values_two_points method.
+
+
+
+```
+
+line a=1.455 b=-1 c=-517.0
+line0.name = halwayline
+line
+line0.name = side
+point x=0 y=0
+point x=49502/89 y=4*sqrt(134302070)/89
+side.set_values_two_points point0 point1
+intersect side halwayline
+quit
+
+```
+
+
+
+
+```
+Intersections are at points: {x: 216.190149213582, y: 202.443332894238}
+```
+
+
+Now we can use the triangle area formula:
+
+area of smaller triangle:
+
+a(0,0,216, 202,356,0) = -35956.0   (the are is obviously the absolute value of that)
+
+the area of the bigger triangle is:
+
+a(0,0,49502/89, 4*sqrt(134302070)/89,356,0)
+-92711.0159582
+
+>>> -35956/(-92711.0159582+35956)
+0.6335299073209942
+
+so roughly 64 percent. Aannd it is the right answer.
+
+
+# Variable assignment and getting output of a command to a list.
+
+So one thing which I would like to add is a way to pass a result of another command as an argument to a creation of an object without having to manually type the values.
+
+I would really like to do something like
+
+```
+point name=mypoint
+point x=3 y=4 name=anotherpoint
+set mypoint anotherpoint
+
+```
+
+To copy the values from anotherpoint to mypoint
+
+and also I would like to do something like:
+
+```
+line a=1 b=2 c=3 name=myline1
+line a=4 b=5 c=6 name=myline2
+resultlist := intersect myline myline2
+point [resultlist] name=mypoint
+
+
+```
+
+To pass the values of resultlist as like a list and then the parser could expand it for us. Now I am thinking that the initial command parser looks up a list called declared_variables, which has a list of objects, which has a list of variables a user has defined. Variables are basically a list of values which are the result of an operation.
+
+
+Time to start coding...
+
+
+
+
+After a bit of coding I came up with this:
+
+
+def unpack_variables_in_command(command_string:str, user_defined_variables: list):
+```
+	tokens = command_string.split(" ")
+	
+	generated_command = []
+	for token in tokens:
+		if "[" not in token or "]" not in token: # if there is nothing to unpack then just append as is
+			generated_command.append(token)
+		else:
+			if token.count("[") > 1 or token.count("]") > 1:
+				fail("Subtokens like [myvar][a:b] are not implemented.")
+				return 1
+			var_name = token[token.index("[")+1:token.index("]")] # get the variable name from inside the brackets
+			if var_name not in user_defined_variables.keys():
+				fail("Undefined variable: "+str(var_name)+" .")
+				return 1
+
+
+			var_values = user_defined_variables[var_name]
+
+			print("str(var_values) == "+str(str(var_values)))
+
+
+
+			replacement = ' '.join([str(key)+str("=")+str(var_values[key]) for key in var_values.keys()])
+
+			generated_command.append(replacement)
+	final_command = ' '.join(generated_command)
+	return final_command
+
+
+```
+
+
+and this:
+
+```
+def variable_assignment_command(command_string: str, global_objects: list, max_arg_lengths: list, min_arg_lengths: list, commands: list) -> int:
+
+	tokens = command_string.split(" ")
+
+	if tokens[1] != ":=":
+		fail("Invalid variable assignment command: "+str(command_string))
+		return 1
+
+
+
+	# the new variable name is tokens[0]
+	new_var_name = tokens[0]
+
+	assigning_command = tokens[2:] # the command is after the "variable :="   part .
+
+	new_command_string = ' '.join(assigning_command)
+
+
+
+	result = check_common_syntax_var(new_command_string, max_arg_lengths, min_arg_lengths, commands)  # this check is shared by every command to check the arguments
+	if result:
+		return 1
+
+	commands = ["line", "intersect", "help", "quit", "objects", "circle", "point", "mindistobjdot", "maxdistobjdot", "mindistpointobjdot", "maxdistpointobjdot"]
+	index = commands.index(new_command_string.split(" ")[0])
+
+	handle_functions = [line_command, intersection_command, help_command, quit_command, objects_command, circle_command, point_command, mindistobjdot, maxdistobjdot, mindistpointobjdot, maxdistpointobjdot]
+
+	var_values = handle_functions[index](new_command_string, global_objects)
+
+	print("var_values : "+str(var_values))
+
+
+
+	user_defined_variables[new_var_name] = var_values
+	print("var_values.keys()" + str(var_values.keys()))
+	print(str([str(a) for a in var_values.keys()]))
+	print(str([str(a) for a in var_values.values()]))
+	return 0
+
+```
+
+it basically runs the command after the ":=" part and then stores the result of that into the user_defined_variables list as a result. The user_defined_variables is just a global dictionary
+
+now we can run:
+
+```
+line a=1 b=2 c=3
+line0.name = myline1
+line a=4 b=5 c=6
+line0.name = myline2
+myvar := intersect myline1 myline2
+point [myvar]
+point0.name = mypoint
+mypoint
+quit
+
+
+```
+
+and the result will be:
+
+
+
+```
+=======================
+Type: point
+x = 1
+y = -2
+name = mypoint
+=======================
+
+```
+, so it works. This assumes that the function actually returns the results of the operation. Now, I haven't yet implemented accessing the subscripts of these variables, for example you can not `access myvar[0]` yet, but I will probably implement that some time. Actually, I am going to implement it now.
+
+Ok so after a bit of tinkering I modified the unpack_variables_in_command function and added this to it:
+
+
+
+```
+
+			if token.count("[") > 1 or token.count("]") > 1:
+
+				# get only partial part of the result:
+
+				partial = token[token.index("]")+1:] # get the rest of the thing
+				start = partial[1:partial.index(":")]
+				end = partial[partial.index(":")+1:partial.index("]")]
+				start = int(start)
+				end= int(end)
+
+
+				#fail("Subtokens like [myvar][a:b] are not implemented.")
+				#return 1
+
+			var_name = token[token.index("[")+1:token.index("]")] # get the variable name from inside the brackets
+			if var_name not in user_defined_variables.keys():
+				fail("Undefined variable: "+str(var_name)+" .")
+				return 1
+
+
+			var_values = user_defined_variables[var_name]
+
+			print("str(var_values) == "+str(str(var_values)))
+			print("start == "+str(start))
+			print("end == "+str(end))
+			if start != None and end != None:
+				
+				print("abcdefg")
+				# print({k:d[k] for k in l if k in d})
+				'''
+				d = {1:2, 3:4, 5:6, 7:8}
+
+				# the subset of keys I'm interested in
+				l = (1,5)
+
+				'''
+				l = tuple([list(var_values.keys())[x] for x in range(start, end)])
+				print("l == "+str(l))
+
+				var_values = {k:var_values[k] for k in l if k in var_values}
+
+```
+
+
+Now, another feature which I would like to add is to get the area between two graphs from their other intersection point to the other.
+
+
+![area_example][/pictures/area_example.png]
+
+The purple graph is basically the line-circle at that point and to get the area between those two graphs is just the area of the circle between the intersection points. Now I have an idea of how I would go about doing this, but it is a bit complex. I am thinking of first getting the equations and then converting them to the form y=blablabla and then taking the absolute value of their difference and then integrating that function over that range given by the intersection points. I think that it would be easiest to first just implement an "integral" command which is just a wrapper around the integral function of Sympy. I think that I am going to do that first:
+
+
+
+```
+
+def integrate_command(command: str, objects: list):
+
+	# integrate a function over xstart to xend
+
+	tokens = command.split(" ")
+	selected_object = tokens[1]
+
+	int_var = tokens[2] # variable is assumed to be next
+	xstart = tokens[3]
+	xend = tokens[4]
+	expression = None
+
+	if selected_object not in get_names(global_objects):
+		# the input is assumed to be a literal expression
+		equation = Eq(parse_expr(selected_object[:selected_object.index("=")]), parse_expr(selected_object[selected_object.index("=")+1:]))
+		expressions = [equation]
+
+	else:
+		expressions = get_object_by_name(selected_object).get_equations()
+
+	# if there are multiple equations for the object, then make the user choose which of them:
+
+	if len(expressions) > 1:
+		warn("The object you selected has multiple equations associated with it: ")
+		count = 0
+		for expr in expressions:
+			print(CBLUE +str("[{}] ".format(count)) + str(expr)+bcolors.ENDC)
+			count += 1
+		print("Please select the index of the desired expr: ")
+		index = int(input("> "))
+		selected_expr = expressions[index]
+	else:
+		selected_expr = expressions[0]
+
+	x = Symbol('x')
+	y = Symbol('y')
+
+	print("selected_expr: "+str(selected_expr))
+	y_function = solve(selected_expr,y)
+	print("y_function: " +str(y_function))
+	y_function = y_function[0]
+	result = integrate(y_function,(x,xstart, xend))
+
+	print(CYELLOW + "Result: "+str(result) + bcolors.ENDC)
+
+	return result
+
+
+```
+
+
+
+This seems adequate for now. Next I want to do the intersection thing:
+
+
+
+```
+def area_between_intersections(command:str, objects:list):
+
+	# calculate the area between the two intersection points of two graphs
+
+	# the syntax for this problem would be "commandstring" object1 object2
+
+	# parse command
+
+
+	tokens = command.split(" ")
+
+
+	equation_list = []
+
+
+
+	# get equations from the arguments:  (I should probably makes this a function in itself to check if an arguments a raw expression or an object itself. )
+
+	for i in range(1,3):
+		object_name = tokens[i]
+
+		if object_name not in get_names(objects):
+			# assumed to be a raw expression
+			equation = Eq(parse_expr(object_name[:object_name.index("=")]), parse_expr(object_name[object_name.index("=")+1:]))
+			expressions = [equation]
+
+		else:
+			# object
+			expressions = get_object_by_name(selected_object).get_equations()
+
+		if len(expressions) > 1:
+			warn("The object you selected has multiple equations associated with it: ")
+			count = 0
+			for expr in expressions:
+				print(CBLUE +str("[{}] ".format(count)) + str(expr)+bcolors.ENDC)
+				count += 1
+			print("Please select the index of the desired expr: ")
+			index = int(input("> "))
+			selected_expr = expressions[index]
+		else:
+			selected_expr = expressions[0]
+		equation_list.append(selected_expr)
+			
+	# get intersection points:
+
+	# def intersection(object1, object2):
+
+	'''
+	all_equations = equations1 + equations2
+	print("All equations as a list: "+str(all_equations))
+
+
+	result = sympy.solve(all_equations, ('x', 'y'))
+	print("result: "+str(result))
+
+	return result
+	'''
+
+
+
+
+
+
+
+	intersection_points = Solve(equation_list, ('x', 'y'))
+
+	if len(intersection_points)[0] < 2:
+		fail("Not enough intersection points for the integral command!")
+		return 1
+
+	intersection_x_values = intersection_points[0]
+
+
+	# make the difference function
+
+	#functions_in_y_format = Solve(equation_list, ('y'))
+
+	#function1 = functions_in_y_format[0]
+	functions_in_y_format = []
+
+	for eq in equation_list:
+		functions_in_y_format.append(Solve(eq, ('y')))
+
+	intersection_x_values = sorted(intersection_x_values)
+
+	check_value = random.uniform(intersection_x_values[0], intersection_x_values[1])
+
+
+
+	# see which function is larger in that range
+
+	if functions_in_y_format[0].subs({'x':check_value}) > functions_in_y_format[1].subs({'x':check_value}):
+
+		bigger_function = functions_in_y_format[0]
+		smaller_fun = functions_in_y_format[1]
+	else:
+		bigger_function = functions_in_y_format[1]
+		smaller_fun = functions_in_y_format[0]
+
+
+	difference_function = parse_expr(bigger_function - smaller_fun)
+
+	resulting_area = integrate(difference_function, (x, intersection_x_values[0], intersection_x_values[1]))
+
+	print(CYELLOW + "Area: "+str(resulting_area) + ENDC)
+
+
+
+	return resulting_area
+
+```
+
+I actually haven't tested that code yet that it works, so I am going to quickly draw up a command script file which tests it for me:
+
+
+
+
+```
+line a=4 b=-2 c=3
+line0.name = myline
+area_between_intersections myline y=x**2-10*x+10
+quit
+
+```
+
+and then running this we get an error:
+
+
+```
+
+Traceback (most recent call last):
+  File "geometrylib.py", line 1585, in <module>
+    command_mainloop(file=filething)
+  File "geometrylib.py", line 1554, in command_mainloop
+    handle_functions[index](command_string, global_objects)
+  File "geometrylib.py", line 1393, in area_between_intersections
+    expressions = get_object_by_name(selected_object).get_equations()
+NameError: name 'selected_object' is not defined
+
+
+```
+
+I wanted to showcase just real quick how I debug a bug usually, because i dunno, I think that it is a good idea. I haven't described my debugging process in this blog post yet until not.
+
+Except that this is a boring bug since that variable should just be the object_name  which we declared previously. *facepalm* . Anyway. 
+
+
+After a couple of type fixes I get this error:
+
+
+```
+
+Traceback (most recent call last):
+  File "geometrylib.py", line 1585, in <module>
+    command_mainloop(file=filething)
+  File "geometrylib.py", line 1554, in command_mainloop
+    handle_functions[index](command_string, global_objects)
+  File "geometrylib.py", line 1456, in area_between_intersections
+    if functions_in_y_format[0].subs({'x':check_value}) > functions_in_y_format[1].subs({'x':check_value}):
+AttributeError: 'list' object has no attribute 'subs'
+```
+
+Then doing print("functions_in_y_format == "+str(functions_in_y_format))   before the crash shows this: `functions_in_y_format == [[2*x + 3/2], [x**2 - 10*x + 10]]` So instead of using only `[0]` as the index we should use `[0][0]` instead to get the actual element. This is quite a simple bug, but I just wanted to showcase how I debug stuff. Just slap a debug statement and the see the value and see how the way you are accessing that value goes wrong.
+
+
+Another bug which I found was that I accidentally typed `intersection_x_values = intersection_points[0]` instead of `intersection_x_values = [intersection_points[0][0], intersection_points[1][0]]` After fixing that it works perfectly.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
