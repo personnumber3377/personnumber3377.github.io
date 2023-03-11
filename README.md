@@ -4,5 +4,5 @@ This is my personal blog. Right now it is quite empty, but maybe I will add some
 
 [How I automated my geometry homework.](/projects/homework.html)
 
-[Fuzzing apache httpd][/projects/fuzzing_apache_httpd.html]
+[Fuzzing apache httpd](/projects/fuzzing_apache_httpd.html)
 

@@ -138,13 +138,13 @@ Now you may have realized that I actually used a custom fuzzer (actually i used 
 
 After applying these better fuzzing strategies, I got over three thousand three hundred corpus count, whereas previously I only got roughly two thousand. Now while this is a good improvement, the line coverage only rose from roughly 19% to 21.4% . Now investigating the better_coverage coverage output I realise that many of the files have completely zero coverage.
 
-![zero_coverage][/pictures/coverage/cov0.png]
+![zero_coverage](/pictures/coverage/cov0.png)
 
-![zero_coverage][/pictures/coverage/cov1.png]
+![zero_coverage](/pictures/coverage/cov1.png)
 
-![zero_coverage][/pictures/coverage/cov2.png]
+![zero_coverage](/pictures/coverage/cov2.png)
 
-![zero_coverage][/pictures/coverage/cov3.png]
+![zero_coverage](/pictures/coverage/cov3.png)
 
 
 Now, lets start with json. I couldn't find anything which told anything about how to use json in apache so what I did was i just added --enable-json=static to the configure options in hopes of this doing something. Also looking at my HTTP-request generatated corpus I can not really find any requests which has the json thing so it makes sense that the coverage of the json decoder is zero, because there were no requests which used text/json as the mime type *facepalm* . Also another thing is that at this point in time the HTTP-request-generator does not even create json http bodies, so I need to add it to it.
