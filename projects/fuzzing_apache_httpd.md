@@ -259,6 +259,467 @@ Now looking at the code, the json decode function only gets called by other modu
 Now I actually forgot to include the "If-Match" and "If-Modified-Since" etc etc headers in my http request generator. Now I added those and added files which have those headers in to the fuzzing session. Now surely it will pick those up. Right? well... we will see soon. Now again it is 3 am and I am going to sleep and lets see what happens over the night (morning?).
 
 
+... Now it is actually around 7 pm in the evening of the next day, because i spent quite a lot of time studying the finnish language for my exam, but now I am taking a break from that for a bit so I decided to update this blog post.
+
+And I was correct. The fuzzer did pick those files up which I added. (The ones with the If-Modified-Since headers etc etc). Now the coverage script has also caught up with the fuzzers and now we have a whopping `lines......: 23.7%` coverage. I uploaded them to my github to the folder called "even_better_coverage/" if you want to take a look. The coverage is looking now atleast somewhat decent. It seems like the xml and json stuff did not get triggered by the files which I put in manually, so I assume that they are both used by some other module instead of being used directly. Looking at the apr_uri.c file we only have two lines which we haven't hit atleast once and they are both probably something to do with some flags set which can not be changed by passing different requests. The lines are these ones:
+
+```
+        28 :                           ? ((flags & APR_URI_UNP_REVEALPASSWORD)
+     109           0 :                               ? uptr->password : "XXXXXXXX")
+```
+
+and
+
+```
+    111          56 :                       ((uptr->user     && !(flags & APR_URI_UNP_OMITUSER)) ||
+     112           0 :                        (uptr->password && !(flags & APR_URI_UNP_OMITPASSWORD)))
+```
+
+
+and yeah, they are to do with some flag, which I think has something to do with redacting the password and the other one I am not too sure about. Anyway. The point is that there really isn't any place which hasn't gotten covered by the fuzzer, so I think that we have achieved atleast somewhat good coverage. This statement is also supported by the fact that the fuzzer has only found around three new corpus count files in the last couple of hours,which suggests to me that the fuzzer is quite done. I am going to keep investigating the coverage report and if there are any gaping holes, then I manually add a couple test cases again to help the fuzzer along.
+
+A lot of the function which are not getting hit are associated with the http2 module, which I should have probably enabled in retrospect. Oh well.. the guy in the original post also did not enable it so I think we are still going to atleast find something, but I think we could have gotten a lot broader attack surface if we enabled that.
+
+One interesting file from a security perspective is apr_snprintf.c which holds a lot of string processing code. Looking at my coverage report I am not really hitting it all that much. For example the function apr_vformatter has only like half and half coverage. This function is used in apr_snprintf for example, which I think is a custom implementation of snprintf. Now this looks quite interesting, because custom code which implements parts of libc functions usually include a ton of bugs in them. For example I think that Valve used their own memory allocator instead of the standard c code malloc and free , and that caused gaping security holes. Looking at the server code this custom apr_snprintf gets used in apreq_cookie.c in the function apreq_cookie_serialize
+
+Also I forgot to add that I had to remove the Content-Length memmem checks in the fuzzing harness code, because they caused false positive crashes, because it calculated the value in a way which caused a crash.
+
+Back to the apr_snprintf function. In the apreq_cookie_serialize function it is used with a constant format called "format = "%s=%s"; ". This is the only place where this custom function is used in the server main code in any meaningful way.
+
+The apr_snprintf function is used a lot more in the other modules for example it is used in the http module in the chunk filter file (ap_http_chunk_filter). Also it is used in the metadata thing in the make_cookie function too.
+
+## Another coverage bug?
+
+Wait... hold on.. Not all of the files for the metadata module are showing up for some reason..... we probably forgot to clean the modules directory when compiling the coverage version.
+
+Actually wait a second... we actually did everything correctly. You just need to enable the mod_expires  in the configuration file, and we did not do that, so the compilation script didn't even compile that stuff. So my bad, we actually did everything correctly.
+
+## Investigating some poor coverage stuff:
+
+
+Here is an example from the metadata module (mod_headers.c):
+
+
+```
+     428       14990 : static APR_INLINE const char *header_inout_cmd(cmd_parms *cmd,
+     429             :                                                void *indirconf,
+     430             :                                                const char *action,
+     431             :                                                const char *hdr,
+     432             :                                                const char *value,
+     433             :                                                const char *subs,
+     434             :                                                const char *envclause)
+     435             : {
+     436       14990 :     headers_conf *dirconf = indirconf;
+     437       14990 :     const char *condition_var = NULL;
+     438             :     const char *colon;
+     439             :     header_entry *new;
+     440       14990 :     ap_expr_info_t *expr = NULL;
+     441             : 
+     442       14990 :     apr_array_header_t *fixup = (cmd->info == &hdr_in)
+     443       14990 :         ? dirconf->fixup_in   : (cmd->info == &hdr_out_always)
+     444           0 :         ? dirconf->fixup_err
+     445           0 :         : dirconf->fixup_out;
+     446             : 
+     447       14990 :     new = (header_entry *) apr_array_push(fixup);
+     448             : 
+     449       14990 :     if (!strcasecmp(action, "set"))
+     450           0 :         new->action = hdr_set;
+     451       14990 :     else if (!strcasecmp(action, "setifempty"))
+     452           0 :         new->action = hdr_setifempty;
+     453       14990 :     else if (!strcasecmp(action, "add"))
+     454           0 :         new->action = hdr_add;
+     455       14990 :     else if (!strcasecmp(action, "append"))
+     456           0 :         new->action = hdr_append;
+     457       14990 :     else if (!strcasecmp(action, "merge"))
+     458           0 :         new->action = hdr_merge;
+     459       14990 :     else if (!strcasecmp(action, "unset"))
+     460       14990 :         new->action = hdr_unset;
+     461           0 :     else if (!strcasecmp(action, "echo"))
+     462           0 :         new->action = hdr_echo;
+     463           0 :     else if (!strcasecmp(action, "edit"))
+     464           0 :         new->action = hdr_edit;
+     465           0 :     else if (!strcasecmp(action, "edit*"))
+     466           0 :         new->action = hdr_edit_r;
+     467           0 :     else if (!strcasecmp(action, "note"))
+     468           0 :         new->action = hdr_note;
+     469             :     else
+```
+
+Then a bit later we make a call to parse_format_string:
+
+
+```
+14990 :     return parse_format_string(cmd, new, value);
+```
+
+Then inside parse_format_string :
+
+```
+     397       14990 :     if (hdr->action == hdr_unset || hdr->action == hdr_echo) {
+     398       14990 :         return NULL;
+     399             :     }
+
+```
+because hdr-action is set in every case as we can see in the upper lines, then we never reach these lines of code:
+
+
+```
+
+     400             :     /* Tags are in the replacement value for edit */
+     401           0 :     else if (hdr->action == hdr_edit || hdr->action == hdr_edit_r ) {
+     402           0 :         s = hdr->subs;
+     403           0 :     }
+     404             : 
+     405           0 :     if (!strncmp(s, "expr=", 5)) { 
+     406             :         const char *err;
+     407           0 :         hdr->expr_out = ap_expr_parse_cmd(cmd, s+5, 
+     408             :                                           AP_EXPR_FLAG_STRING_RESULT,
+     409             :                                           &err, NULL);
+     410           0 :         if (err) {
+     411           0 :             return apr_pstrcat(cmd->pool,
+     412           0 :                     "Can't parse value expression : ", err, NULL);
+     413             :         }
+     414           0 :         return NULL;
+     415             :     }
+     416             : 
+     417           0 :     hdr->ta = apr_array_make(p, 10, sizeof(format_tag));
+     418             : 
+     419           0 :     while (*s) {
+     420           0 :         if ((res = parse_format_tag(p, (format_tag *) apr_array_push(hdr->ta), &s))) {
+     421           0 :             return res;
+     422             :         }
+     423             :     }
+     424           0 :     return NULL;
+
+```
+
+So, the question is: How do we make new->action something other than hdr_unset or hdr_echo?
+
+
+```
+     428       14990 : static APR_INLINE const char *header_inout_cmd(cmd_parms *cmd,
+     429             :                                                void *indirconf,
+     430             :                                                const char *action,
+     431             :                                                const char *hdr,
+     432             :                                                const char *value,
+     433             :                                                const char *subs,
+     434             :                                                const char *envclause)
+```
+
+the action is simply passed as an argument to the function, so we need to search for references to header_inout_cmd and see how we can affect the arguments which are passed to it.
+
+The only reference to the function is in the same file in the function header_cmd :
+
+```
+static const char *header_cmd(cmd_parms *cmd, void *indirconf,
+                              const char *args)
+{
+    const char *action;
+    const char *hdr;
+    const char *val;
+    const char *envclause;
+    const char *subs;
+
+    action = ap_getword_conf(cmd->temp_pool, &args);
+    if (cmd->info == &hdr_out_onsuccess) {
+        if (!strcasecmp(action, "always")) {
+            cmd->info = &hdr_out_always;
+            action = ap_getword_conf(cmd->temp_pool, &args);
+        }
+        else if (!strcasecmp(action, "onsuccess")) {
+            action = ap_getword_conf(cmd->temp_pool, &args);
+        }
+    }
+    hdr = ap_getword_conf(cmd->pool, &args);
+    val = *args ? ap_getword_conf(cmd->pool, &args) : NULL;
+    subs = *args ? ap_getword_conf(cmd->pool, &args) : NULL;
+    envclause = *args ? ap_getword_conf(cmd->pool, &args) : NULL;
+
+    if (*args) {
+        return apr_pstrcat(cmd->pool, cmd->cmd->name,
+                           " has too many arguments", NULL);
+    }
+
+    return header_inout_cmd(cmd, indirconf, action, hdr, val, subs, envclause);
+}
+
+```
+
+the only references to header_cmd are here:
+
+```
+static const command_rec headers_cmds[] =
+{
+    AP_INIT_RAW_ARGS("Header", header_cmd, &hdr_out_onsuccess, OR_FILEINFO,
+                     "an optional condition, an action, header and value "
+                     "followed by optional env clause"),
+    AP_INIT_RAW_ARGS("RequestHeader", header_cmd, &hdr_in, OR_FILEINFO,
+                     "an action, header and value followed by optional env "
+                     "clause"),
+    {NULL}
+};
+
+```
+
+
+After doing some research, It looks like this mod_headers thing needs to be enabled in the configuration file to make the program flow differ, so this actually isn't something we can affect. :(  https://httpd.apache.org/docs/2.4/mod/mod_headers.html
+
+Another area of interest is the session cookie stuff. In the session_cookie_save function we are not calling ap_cookie_write, because the session_rec *z is not encoded, apparently.
+
+```
+      68         176 :         if (z->encoded && z->encoded[0]) {
+      69           0 :             ap_cookie_write(r, conf->name, z->encoded, conf->name_attrs,
+      70           0 :                             maxage, r->err_headers_out,
+      71             :                             NULL);
+      72           0 :         }
+
+```
+
+the place in mod_session.c where we encode a possible cookie is at session_identity_encode `z->encoded = buffer;` . But looking at the report I can see that the line gets called numerous times, but that I think is for other stuff.
+
+Here is a piece of code which I found in util_cookies.c :
+
+
+```
+            if (!strncmp(trim, name, len)) {
+                if (v->encoded) {
+                    if (strcmp(v->encoded, trim + len)) {
+                        v->duplicated = 1;
+                    }
+                }
+                v->encoded = apr_pstrdup(v->r->pool, trim + len);
+                eat = 1;
+            }
+```
+
+the strncmp call basically returns zero if the strings are equivalent.
+
+
+Here in the coverage report we can see that we do not hit the code not even once.
+
+```
+
+     202        4768 :             if (!strncmp(trim, name, len)) {
+     203           0 :                 if (v->encoded) {
+     204           0 :                     if (strcmp(v->encoded, trim + len)) {
+     205           0 :                         v->duplicated = 1;
+     206           0 :                     }
+     207           0 :                 }
+     208           0 :                 v->encoded = apr_pstrdup(v->r->pool, trim + len);
+     209           0 :                 eat = 1;
+     210           0 :             }
+```
+
+the name value gets defined here:
+
+```
+const char *name = apr_pstrcat(v->r->pool, v->name ? v->name : "", "=", NULL);
+```
+v is defined previously:
+
+```
+ap_cookie_do *v = varg;
+```
+And v is passed an argument to the function. This function is called here:
+
+
+```
+AP_DECLARE(apr_status_t) ap_cookie_read(request_rec * r, const char *name, const char **val,
+                                        int remove)
+{
+
+    ap_cookie_do v;
+    v.r = r;
+    v.encoded = NULL;
+    v.new_cookies = apr_table_make(r->pool, 10);
+    v.duplicated = 0;
+    v.name = name;
+
+    apr_table_do(extract_cookie_line, &v, r->headers_in,    // <---- here
+                 "Cookie", "Cookie2", NULL);
+```
+There is a call to ap_cookie_read in session_cookie_load .
+
+```
+static apr_status_t session_cookie_load(request_rec * r, session_rec ** z)
+{
+
+    session_cookie_dir_conf *conf = ap_get_module_config(r->per_dir_config,
+                                                    &session_cookie_module);
+
+    session_rec *zz = NULL;
+    const char *val = NULL;
+    const char *note = NULL;
+    const char *name = NULL;
+    request_rec *m = r;
+
+    /* find the first redirect */
+    while (m->prev) {
+        m = m->prev;
+    }
+    /* find the main request */
+    while (m->main) {
+        m = m->main;
+    }
+
+    /* is our session in a cookie? */
+    if (conf->name2_set) {
+        name = conf->name2;
+    }
+    else if (conf->name_set) {
+        name = conf->name;
+    }
+    else {
+        return DECLINED;
+    }
+
+    /* first look in the notes */
+    note = apr_pstrcat(m->pool, MOD_SESSION_COOKIE, name, NULL);
+    zz = (session_rec *)apr_table_get(m->notes, note);
+    if (zz) {
+        *z = zz;
+        return OK;
+    }
+
+    /* otherwise, try parse the cookie */
+    ap_cookie_read(r, name, &val, conf->remove);
+```
+
+Looking at the coverage report:
+
+```
+     134       56789 :     if (conf->name2_set) {
+     135           0 :         name = conf->name2;
+     136           0 :     }
+     137       56789 :     else if (conf->name_set) {
+     138        8183 :         name = conf->name;
+     139        8183 :     }
+     140             :     else {
+     141       48606 :         return DECLINED;
+     142             :     }
+     143             : 
+     144             :     /* first look in the notes */
+     145        8183 :     note = apr_pstrcat(m->pool, MOD_SESSION_COOKIE, name, NULL);
+     146        8183 :     zz = (session_rec *)apr_table_get(m->notes, note);
+     147        8183 :     if (zz) {
+     148        4867 :         *z = zz;
+     149        4867 :         return OK;
+     150             :     }
+     151             : 
+     152             :     /* otherwise, try parse the cookie */
+     153        3316 :     ap_cookie_read(r, name, &val, conf->remove);
+     154             : 
+
+```
+
+
+
+so we are hitting ap_cookie_read and we are actually setting the name variable. The important bit is:
+
+
+```
+    session_cookie_dir_conf *conf = ap_get_module_config(r->per_dir_config,
+                                                    &session_cookie_module);
+```
+
+and here it is:
+
+
+```
+#define MOD_SESSION_COOKIE "mod_session_cookie"
+
+module AP_MODULE_DECLARE_DATA session_cookie_module;
+
+/**
+ * Structure to carry the per-dir session config.
+ */
+typedef struct {
+    const char *name;
+    int name_set;
+    const char *name_attrs;
+    const char *name2;
+    int name2_set;
+    const char *name2_attrs;
+    int remove;
+    int remove_set;
+    int maxage;
+    int maxage_set;
+} session_cookie_dir_conf;
+```
+
+
+so the name is set in the configuration file:
+
+```
+<Location "/x">
+    AuthFormProvider file
+    AuthUserFile "conf/passwd"
+    AuthType form
+    AuthName "/admin"
+    AuthFormLoginRequiredLocation "http://example.com/login.html"
+
+    Session On
+    SessionCookieName session path=/
+
+    Require valid-user
+</Location>
+```
+
+.... aaaannndd the name of the session cookie is simply "session" 🙃 . So basically we need to just add A request which has tries to access /x on the server and has a "Cookie: session=whateverblabla" cookie in the request.
+
+Lets use the HTTP-Request generator to generate a couple of these requests.
+
+Ok, so I generated those requests and now lets see if the fuzzer picks those up.
+
+Now, I think that I should create something like a debug build of the server where I can use gdb to step through any input through it and see which the values area, and I think that I am actually going to do that. I am going to make a new directory called ~/httpd-debugging/ which contains that build.... well maybe I will do that tomorrow.
+
+Now after waiting around half an hour we see that if we run: `grep -iRl "Cookie: session=sessioncookie"` on the fuzzing_output directory we get:
+
+
+```
+thing/queue/id:000042,stuffwhatever
+thing/queue/id:000044,stuffwhatever
+thing/queue/id:000046,stuffwhatever
+thing/queue/id:000041,stuffwhatever
+thing/queue/id:000047,stuffwhatever
+thing/queue/id:000048,stuffwhatever
+thing/queue/id:000040,stuffwhatever
+thing/queue/id:000049,stuffwhatever
+thing/queue/id:000043,stuffwhatever
+thing/queue/id:000045,stuffwhatever
+slave2/queue/id:004105,sync:master,src:004126
+slave2/queue/id:004104,sync:master,src:004125,+cov
+slave2/queue/id:004197,src:004104,time:242090716,execs:361343267,op:havoc,rep:2
+slave2/queue/id:004102,sync:master,src:004123
+slave2/queue/id:004109,sync:master,src:004130
+slave2/queue/id:004099,sync:master,src:004119,+cov
+slave2/queue/id:004101,sync:master,src:004122,+cov
+slave2/queue/id:004198,src:004104,time:242092365,execs:361346276,op:havoc,rep:4
+slave2/queue/id:004108,sync:master,src:004129
+slave3/queue/id:004063,sync:master,src:004125,+cov
+slave3/queue/id:004067,sync:master,src:004129
+slave3/queue/id:004068,sync:master,src:004130
+slave3/queue/id:004060,sync:master,src:004122,+cov
+slave3/queue/id:004061,sync:master,src:004123
+slave3/queue/id:004155,src:004063,time:241485182,execs:363017922,op:havoc,rep:8
+slave3/queue/id:004154,src:004063,time:241484974,execs:363017534,op:havoc,rep:4
+slave3/queue/id:004057,sync:master,src:004119,+cov
+slave3/queue/id:004064,sync:master,src:004126
+master/queue/id:004129,src:004122,time:241654653,execs:239260945,op:havoc,rep:2
+master/queue/id:004220,sync:slave2,src:004198
+master/queue/id:004119,sync:thing,src:000040,+cov
+master/queue/id:004219,sync:slave2,src:004197
+master/queue/id:004126,src:004119,time:241641459,execs:239232492,op:havoc,rep:2
+master/queue/id:004130,src:004122,time:241654712,execs:239261066,op:havoc,rep:8
+master/queue/id:004125,src:004119,time:241641350,execs:239232275,op:havoc,rep:2,+cov
+master/queue/id:004122,src:004119,time:241638960,execs:239226983,op:havoc,rep:4,+cov
+master/queue/id:004123,src:004119,time:241639022,execs:239227107,op:havoc,rep:2
+master/queue/id:004229,sync:slave3,src:004154
+
+```
+so we see that the fuzzer has picked those test cases up, so now we are hitting the previously uncovered code. Before we incorporated those test cases to the fuzzer, we had around 4110 edges. Now we have 4230 , so we have succesfully increased coverage by manual test case insertion! :) 
+
+
 
 
 

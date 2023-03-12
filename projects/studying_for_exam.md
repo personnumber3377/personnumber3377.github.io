@@ -75,7 +75,18 @@ Now looking at the answers I failed to mention the familiarity which the ad brin
 
 That is about it for that task. And also now it is 18:47 and it is time to take another half an hour break. I am actually really liking this pomodoro technique, because I think that I can actually focus on the task at hand, because if I try to focus on stuff for longer than an hour my mind starts to wonder.
 
+...
 
+
+Ok the "break" was a bit longer than I thought. Now it is 19:54, so instead of taking an half hour break I took an entire hour break, but it doesn't really matter.
+
+The next task is to figure out what kind of a person the main character is based on the language used in the text.
+
+The person in the text is basically a Karen. Some other person had passed the writer and a rock flew from their car to the writers windshield causing a slight crack in it. Also the person in the text writes about having to pay 40 to 60 euros for the repair. Also said person wonders how much that is in marcs (old currency in finland). This shows that the person is atleast somewhat old, because the person can remember the value of the mark, so the person is frugal and probably relatively old.
+
+The person is quite quick to anger since the person basically is blasting the other person and even reported the incident to the police.
+
+Now again looking at the "correct" anwers or what I should have noticed yes i noticed that the person is probably old, but I completely failed to mention what kind of values the person values themself. For example, in the correct answers they say that the person is most likely conservative in his/her views of the world, since the person says that making coffee is the job of the woman in the house and in addition the person mentions conservative politicians in a positive light in the text ("Paasikivi")
 
 
 
