@@ -6,3 +6,8 @@ This is my personal blog. Right now it is quite empty, but maybe I will add some
 
 [Fuzzing apache httpd](/projects/fuzzing_apache_httpd.html)
 
+[How I studied for an exam in roughly two days](/projects/studying_for_exam.html)
+
+
+
+
