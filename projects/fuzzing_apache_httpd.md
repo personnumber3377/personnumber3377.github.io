@@ -167,18 +167,96 @@ Now, the compilation without ssl and apr-util is easy, just remove --with-apr-ut
 
 Adding the json and xml generation in the request generator is also relatively easy. (See https://github.com/personnumber3377/HTTP-request-generator/commit/4dec58031d6e1bd43c68672d7b3fe9d9206ecf6a)
 
-# Rechecking coverage
-
-Now that we have removed the unused code from the coverage binary, it should report the correct coverage.
 
 
+## Compilation bullcrap
+
+Now after trying to recompile the coverage binary, I realized that something went wrong. The coverage only shows the coverage for the crypto openssl module thing, so that means that I did something wrong and that is why that happens.
+
+
+.... Aaaaanddd I accidentally deleted the actual fuzzing binaries instead of the coverage binaries which are in another directory. Welp, just recompile those I guess. Thankfully the recompilation went succesfully for the fuzzing binaries. Phew. That was close.
+
+
+Back to the coverage thing. This is surprisingly stubborn. I have been wondering here for an hour as to where the bug could be hiding, but it is nowhere to be found. I tried to clean everything and then do a complete recompile, but that does not work. 
+
+...
+
+Aaannnddd I found the bug. Again, I accidentally mistyped the codedir parameter for the coverage command to point to anothercoverage directory instead of coverage directory. The "anothercoverage" directory was another test which I did and that is why it didn't work. I should really cleanup my working directories to avoid these types of situations and I should probably start naming stuff with more appropriate names other than like "stuff.txt" and "anotherstuff.txt" :) .
+
+Now it works perfectly..... except that it doesn't. It uses the oldaprstuff directories for some reason in the coverage thing. Back to the drawing board.
+
+Upon further investigation I realized that the coverage/ directory is actually the old test thing and the "anothercoverage/" directory is the one which we want to actually compile. Whoops.
+
+
+
+## Rechecking coverage
+
+Now that we have removed the unused code from the coverage binary, it should report the correct coverage for the code which was actually compiled in the fuzzing version. The coverage is now actually accurate.
+
+## How to integrate new testcases to an already fuzzing thing?
+
+Now, I have already fuzzed the server for around a day straight and I really wouldn't like to restart the fuzzing process, because I forgot to add the xml and json input files, so I found this: https://groups.google.com/g/afl-users/c/_jDHV7X2i_w . So it is completely possible to add testcases.
+
+I programmed this quick script:
+
+```
+
+
+import os
+import sys
+
+
+if __name__=="__main__":
+
+	if len(sys.argv) < 3:
+		print("Usage: "+str(sys.argv[0]) + "ORIGINAL_FILES SYNCDIR")
+		exit(1)
+
+	original_dir = sys.argv[1]
+
+	sync_dir = sys.argv[2]
+
+	files = os.listdir(original_dir)
+
+	if original_dir[-1] != "/":
+		original_dir += "/"
+
+	if sync_dir[-1] != "/":
+		sync_dir += "/"
+
+	id_count = 0
+
+	for file in files:
+
+		length = 6-len(str(id_count))
+		filename = "id:"+str(length*"0")+str(id_count)+",stuffwhatever"
+
+		print("Running: "+str("cp "+str(original_dir)+str(file) + " "+str(sync_dir)+filename))
+		os.system("cp "+str(original_dir)+str(file) + " "+str(sync_dir)+filename)
+		id_count += 1
 
 
 
 
+```
 
+I also made a slight update to the generator.py script so that in addition to specifying mandatory headers, you can also add mandatory values for those mandatory headers. This way you can generate only specific kinds of requests if you want to fuzz more narrowly.
 
+I also got bored of specifying GCM_CREDENTIAL_STORE=cache every time I opened a new console, so I added this line to my .bashrc: `export GCM_CREDENTIAL_STORE=cache` .
 
+Now we just need for the fuzzer to pick those testcases up and hope that it causes code coverage in the json and xml things.
+
+After a while the fuzzer hasn't done a sync round yet, so we need to wait for a lot longer than I expected.
+
+Now at this point after roughly an hour of the coverage thing we have only gone through around 600 of the 3000 corpus count files and we already have 22.1% line coverage. It looks like the original poster did not have the apr-util stuff enabled like I had previously and now I think it is correct. Too bad that the original poster of course did not upload their coverage report anywhere (or for that matter their original corpus which they used) 🙃 , so we can not really inspect which files the person originally included or did not include in the report, so we can not really accurately gauge our fuzzing method to theirs because we do not know how many lines their.... oh wait. The person included a screenshot which shows that their code had just a bit over 53 thousand lines of code. Sorry about that. Still, my point about the coverage report and not sharing the corpus still stands. My version has over 81 thousand lines, so no wonder our coverage is less in percentage, because we are still even after removing apr-util including way more code than the poster of that original blog. Because they did not share their report I can not really compare. As of now, we have processed around 900 cases and we have around 18021 lines of code and the original poster had 18400 lines of code, even though they included far less stuff than I, so we still have a ways to go.
+
+It is quite fascinating how every now and then the coverage reports new line coverage when going through the corpus files. I find it fascinating how a relatively simple algorithm can find even the tiniest nooks and crannies of a program. There are of course pitfalls in this kind of fuzzing, but the benefits vastly outweigh the cons.
+
+After a bit of waiting I am now realizing that the fuzzer actually hasn't picked up the xml and json test cases for some reason. Now I am starting to suspect that those requests don't even trigger to functionality in those files. I will try a json request with a debugger and see if the server jumps to the json decoding code.
+
+Now looking at the code, the json decode function only gets called by other modules. Looking around you can't seem to enable it as a module itsel in the httpd.conf file, so I guess we need to just ignore it. I am going to be satisfied if I get a line coverage even somewhat similar to what they achieved in their fuzzing session.
+
+Now I actually forgot to include the "If-Match" and "If-Modified-Since" etc etc headers in my http request generator. Now I added those and added files which have those headers in to the fuzzing session. Now surely it will pick those up. Right? well... we will see soon. Now again it is 3 am and I am going to sleep and lets see what happens over the night (morning?).
 
 
 
