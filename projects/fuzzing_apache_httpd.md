@@ -719,6 +719,218 @@ master/queue/id:004229,sync:slave3,src:004154
 ```
 so we see that the fuzzer has picked those test cases up, so now we are hitting the previously uncovered code. Before we incorporated those test cases to the fuzzer, we had around 4110 edges. Now we have 4230 , so we have succesfully increased coverage by manual test case insertion! :) 
 
+Now, after running the coverage script again we can see that the coverage is a lot better:
+
+```
+     202        5341 :             if (!strncmp(trim, name, len)) {
+     203         506 :                 if (v->encoded) {
+     204         179 :                     if (strcmp(v->encoded, trim + len)) {
+     205         102 :                         v->duplicated = 1;
+     206         102 :                     }
+     207         179 :                 }
+     208         506 :                 v->encoded = apr_pstrdup(v->r->pool, trim + len);
+     209         506 :                 eat = 1;
+     210         506 :             }
+```
+
+except that when we look at the other piece of code:
+
+```
+     428        8760 : static APR_INLINE const char *header_inout_cmd(cmd_parms *cmd,
+     429             :                                                void *indirconf,
+     430             :                                                const char *action,
+     431             :                                                const char *hdr,
+     432             :                                                const char *value,
+     433             :                                                const char *subs,
+     434             :                                                const char *envclause)
+     435             : {
+     436        8760 :     headers_conf *dirconf = indirconf;
+     437        8760 :     const char *condition_var = NULL;
+     438             :     const char *colon;
+     439             :     header_entry *new;
+     440        8760 :     ap_expr_info_t *expr = NULL;
+     441             : 
+     442        8760 :     apr_array_header_t *fixup = (cmd->info == &hdr_in)
+     443        8760 :         ? dirconf->fixup_in   : (cmd->info == &hdr_out_always)
+     444           0 :         ? dirconf->fixup_err
+     445           0 :         : dirconf->fixup_out;
+     446             : 
+     447        8760 :     new = (header_entry *) apr_array_push(fixup);
+     448             : 
+     449        8760 :     if (!strcasecmp(action, "set"))
+     450           0 :         new->action = hdr_set;
+     451        8760 :     else if (!strcasecmp(action, "setifempty"))
+     452           0 :         new->action = hdr_setifempty;
+     453        8760 :     else if (!strcasecmp(action, "add"))
+     454           0 :         new->action = hdr_add;
+     455        8760 :     else if (!strcasecmp(action, "append"))
+     456           0 :         new->action = hdr_append;
+     457        8760 :     else if (!strcasecmp(action, "merge"))
+     458           0 :         new->action = hdr_merge;
+     459        8760 :     else if (!strcasecmp(action, "unset"))
+     460        8760 :         new->action = hdr_unset;
+     461           0 :     else if (!strcasecmp(action, "echo"))
+```
+
+We see that it still justs sets the action to hdr_unset .
+
+```
+     572        8760 :     action = ap_getword_conf(cmd->temp_pool, &args);
+     573        8760 :     if (cmd->info == &hdr_out_onsuccess) {
+```
+
+Now, when compiling the debugging build, it did not compile the apr_crypto_openssl-2.so file for some reason. After like an hour of debugging I found that I had accidentally typed `--enable-openssl` instead of `--with-openssl` . That was quite a dumb mistake, but thankfully I found it.
+
+
+Now, trying to run the debugging build with one of the generated requests does not cause the header_cmd to be called. 
+
+There is a comment before the function `/* Handle all (xxx)Header directives */` , now I do not even know what (xxx)Header directives even are.
+
+I have no idea how to call this function even with a specific input. Maybe we should try actually reading the documentation: https://httpd.apache.org/docs/2.4/mod/mod_headers.html .
+
+
+There are these lines in the configuration file:
+
+```
+<IfModule headers_module>
+    #
+    # Avoid passing HTTP_PROXY environment to CGI's on this or any proxied
+    # backend servers which have lingering "httpoxy" defects.
+    # 'Proxy' request header is undefined by the IETF, not listed by IANA
+    #
+    RequestHeader unset Proxy early
+</IfModule>
+```
+So the RequestHeader is I think one of these "(xxx)Header" directives which the code comment talks about so I think we need to append Proxy to the headers and then this will cause the code to be called. Lets see:
+
+Now, yes the header_cmd gets called, but I think that it is actually for the configuration files instead of each request itself, so we wen't through a lot of effort for nothing. :) Well, we got a bit more of coverage accidentally since we added the Cookie: sessio=blablabla; thing to the requests. They even mention this in a code comment before parse_format_string : `Header add MyHeader "Free form text %D %t more text"` *facepalm* .
+
+Now looking at the rest of the code we can see that we can not call parse_misc_string for example from anywhere else other than parsing the config file so we can not call the code by crafting a specific request, oh well.
+
+According to the report we have zero coverage on apr_strnatcmp.c so I lets take a look at that next.
+
+These are the files where the file gets called from:
+
+```
+srclib/apr/dbd/apr_dbd_odbc.c
+srclib/apr/test/teststrnatcmp.c
+srclib/apr/strings/apr_strnatcmp.c
+srclib/apr/exports.c
+modules/http2/h2_push.c
+modules/http2/h2_proxy_util.c
+modules/http2/h2_alt_svc.c
+modules/http2/h2_from_h1.c
+modules/http2/h2_util.c
+modules/md/md_curl.c
+modules/md/mod_md_config.c
+modules/md/md_util.c
+modules/md/md_crypt.c
+modules/md/md_acme.c
+modules/md/md_acme_authz.c
+modules/generators/mod_autoindex.c
+server/exports.c
+
+```
+
+Again, we do not have http2 enabled. We also don't have md enabled, but we have mod_autoindex ! Now mod_autoindex just generates those "Index of ..." pages when you try to access a directory instead of a file. Now, the reason why we have't gotten this covered is because the directory structure of my server is just the root directory without any subdirs. Then when the fuzzer tries to access / , the server directs that to /index.html , so if we remove index.html, that should help the problem and yes, that does cause a call to output_directories , but that code is not really important to parsing the requests so I do not think that it is worth doing, since the code triggered is code, which doesn't even process the input requests, but lets just do that because more coverage = always better right?
+
+I made a subdir called "/az/" in the htdocs folder and now lets see if the fuzzer picks it up and it does! I know that it really doesn't matter, since the code has basically nothing to do with parsing the http request, but still.
+
+## Crashes?
+
+
+Now, after all of that effort it is time to see if we actually got anything worth our time.
+
+Looking at one of the crashes in the fuzzer binary with asan and stuff we get this:
+
+```
+__GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:50
+50	../sysdeps/unix/sysv/linux/raise.c: No such file or directory.
+(gdb) where
+#0  __GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:50
+#1  0x00007ffff796e859 in __GI_abort () at abort.c:79
+#2  0x00005555559dd90f in __sanitizer::Abort() ()
+#3  0x00005555559db35c in __sanitizer::Die() ()
+#4  0x00005555559f8fe9 in __ubsan_handle_nonnull_arg_abort ()
+#5  0x0000555555f5edb3 in apr_brigade_flatten ()
+#6  0x0000555555ae8e1a in deflate_in_filter ()
+#7  0x0000555555b7687f in ap_discard_request_body ()
+#8  0x0000555555e73647 in default_handler ()
+#9  0x0000555555d31805 in ap_run_handler ()
+#10 0x0000555555d345d1 in ap_invoke_handler ()
+#11 0x0000555555b57b9c in ap_process_async_request ()
+#12 0x0000555555b5847e in ap_process_request ()
+#13 0x0000555555b3ce7c in ap_process_http_connection ()
+#14 0x0000555555dbbef5 in ap_run_process_connection ()
+#15 0x0000555555d2c142 in child_main ()
+#16 0x0000555555d2a1a6 in make_child ()
+#17 0x0000555555d29082 in prefork_run ()
+#18 0x0000555555dcbec2 in ap_run_mpm ()
+#19 0x0000555555d61fa4 in main ()
+
+```
+then looking at the asan log:
+
+```
+buckets/apr_brigade.c:281:19: runtime error: null pointer passed as argument 2, which is declared to never be null
+/usr/include/string.h:44:28: note: nonnull attribute specified here
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior buckets/apr_brigade.c:281:19 in 
+
+```
+So it is undefined behaviour because we are passing a null string as an argument to a function.
+
+Looking at the rest of the crashes it seems that they are just copies of this same bug. This bug occurs here:
+
+```
+        if (str_len + actual > *len) {
+            str_len = *len - actual;
+        }
+
+        /* XXX: It appears that overflow of the final bucket
+         * is DISCARDED without any warning to the caller.
+         *
+         * No, we only copy the data up to their requested size.  -- jre
+         */
+        memcpy(c, str, str_len);     <--------- HERE
+
+        c += str_len;
+        actual += str_len;
+
+        /* This could probably be actual == *len, but be safe from stray
+         * photons. */
+        if (actual >= *len) {
+            break;
+        }
+```
+
+
+We can use our debugging build to further investigate this possible bug. This does not even cause a crash, because str is null, but str_len is also zero, so we can not even do a null reference. :( . And yeah, I am right. When the str is NULL the str_len also seems to be null even before the if check before the memcpy, so bypassing that check is not really going to do anything for us.
+
+
+## Ditching the banlist.
+
+Up until now i have compiled the binary with the banlist.txt which lists "unstable" functions, but I honestly have no idea why they are "unstable" so I am from now on not going to omit those functions.
+
+Omitting these functions of course causes an immense "stability" drop, because now the fuzzer recognizes that instability, but it will help with coverage. Looking at the banlist.txt it contains a lot of string parsing functions which could be actually useful to find crashes.
+
+As expected the fuzzer took a bit of a stability hit but I do not really care that much.
+
+## More investigation of the code coverage report.
+
+Looking at the code report there isn't anything that immediately jumps out for me, so I guess now we just sit back and wait until we actually find a useful crash, maybe we will have to use the byte bruteforce mutator after a while and see what it does, but hey, for now  I think that this is good setup and we will wait for a couple weeks to wait for actually useful crashes.
+
+I actually patched the code such that the ubsan "crash" does no longer exist. I added a quick patch which check that if str==Null and str_len==0 then it simply continues instead of doing the memcpy.
+
+Anyway. Now it is a waiting game. (for now)
+
+
+
+
+
+
+
+
+
 
 
 
