@@ -88,7 +88,9 @@ The person is quite quick to anger since the person basically is blasting the ot
 
 Now again looking at the "correct" anwers or what I should have noticed yes i noticed that the person is probably old, but I completely failed to mention what kind of values the person values themself. For example, in the correct answers they say that the person is most likely conservative in his/her views of the world, since the person says that making coffee is the job of the woman in the house and in addition the person mentions conservative politicians in a positive light in the text ("Paasikivi")
 
+## Results?
 
+Ok so I didn't have time to write the other part for this yesterday, but I think that the exam went surprisingly well all things considered. Then when the results arrive I will probably get a reality check but until then I can thankfully be blissfully ignorant.
 
 
 

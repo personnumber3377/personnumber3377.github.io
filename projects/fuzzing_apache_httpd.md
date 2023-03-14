@@ -923,8 +923,144 @@ I actually patched the code such that the ubsan "crash" does no longer exist. I 
 
 Anyway. Now it is a waiting game. (for now)
 
+## Update on the fuzzing.
+
+It has been around a day and yeah, the patch which I added fixed the undefined behaviour crash. Now the fuzzer is still showing zero crashes, but hopefully that will change soon. The fuzzer is slowly getting slower at finding new corpus files so I am a bit concerned that we will not even find a single actually useful bug, but lets not give up yet. Also I am thinking of creating a sort of precision fuzzing framework for apache, which lets you choose like on function to fuzz, so that you can fuzz the critical request parsing functions thoroughly. For example we could make a custom fuzzer just to fuzz this function (util.c):
+
+```
+static int unescape_url(char *url, const char *forbid, const char *reserved)
+{
+    int badesc, badpath;
+    char *x, *y;
+
+    badesc = 0;
+    badpath = 0;
+
+    if (url == NULL) {
+        return OK;
+    }
+    /* Initial scan for first '%'. Don't bother writing values before
+     * seeing a '%' */
+    y = strchr(url, '%');
+    if (y == NULL) {
+        return OK;
+    }
+    for (x = y; *y; ++x, ++y) {
+        if (*y != '%') {
+            *x = *y;
+        }
+        else {
+            if (!apr_isxdigit(*(y + 1)) || !apr_isxdigit(*(y + 2))) {
+                badesc = 1;
+                *x = '%';
+            }
+            else {
+                char decoded;
+                decoded = x2c(y + 1);
+                if ((decoded == '\0')
+                    || (forbid && ap_strchr_c(forbid, decoded))) {
+                    badpath = 1;
+                    *x = decoded;
+                    y += 2;
+                }
+                else if (reserved && ap_strchr_c(reserved, decoded)) {
+                    *x++ = *y++;
+                    *x++ = *y++;
+                    *x = *y;
+                }
+                else {
+                    *x = decoded;
+                    y += 2;
+                }
+            }
+        }
+    }
+    *x = '\0';
+    if (badesc) {
+        return HTTP_BAD_REQUEST;
+    }
+    else if (badpath) {
+        return HTTP_NOT_FOUND;
+    }
+    else {
+        return OK;
+    }
+}
+```
 
 
+or we can make a custom fuzzer to fuzz this function:
+
+```
+AP_CORE_DECLARE(void) ap_parse_uri(request_rec *r, const char *uri)
+{
+    int status = HTTP_OK;
+
+    r->unparsed_uri = apr_pstrdup(r->pool, uri);
+
+    /* http://issues.apache.org/bugzilla/show_bug.cgi?id=31875
+     * http://issues.apache.org/bugzilla/show_bug.cgi?id=28450
+     *
+     * This is not in fact a URI, it's a path.  That matters in the
+     * case of a leading double-slash.  We need to resolve the issue
+     * by normalizing that out before treating it as a URI.
+     */
+    while ((uri[0] == '/') && (uri[1] == '/')) {
+        ++uri ;
+    }
+    if (r->method_number == M_CONNECT) {
+        status = apr_uri_parse_hostinfo(r->pool, uri, &r->parsed_uri);
+    }
+    else {
+        status = apr_uri_parse(r->pool, uri, &r->parsed_uri);
+    }
+
+    if (status == APR_SUCCESS) {
+        /* if it has a scheme we may need to do absoluteURI vhost stuff */
+        if (r->parsed_uri.scheme
+            && !ap_cstr_casecmp(r->parsed_uri.scheme, ap_http_scheme(r))) {
+            r->hostname = r->parsed_uri.hostname;
+        }
+        else if (r->method_number == M_CONNECT) {
+            r->hostname = r->parsed_uri.hostname;
+        }
+
+        r->args = r->parsed_uri.query;
+        if (r->parsed_uri.path) {
+            r->uri = r->parsed_uri.path;
+        }
+        else if (r->method_number == M_OPTIONS) {
+            r->uri = apr_pstrdup(r->pool, "*");
+        }
+        else {
+            r->uri = apr_pstrdup(r->pool, "/");
+        }
+
+#if defined(OS2) || defined(WIN32)
+        /* Handle path translations for OS/2 and plug security hole.
+         * This will prevent "http://www.wherever.com/..\..\/" from
+         * returning a directory for the root drive.
+         */
+        {
+            char *x;
+
+            for (x = r->uri; (x = strchr(x, '\\')) != NULL; )
+                *x = '/';
+        }
+#endif /* OS2 || WIN32 */
+    }
+    else {
+        r->args = NULL;
+        r->hostname = NULL;
+        r->status = HTTP_BAD_REQUEST;             /* set error status */
+        r->uri = apr_pstrdup(r->pool, uri);
+    }
+}
+
+```
+
+
+To accomplish this we could just write a wrapper, but maybe I will do that some other time. I do not really know why i even wrote this here but oh well.
 
 
 
