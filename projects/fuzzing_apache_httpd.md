@@ -1062,6 +1062,454 @@ AP_CORE_DECLARE(void) ap_parse_uri(request_rec *r, const char *uri)
 
 To accomplish this we could just write a wrapper, but maybe I will do that some other time. I do not really know why i even wrote this here but oh well.
 
+Ok so now I compiled a fuzzer for the unescape_url function with arguments unescape_url(url, NULL, NULL) : (you can find it here: https://github.com/personnumber3377/unescape_url_fuzzing/tree/master)
+
+```
+#include <ctype.h>
+#include <stdio.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdint.h>
+
+#define apr_isxdigit(c) (isxdigit(((unsigned char)(c))))
+
+static char x2c(const char *what)
+{
+    char digit;
+
+#if !APR_CHARSET_EBCDIC
+    digit = ((what[0] >= 'A') ? ((what[0] & 0xdf) - 'A') + 10
+             : (what[0] - '0'));
+    digit *= 16;
+    digit += (what[1] >= 'A' ? ((what[1] & 0xdf) - 'A') + 10
+              : (what[1] - '0'));
+#else /*APR_CHARSET_EBCDIC*/
+    char xstr[5];
+    xstr[0]='0';
+    xstr[1]='x';
+    xstr[2]=what[0];
+    xstr[3]=what[1];
+    xstr[4]='\0';
+    digit = apr_xlate_conv_byte(ap_hdrs_from_ascii,
+                                0xFF & strtol(xstr, NULL, 16));
+#endif /*APR_CHARSET_EBCDIC*/
+    return (digit);
+}
+
+
+static int unescape_url(char *url, const char *forbid, const char *reserved)
+{
+    int badesc, badpath;
+    char *x, *y;
+
+    badesc = 0;
+    badpath = 0;
+
+    if (url == NULL) {
+        //return OK;
+        return 0;
+    }
+    /* Initial scan for first '%'. Don't bother writing values before
+     * seeing a '%' */
+    //printf("oooffff\n");
+    y = strchr(url, '%');
+    //printf("oooffff\n");
+    if (y == NULL) {
+        //return OK;
+        return 0;
+    }
+    for (x = y; *y; ++x, ++y) {
+        //printf("start of loop\n");
+        if (*y != '%') {
+            *x = *y;
+        }
+        else {
+            if (!apr_isxdigit(*(y + 1)) || !apr_isxdigit(*(y + 2))) {
+                badesc = 1;
+                *x = '%';
+            }
+            else {
+                char decoded;
+                decoded = x2c(y + 1);
+                //if ((decoded == '\0')
+                //    || (forbid && strchr(forbid, decoded))) {
+                if (decoded == '\0') {
+                    badpath = 1;
+                    *x = decoded;
+                    y += 2;
+                }
+                //else if (reserved && strchr(reserved, decoded)) {
+                //    *x++ = *y++;
+                //    *x++ = *y++;
+                //    *x = *y;
+                //}
+                else {
+                    *x = decoded;
+                    y += 2;
+                }
+            }
+        }
+    }
+    *x = '\0';
+    if (badesc) {
+        //return HTTP_BAD_REQUEST;
+        return 2;
+    }
+    else if (badpath) {
+        //return HTTP_NOT_FOUND;
+        return 1;
+    }
+    else {
+        //return OK;
+        return 0;
+    }
+}
+
+/*
+int main(int argc, char** argv) {
+
+    char* input_url[1000];
+    int return_val;
+    fgets(input_url, 999, stdin);
+
+
+    // static int unescape_url(char *url, const char *forbid, const char *reserved)
+
+    return_val = unescape_url(input_url, NULL, NULL);
+    printf("Return value: %d\n", return_val);
+
+    printf("Decoded stuff: %s\n", input_url);
+
+    return 0;
+}
+*/
+
+int fuzzone(const uint8_t*data, size_t size) {
+    int return_val;
+    char stuff[100];
+    if (size < 100) {
+        memcpy(stuff, data, size);
+    }
+    else {
+        memcpy(stuff, data, 99);
+    }
+    //memcpy(stuff, data, 999);
+
+    return_val = unescape_url(stuff, NULL, NULL);
+    return return_val;
+}
+
+int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
+  fuzzone(Data, Size);
+  return 0;  // Values other than 0 and -1 are reserved for future use.
+}
+
+```
+
+Now, this code was simple to write, because the unescape_url function did not have any outside references to non-standard functions, but I think that it will be a lot harder to do this for the ap_parse_uri function which seems a lot more interesting.
+
+## Writing a fuzzer for ap_parse_uri.
+
+Looking at the code ap_parse_uri is actually not the important function, but the interesting function is apr_uri_parse se we are going to fuzz that instead.
+
+Now, my idea is to try to just statically compile everything to call the apr_uri_parse from the LLVMFuzzerTestOneInput function.
+
+The arguments to the function are:
+
+
+
+```
+APR_DECLARE(apr_status_t) apr_uri_parse(apr_pool_t *p, const char *uri,
+                                        apr_uri_t *uptr)
+```
+
+The definition for the apr_pool_t is at ./apr/include/apr_pools.h which basically points to apr_pools.c :
+
+```
+struct apr_pool_t {
+    apr_pool_t           *parent;
+    apr_pool_t           *child;
+    apr_pool_t           *sibling;
+    apr_pool_t          **ref;
+    cleanup_t            *cleanups;
+    cleanup_t            *free_cleanups;
+    apr_allocator_t      *allocator;
+    struct process_chain *subprocesses;
+    apr_abortfunc_t       abort_fn;
+    apr_hash_t           *user_data;
+    const char           *tag;
+
+#if !APR_POOL_DEBUG
+    apr_memnode_t        *active;
+    apr_memnode_t        *self; /* The node containing the pool itself */
+    char                 *self_first_avail;
+
+#else /* APR_POOL_DEBUG */
+    apr_pool_t           *joined; /* the caller has guaranteed that this pool
+                                   * will survive as long as ->joined */
+    debug_node_t         *nodes;
+    const char           *file_line;
+    apr_uint32_t          creation_flags;
+    unsigned int          stat_alloc;
+    unsigned int          stat_total_alloc;
+    unsigned int          stat_clear;
+#if APR_HAS_THREADS
+    apr_os_thread_t       owner;
+    apr_thread_mutex_t   *mutex;
+#endif /* APR_HAS_THREADS */
+#endif /* APR_POOL_DEBUG */
+#ifdef NETWARE
+    apr_os_proc_t         owner_proc;
+#endif /* defined(NETWARE) */
+    cleanup_t            *pre_cleanups;
+#if APR_POOL_CONCURRENCY_CHECK
+
+#define                   IDLE        0
+#define                   IN_USE      1
+#define                   DESTROYED   2
+    volatile apr_uint32_t in_use;
+    apr_os_thread_t       in_use_by;
+#endif /* APR_POOL_CONCURRENCY_CHECK */
+};
+
+```
+in apr_hooks.h:
+
+```
+#define apr_palloc(pool,size)   malloc(size)
+```
+in apr_strings.c:
+
+```
+APR_DECLARE(char *) apr_pstrdup(apr_pool_t *a, const char *s)
+{
+    char *res;
+    apr_size_t len;
+
+    if (s == NULL) {
+        return NULL;
+    }
+    len = strlen(s) + 1;
+    res = apr_pmemdup(a, s, len);
+    return res;
+}
+
+
+APR_DECLARE(char *) apr_pstrmemdup(apr_pool_t *a, const char *s, apr_size_t n)
+{
+    char *res;
+
+    if (s == NULL) {
+        return NULL;
+    }
+    res = apr_palloc(a, n + 1);
+    memcpy(res, s, n);
+    res[n] = '\0';
+    return res;
+}
+
+APR_DECLARE(void *) apr_pmemdup(apr_pool_t *a, const void *m, apr_size_t n)
+{
+    void *res;
+
+    if (m == NULL)
+	return NULL;
+    res = apr_palloc(a, n);
+    memcpy(res, m, n);
+    return res;
+}
+
+```
+
+One thing which I do not understand is that there are lines like these: 
+
+```
+uptr->fragment = apr_pstrdup(p, s1 + 1);
+```
+
+
+Oh wait, nevermind. I Understand what those are for. At first I didn't understand what the pool p was used for but then digging through the code:
+
+```
+res = apr_palloc(a, n);
+```
+that is basically just a memalloc and the a parameter is basically ignored. I do not understand how the Makefile compiles the uri thing, but we actually can probably use the same trick which we used for the unescape_url function. We can just replace the problematic functions which referer to other files by the standard versions, because the only problematic function in that function is apr_uri_port_of_scheme which is defined as follows:
+
+```
+static schemes_t schemes[] =
+{
+    {"http",     APR_URI_HTTP_DEFAULT_PORT},
+    {"ftp",      APR_URI_FTP_DEFAULT_PORT},
+    {"https",    APR_URI_HTTPS_DEFAULT_PORT},
+    {"gopher",   APR_URI_GOPHER_DEFAULT_PORT},
+    {"ldap",     APR_URI_LDAP_DEFAULT_PORT},
+    {"nntp",     APR_URI_NNTP_DEFAULT_PORT},
+    {"snews",    APR_URI_SNEWS_DEFAULT_PORT},
+    {"imap",     APR_URI_IMAP_DEFAULT_PORT},
+    {"pop",      APR_URI_POP_DEFAULT_PORT},
+    {"sip",      APR_URI_SIP_DEFAULT_PORT},
+    {"rtsp",     APR_URI_RTSP_DEFAULT_PORT},
+    {"wais",     APR_URI_WAIS_DEFAULT_PORT},
+    {"z39.50r",  APR_URI_WAIS_DEFAULT_PORT},
+    {"z39.50s",  APR_URI_WAIS_DEFAULT_PORT},
+    {"prospero", APR_URI_PROSPERO_DEFAULT_PORT},
+    {"nfs",      APR_URI_NFS_DEFAULT_PORT},
+    {"tip",      APR_URI_TIP_DEFAULT_PORT},
+    {"acap",     APR_URI_ACAP_DEFAULT_PORT},
+    {"telnet",   APR_URI_TELNET_DEFAULT_PORT},
+    {"ssh",      APR_URI_SSH_DEFAULT_PORT},
+    { NULL, 0xFFFF }     /* unknown port */
+};
+
+
+APR_DECLARE(apr_port_t) apr_uri_port_of_scheme(const char *scheme_str)
+{
+    schemes_t *scheme;
+
+    if (scheme_str) {
+        for (scheme = schemes; scheme->name != NULL; ++scheme) {
+            if (strcasecmp(scheme_str, scheme->name) == 0) {
+                return scheme->default_port;
+            }
+        }
+    }
+    return 0;
+}
+
+```
+
+...
+
+After a bit of coding I now have a fuzzer which fuzzes the apr_uri_parse function. Now I only need a corpus. I looked around the web and basically came up with these inputs to the parser:
+
+```
+http://[1080::8:800:200c:417a]:8888/index.html?par=val#thing
+
+http://user:pass@[1080::8:800:200c:417a]:8888/index.html?par=val#thing
+
+http://user:pass@www.domain.com/page.html?param=value&param2=value2#subpage
+
+http://www.domain.com/page.html?param=value&param2=value2#subpage
+
+http://www.domain.com/../../subdir/page.html?param=value&param2=value2#subpage
+```
+
+In addition to these I found this: https://github.com/dvyukov/go-fuzz-corpus/tree/master/url/corpus  which contains a fuzzing corpus for URI:s , so I am going to stea... erm.. import those to my fuzzing session. :)
+
+Now running the fuzzer on the apr_uri_parse function it works good, but no crashes of course haven't been found yet, but hopefully that will soon change., except we get an out of memory error. Huh. That is quite bad.
+
+Yeah I forgot to free the malloced memory so that is why it ran out of memory.
+
+I do not actually know how to free a struct. If i just try this:
+
+```
+    return_val = apr_uri_parse(&anotherstuff, stuff, &output);
+    //return_val = unescape_url(stuff, NULL, NULL);
+
+    //free(&anotherstuff);
+    free(&output);
+```
+
+It crashes with an invalid free pointer. (asan).
+
+but then if i do something like this:
+
+```
+            printf("%s\n\0", "poopooshit");
+            free(uptr->port_str);
+            return APR_EGENERAL;
+```
+inside the function itself, then we do not get any error or crash or anything. Even though uptr is literally just the input argument anotherstuff ??? I don't get this shit. Lets just do this:
+
+
+```
+    if ((&output)->user != NULL) {
+    	free((&output)->user);
+    }
+    
+
+    if ((&output)->password != NULL) {
+    	free((&output)->password);
+    }
+	
+    
+    if ((&output)->port_str != NULL) {
+    	free((&output)->port_str);
+    }
+
+    if ((&output)->hostname != NULL) {
+    	free((&output)->hostname);
+    }
+
+    if ((&output)->path != NULL) {
+    	free((&output)->path);
+    }
+
+    if ((&output)->scheme != NULL) {
+    	free((&output)->scheme);
+    }
+
+    if ((&output)->hostinfo != NULL) {
+    	free((&output)->hostinfo);
+    }
+
+    if ((&output)->fragment != NULL) {
+    	free((&output)->fragment);
+    }
+```
+
+After that shit code, lets look if it crashes. We need to remember that the instance of the struct is not malloced, but the attributes of it are so we just need to free those and we should be fine.
+
+Another idea which I have is to also use the apr_uri_unparse function and check if the output is the same, because it if it isn't then something went horribly wrong. No oom crash yet, so i think i succeeded.
+
+After a but of fuzzing I got another out of memory but that is just because I forgot to free (&output)->query . Whoops. Now also I did a quick coverage report, we see that apr_uri_port_of_scheme is not properly getting covered:
+
+```
+      74           3 : apr_port_t apr_uri_port_of_scheme(const char *scheme_str)
+      75             : {
+      76           3 :     schemes_t *scheme;
+      77             : 
+      78           3 :     if (scheme_str) {
+      79           0 :         for (scheme = schemes; scheme->name != NULL; ++scheme) {
+      80           0 :             if (strcasecmp(scheme_str, scheme->name) == 0) {
+      81           0 :                 return scheme->default_port;
+      82             :             }
+      83             :         }
+      84             :     }
+      85             :     return 0;
+      86             : }
+      87             : 
+      88             : 
+```
+
+So I added another test case which covers that stuff:
+
+```
+ftp://ftp:
+```
+
+
+
+Anyway. Now I think that in addition to finding actual crashes, we should create a differential fuzzer with apr_uri_unparse which takes in the result of that other functions and then *should* return the original value. We can then of course compare this value to the actual original value and if they do not match, then something went wrong and we know there is a bug. Lets implement that next:
+
+
+
+Another thing we have to take into account is that we should only report the testcase as invalid if the return value from the apr_uri_parse function was zero and then the output of the unparse function was something else other than what was originally entered. That way we can avoid false positives aka invalid uri:s being marked as inputs which makes the unparse function return differing output.
+
+
+
+We also have to free the output from the unparse function, because that got malloc'ed .
+
+
+
+Now, this produces results for example if you pass `http://http:/` in the parse function, then you will get `http://http/` from the unparse function. You can't really do anything with this, but oh well.
+
+
+In the meantime the main fuzzing session with just plain afl hasn't yet found a usable crash, but again, hopefully that will soon change. The finding of new corpus files has slowed to an almost snails pace, so I think that I should probably switch to some other mutator soon, like the one-byte-bruteforce which bruteforces each byte individually. Maybe that will give us more coverage, but idk..
+
+
+
+
 
 
 
