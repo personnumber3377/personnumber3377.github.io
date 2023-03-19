@@ -8,6 +8,6 @@ This is my personal blog. Right now it is quite empty, but maybe I will add some
 
 [How I studied for an exam in roughly two days](/projects/studying_for_exam.html)
 
-
+[Fuzzing ruby regex parser.](/projects/fuzzing_ruby_regex.html)
 
 
