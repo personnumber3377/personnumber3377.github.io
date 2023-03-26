@@ -10,4 +10,4 @@ This is my personal blog. Right now it is quite empty, but maybe I will add some
 
 [Fuzzing ruby regex parser.](/projects/fuzzing_ruby_regex.html)
 
-
+[Fuzzing ruby marshalling.](/projects/fuzzing_ruby_marshal.html)
