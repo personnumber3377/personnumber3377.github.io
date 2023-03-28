@@ -1437,30 +1437,579 @@ Then doing print("functions_in_y_format == "+str(functions_in_y_format))   befor
 
 Another bug which I found was that I accidentally typed `intersection_x_values = intersection_points[0]` instead of `intersection_x_values = [intersection_points[0][0], intersection_points[1][0]]` After fixing that it works perfectly.
 
+## Adding even more features.
+
+Here are a couple of features which I would like to add:
+
+- Add a polygon object or atleast a triangle.
+- Way to compute angles and add an angle object. (Basically use stuff like the law of sines to compute them etc etc.)
+- 3D-objects.
+- Add a line to a point which has a certain angle.
+- Default arguments. (if an argument is not given to a function then it assumes that a certain argument has a certain value instead of erroring out.)
+
+
+
+The idea for the triangle is to basically just construct it out of three lines by solving the equation a*x0+b*y0+c=0 ax1+by1+c=0 etc and assuming that c is one because reasons.
+
+I implemented a method set_lines_from_points for the triangle object which takes three points and constructs lines from them for the triangle.
+
+A peculiar bug in my system which I came across is this:
+
+```
+Traceback (most recent call last):
+  File "geometrylib.py", line 1970, in <module>
+    command_mainloop(file=filething)
+  File "geometrylib.py", line 1939, in command_mainloop
+    handle_functions[index](command_string, global_objects)
+  File "geometrylib.py", line 1138, in point_command
+    common_object_creation_stuff(args, "point", objects)
+  File "geometrylib.py", line 1083, in common_object_creation_stuff
+    arg_dict = dict([thing.split("=")[0], thing.split("=")[1]] for thing in arguments)
+  File "geometrylib.py", line 1083, in <genexpr>
+    arg_dict = dict([thing.split("=")[0], thing.split("=")[1]] for thing in arguments)
+IndexError: list index out of range
+
+```
+
+when running python3 geometrylib.py --file thing.txt  .
+
+I changed the way that arguments are handled and they no longer work correctly for other commands. This is because the commands do not return the result in a well defined format, but instead if varies from command to command. I should really make the functions return the answers in a specific format instead of just however.
+
+To fix this I added this:
+
+
+```
+
+	resulting_dict = {'x':result[0][0], 'y':result[0][1]}
+
+	print("Resulting dict: "+str(resulting_dict))
+
+	oofstring1 = str(result[0][0])
+	oofstring2 = str(result[0][0])
+
+	print("oofstring1: "+str(oofstring1))
+	print("oofstring2: "+str(oofstring2))
+
+	oofstring1 = ''.join(oofstring1.split(" ")) # get rid of spaces
+	oofstring2 = ''.join(oofstring2.split(" "))
+
+	print("oofstring1 after: "+str(oofstring1))
+
+	print("oofstring2 after: "+str(oofstring2))
+
+	final_dict = {'x':oofstring1, 'y':oofstring2}
+	print("final_dict: "+str(final_dict))
+	return final_dict
+	
+```
+
+To the mindistpointobjdot function and now it works well.
+
+To implement the triangle object, we need to make a list of three line equations which each corresponds to the sides of the triangle. Now the thing is that I couldn't find a way to find all solutions to a set of equations which satisfy atleast one of the equations so I am going to need to modify the code to handle these cases.
+
+In the intersection command I need to do something like this:
+
+```
+
+def intersection(object1, object2):
+
+	# object is assumed to have the get_equation method which returns the equation which describes the object (like a line is a*x+b*y+c=0 )
+	print("================================================")
+	print("object1 : " + str(object1))
+	print("object2 : " + str(object2))
+	print("object1 : " + str(type(object1)))
+	print("object2 : " + str(type(object2)))
+	print("================================================")
+	equations1 = object1.get_equations()
+
+	equations2 = object2.get_equations()
+
+
+	plain_eqs = True
+
+	for eq in equations1:
+		if isinstance(eq, list):
+			plain_eqs = False
+			break
+	if plain_eqs:
+		for eq in equations2:
+			if isinstance(eq, list):
+				plain_eqs = False
+				break
+
+	if plain_eqs:  # they are plain equations without any constraints (aka a line and a point for example)
+
+		all_equations = equations1 + equations2
+		print("All equations as a list: "+str(all_equations))
+
+
+		result = sympy.solve(all_equations, ('x', 'y'))
+		print("result: "+str(result))
+	else:
+		result = []
+		plain_eqs = []
+
+		or_eqs1 = []
+		or_eqs2 = []
+
+		for eq in equations1:
+			if not isinstance(eq, list):
+				plain_eqs.append(eq)
+			else:
+				or_eqs1.append(eq)
+
+		for eq in equations2:
+			if not isinstance(eq, list):
+				plain_eqs.append(eq)
+			else:
+				or_eqs2.append(eq)
+
+		if or_eqs1 != [] and or_eqs2 != []:
+
+			for or_eq1 in or_eqs1:
+				for or_eq2 in or_eqs2:
+
+					result.append(solve([or_eq1, or_eq2]+plain_eqs), ('x', 'y'))
+		elif or_eqs1 != [] and or_eqs2 == []:
+
+			for or_eq1 in or_eqs1:
+
+
+				result.append(solve([or_eq1]+plain_eqs), ('x', 'y'))
+
+		elif or_eqs1 == [] and or_eqs2 != []:
+			for or_eq2 in or_eqs2:
+				result.append(solve([or_eq2]+plain_eqs), ('x', 'y'))
+
+		else:
+			# We should not reach this point here.
+			print("Something went wrong in intersection.")
+			exit(1)
+	return result
+```
+
+
+This piece of code basically checks that if the equation in the equation list returned by get_equations is a list of equations, then get all the solutions which satisfy atleast of one of those equations and all of the other equations. This is used for the triangle object for example, because in the intersection command for example between a line and a triangle we check the intersection between each of the sides of the triangle and the line separately and then append those solutions to the final intersection result list. I actually need to do this for some other places like in distance_min , so instead of copypasting this function everywhere in the code, lets just define a function:
+
+```
+
+def solve_equation_stuff(object_list, variable):
+	equations = []
+
+	for obj in object_list:
+		stuff = obj.get_equations()
+		
+		if isinstance(stuff, list):
+			
+			# this is for compatibility if the get_equations function returns a list of equations
+			equations += stuff
+		else:
+			equations.append(stuff)
+	plain_eqs = True
+
+	for eq in equations:
+		if isinstance(eq, list):
+			plain_eqs = False
+			break
+
+	if plain_eqs:  # they are plain equations without any constraints (aka a line and a point for example)
+
+		all_equations = equations
+		print("All equations as a list: "+str(all_equations))
+
+
+		result = sympy.solve(all_equations, ('x', 'y'))
+		print("result: "+str(result))
+	
+	else:
+		result = []
+
+		or_eqs = []
+		plain_eqs = []
+
+		for eq in equations:
+
+			if not isinstance(eq, list):
+				plain_eqs.append(eq)
+			else:
+				or_eqs.append(eq)
+
+			for or_eq1 in or_eqs:
+
+				result.append(solve([or_eq1]+plain_eqs), ('x', 'y'))
+
+	return result
+```
+
+
+## Writing a testsuite thing:
+
+Now lets put the triangle thing on the backburner for a second, because I honestly need to program a testset thing for this program because otherwise it gets way too messy to deal with stuff.
+
+Now I just quickly hacked this together (the command mainloop function is starting to get quite cluttered I know):
+
+
+```
+def command_mainloop(file=None, testsuite=None):
+	print_banner()
+	line_counter = 0
+	lines = []
+	if file:
+		fh = open(file, "r")
+		lines = fh.readlines()
+		fh.close()
+		for i in range(len(lines)):
+			lines[i] = lines[i][:-1]
+		print("Running commands from file "+str(file)+".")
+
+
+	if testsuite:
+		fh = open(testsuite, "r")
+		lines = fh.readlines()
+		fh.close()
+		for i in range(len(lines)):
+			lines[i] = lines[i][:-1]
+		print("Testsuite from file "+str(testsuite)+".")
+
+
+
+	objects = []
+	commands = ["line", "intersect", "help", "quit", "objects", "circle", "point", "mindistobjdot", "maxdistobjdot", "mindistpointobjdot", "maxdistpointobjdot", "integrate", "area_between_intersections"]
+	min_arg_lengths = [0,0,0,0,0,0,0,2,2,2,2,4,2]
+	max_arg_lengths = [3,2,0,0,0,3,2,2,2,2,2,4,2]
+
+	command_result = None
+
+	handle_functions = [line_command, intersection_command, help_command, quit_command, objects_command, circle_command, point_command, mindistobjdot, maxdistobjdot, mindistpointobjdot, maxdistpointobjdot, integrate_command, area_between_intersections]
+	
+
+	expected_result = None
+
+	if testsuite:
+		expected_result = parse_expected(testsuite)
+
+	while True:
+
+		if not testsuite:
+
+			if line_counter != len(lines):
+				command_string = lines[line_counter]
+				line_counter += 1
+				print("Command string: " + str(command_string))
+			else:
+				command_string = str(input(bcolors.OKBLUE + ">>> " + bcolors.ENDC))
+				#command_string = "line a=1 b=2 c=3"
+		else:
+
+			if line_counter != len(lines):
+				command_string = lines[line_counter]
+				line_counter += 1
+				print("Command string: " + str(command_string))
+			else:
+
+				# check the final output:
+				print("The output of the last command: "+str(command_result))
+				print("Expected final result: "+str(expected_result))
+				
+				if str(command_result) != str(expected_result):
+					print("Testsuite failed!")
+
+		command_start = command_string.split(" ")[0]
+		if command_start == "quit":
+			if testsuite:
+				print("\"quit\" encountered in testsuite. Checking answer:")
+				break
+
+		command_result = None
+		if command_start not in commands:
+
+			if ":=" in command_string: # check variable assignment command
+				print("poopooshit")
+				result = variable_assignment_command(command_string, global_objects, max_arg_lengths, min_arg_lengths, commands)
+				if result:
+					fail("Invalid command: "+str(command_string))
+				continue
+
+
+			if command_start != "":
+				print("thing")
+				if len(command_string.split(" ")) == 1 and "." not in command_string.split(" ")[0]:
+					# if the user types just the object name, then print object as string
+					if command_start in get_names(global_objects):
+						command_result = print_object(get_object_by_name(command_start))
+						continue
+					invalid_command(command_string)
+					continue
+				
+
+
+				# first assume that the command is an attempt to run a method on an object:
+
+				result = check_method_command(command_string, global_objects)
+				print("result: "+str(result))
+				if result: # 0 means success, 1 means failure
+					invalid_command(command_string)
+			continue
+
+		index = commands.index(command_start)
+		result = check_common_syntax(command_string, max_arg_lengths, min_arg_lengths, commands)  # this check is shared by every command to check the arguments
+		if result:
+			continue
+		
+		command_string = unpack_variables_in_command(command_string, user_defined_variables)  # this is to unpack arguments like [myvar]
+
+
+		command_result = handle_functions[index](command_string, global_objects)
+
+		print("Command result: " + str(command_result))
+
+		#global_objects = 
+
+	print("The output of the last command: "+str(command_result))
+	print("Expected final result: "+str(expected_result))
+				
+	if str(command_result) != str(expected_result):
+		print_col(bcolors.FAIL, "Testsuite " + str(testsuite)+ " failed!")
+	else:
+		print_col(bcolors.OKGREEN, "Testsuite " +str(str(testsuite))+ " passed!")
+	return command_result
+```
+
+
+
+and this:
+
+```
+if __name__=="__main__":
+	'''
+
+
+	if sys.argv[-1] == "--test":
+		debug_tests()
+		exit(0)
+	'''
+
+
+	if "--file" in sys.argv:
+		filething = sys.argv[sys.argv.index("--file")+1]
+	else:
+		filething = None
+
+
+
+	if "--testsuite" in sys.argv:
+		testsuite = sys.argv[sys.argv.index("--testsuite")+1]
+	else:
+		testsuite = None
+
+	test_all = False
+
+	if "--test-all" in sys.argv:
+		test_all = True
+
+
+	if "--get-expected" in sys.argv:
+
+		results = []
+
+		for test in os.listdir("tests/"):
+			print("Running test "+str(test))
+
+			results.append(command_mainloop(file=filething, testsuite="tests/"+str(test)))
+
+		print("Expected values for the tests:")
+		count = 0
+		for filething in os.listdir("tests/"):
+
+			print("tests/"+filething+" : "+str(results[count]))
+
+			count += 1
+		exit(0)
+
+	if not test_all:
+
+		command_mainloop(file=filething, testsuite=testsuite)
+
+	else:
+		results = []
+		for test in os.listdir("tests/"):
+			print("Running test "+str(test))
+
+			_, passing = command_mainloop(file=filething, testsuite="tests/"+str(test))
+
+			results.append(passing)
+
+		#print summary
+		count = 0
+		fail = False
+		print_col(bcolors.OKBLUE, "=================================================\n\n")
+
+		print_col(bcolors.OKBLUE, "Final results: \n")
+		for thing in os.listdir("tests/"):
+			if results[count]:
+				# pass
+				print_col(bcolors.OKGREEN, "Test: tests/"+str(thing)+" PASSED!")
+			else:
+				# fail:
+				print_col(bcolors.FAIL, "Test: tests/"+str(thing)+" FAILED!")
+				fail=True
+		print("\n\n")
+		if fail:
+			print_col(bcolors.FAIL, "Some tests failed!\n\n")
+		else:
+			print_col(bcolors.OKGREEN, "All tests passed!\n\n")
+		print_col(bcolors.OKBLUE, "=================================================")
+```
+
+the --get-expected  flag gets all of the expected values for the testsuite files and then the --test-all checks all of them. The idea is that before making modifications you update the tests with the --get-expected values (which I should probably also automate, that the program automatically appends the expected values to the testsuite files but oh well) and then after you have done modifications to the program then you later run the test set with --test-all to see that it behaves similarly as to before, because if it doesn't then you have royally screwed something up.
+
+## Trying out the triangle feature:
+
+Now that we have the triangle implemented lets actually try to use it:
+
+First we need to implement a command which lets us create a triangle:
+
+
+```
+def triangle_command(command:str, objects:list):
+
+	args = command.split(" ")
+
+	args = args[1:]
+
+	common_object_creation_stuff(args, "triangle", objects)
+
+	return 0
+
+```
+
+
+I am really glad that i programmed that common_object_creation_stuff  function so that I don't have to copy paste code. In fact I don't even think that the "line_command" and "triangle_command" functions are even necessary, because we could handle that stuff in the mainloop but idk.
+
+Now lets create a quick file which uses this new command and tries to find intersections between the triangle and a line:
+
+
+```
+
+triangle x0=0 y0=0 x1=1 y0=0 x2=1 y2=1
+line a=0 b=1 c=-0.5
+intersect triangle0 line0
+quit
+```
+
+
+and as expected we get an error:
+
+```
+
+oof
+oof22
+equations: [[False], [False], [False], Eq(x + y - 0.5, 0)]
+or_eq1 : [False]
+plain_eqs: []
+Traceback (most recent call last):
+  File "geometrylib.py", line 2203, in <module>
+    command_mainloop(file=filething, testsuite=testsuite)
+  File "geometrylib.py", line 2130, in command_mainloop
+    command_result = handle_functions[index](command_string, global_objects)
+  File "geometrylib.py", line 1285, in intersection_command
+    results = intersection(obj1, obj2)
+  File "geometrylib.py", line 1022, in intersection
+    results = solve_equation_stuff([object1, object2], ('x','y'))
+  File "geometrylib.py", line 1005, in solve_equation_stuff
+    result.append(solve([or_eq1]+plain_eqs), variables)
+  File "/usr/local/lib/python3.8/dist-packages/sympy-1.9.dev0-py3.8.egg/sympy/solvers/solvers.py", line 856, in solve
+    symbols = set().union(*[fi.free_symbols for fi in f])
+  File "/usr/local/lib/python3.8/dist-packages/sympy-1.9.dev0-py3.8.egg/sympy/solvers/solvers.py", line 856, in <listcomp>
+    symbols = set().union(*[fi.free_symbols for fi in f])
+AttributeError: 'list' object has no attribute 'free_symbols'
+```
+
+This is because the parse_expr function also evaluates the equations in addition to simply parsing them so an expression like "x>2" which is a constraint gets simplified to "1>2" if x is one and this of course evaluates to False.
+
+This peculiar bug was solved like this:
+
+```
+
+			final_equation = Eq(parse_expr(equation))
+			
+			constraint_stuff = parse_expr(constraint_thing)
+
+			print("Final equation: "+str(final_equation))
+			print("Value of x: "+str(parse_expr('x')))
+
+```
 
 
 
 
+Just simply parsing an expression like "x>2" makes it an equation so no need to do something like Eq("x>2") because that won't work.
+
+Now after that we observe that plain_eqs remains empty for some reason so lets investigate this code:
+
+
+```
+
+		for eq in equations:
+
+			if not isinstance(eq, list):
+				plain_eqs.append(eq)
+			else:
+				or_eqs.append(eq)
+
+			for or_eq1 in or_eqs:
+
+				print("or_eq1 : "+str(or_eq1))
+				print("plain_eqs: "+str(plain_eqs))
+
+				result.append(solve([or_eq1]+plain_eqs), variables)
+```
 
 
 
+This was simply because we indented the code a bit too much it should be like this:
 
 
+```
 
 
+		for eq in equations:
+			print
+			if not isinstance(eq, list):
+				plain_eqs.append(eq)
+			else:
+				or_eqs.append(eq)
 
+		print("Final plain_eqs: "+str(plain_eqs))
 
+		for or_eq1 in or_eqs:
 
+			print("or_eq1 : "+str(or_eq1))
+			print("plain_eqs: "+str(plain_eqs))
 
+			result.append(solve(or_eq1+plain_eqs), variables)
+```
 
+Now running the code we end up with this:
 
+```
+NotImplementedError: 
+inequality has more than one symbol of interest
+```
 
+Now, this error is because sympy can not handle inequalities in a certain way. If we try to do something like this:
 
+```
+from sympy import *
+x = Symbol('x')
+y = Symbol('y')
+solve([Eq(x + y - 0.5, 0), Eq(1 - 10.0*y, 0), x <= 1], [x,y])
 
+```
 
+We get the exact same error. This is complete bullshit because we obviously need this for this thing to work. One workaround which I can see is that we first compute the solution without any restrictions and then afterwards check them.
 
-
-
+After a bit of tinkering I got it to work but the thing is that it now ignores the restrictions completely. Anywa, I am going to fix that tomorrow.
 
 
 
