@@ -2012,8 +2012,456 @@ We get the exact same error. This is complete bullshit because we obviously need
 After a bit of tinkering I got it to work but the thing is that it now ignores the restrictions completely. Anywa, I am going to fix that tomorrow.
 
 
+Ok so now after a bit of coding I finally came up with this:
+
+```
 
 
+
+def solve_equation_stuff(object_list, variables):
+	equations = []
+
+	for obj in object_list:
+		stuff = obj.get_equations()
+		
+		if isinstance(stuff, list):
+			
+			# this is for compatibility if the get_equations function returns a list of equations
+			equations += stuff
+		else:
+			equations.append(stuff)
+	plain_eqs = True
+
+	for eq in equations:
+		if isinstance(eq, list):
+			plain_eqs = False
+			break
+
+	if plain_eqs:  # they are plain equations without any constraints (aka a line and a point for example)
+
+		all_equations = equations
+		print("All equations as a list: "+str(all_equations))
+
+
+		result = sympy.solve(all_equations, variables)
+		print("result: "+str(result))
+	
+	else:
+		result = []
+
+		or_eqs = []
+		plain_eqs = []
+		print("equations: "+str(equations))
+		for eq in equations:
+			print
+			if not isinstance(eq, list):
+				plain_eqs.append(eq)
+			else:
+				or_eqs.append(eq)
+
+		print("Final plain_eqs: "+str(plain_eqs))
+
+		for or_eq1 in or_eqs:
+			restriction_thing = []
+			print("or_eq1 : "+str(or_eq1))
+			print("plain_eqs: "+str(plain_eqs))
+
+			poplist = []
+
+			for i in range(len(or_eq1)):
+				if ">=" in str(or_eq1[i]) or "<=" in str(or_eq1[i]):
+					poplist.append(i)
+					restriction_thing.append(or_eq1[i])
+			
+			'''
+
+			# big thanks to https://stackoverflow.com/questions/11303225/how-to-remove-multiple-indexes-from-a-list-at-the-same-time
+
+			indexes = [2, 3, 5]
+			for index in sorted(indexes, reverse=True):
+				del my_list[index]
+
+			'''
+
+			for index in sorted(poplist, reverse=True):
+				del or_eq1[index]
+
+
+
+
+			#result.append(solve(or_eq1+plain_eqs, variables))
+			thing = solve(or_eq1+plain_eqs, variables)
+
+			print("Thing stuff: ")
+			print("restriction_thing: "+str(restriction_thing))
+
+			print("thing: "+str(thing))
+			if isinstance(thing, list):
+
+				# handle the list thing:
+
+				# this is for when there are multiple solution stuff:
+
+				if len(thing) > 1:
+
+					# handle multiple solutions aka check them all sequentially
+
+
+					print("poopoo")
+					#exit(1)
+
+					for sol in thing:
+
+						if isinstance(sol, dict):
+
+
+							# handle multiple dictionary stuff
+
+							thing = sol
+
+							for restriction in restriction_thing:
+
+								print("current restriction: "+str(restriction))
+								print("substitution: "+str(thing))
+					
+								passing = True
+					
+								oofthing = restriction[0]
+								for restriction_expr in restriction:
+						
+									oofthing = (restriction_expr).subs(thing)
+
+									if oofthing == False:
+										passing = False
+										break
+
+								if passing:
+									result.append(thing)
+
+						else:
+
+
+							if len(sol) == 2:
+								thing = {"x":sol[0], "y":sol[1]}
+							elif len(sol) == 1:
+								thing = {"x":sol[0]}
+							else:
+								fail("Invalid length for solution thing in solve_equation_stuff:")
+								print("sol: "+str(sol))
+								exit(1)
+
+
+
+							# this is basically for when they are tuples or lists.
+							# for example in the intersection between a triangle and a circle: [(0.648031893339682, 0.141338648889947), (1.02764378233599, 0.204607297055999)]
+
+							for restriction in restriction_thing:
+
+								print("current restriction: "+str(restriction))
+								print("substitution: "+str(thing))
+					
+								passing = True
+					
+								oofthing = restriction[0]
+								for restriction_expr in restriction:
+						
+									oofthing = (restriction_expr).subs(thing)
+
+									if oofthing == False:
+										passing = False
+										break
+
+								if passing:
+									result.append(thing)
+
+
+
+
+
+				else:
+
+					thing = thing[0]
+
+					for restriction in restriction_thing:
+
+						print("current restriction: "+str(restriction))
+						print("substitution: "+str(thing))
+					
+						passing = True
+					
+						oofthing = restriction[0]
+						for restriction_expr in restriction:
+						
+							oofthing = (oofthing).subs(thing)
+
+							if oofthing == False:
+								passing = False
+								break
+
+						if passing:
+							result.append(thing)
+
+
+			else:
+
+
+
+				for restriction in restriction_thing:
+
+					print("current restriction: "+str(restriction))
+					print("substitution: "+str(thing))
+					
+					passing = True
+					
+					oofthing = restriction[0]
+					for restriction_expr in restriction:
+						
+						oofthing = (oofthing).subs(thing)
+
+						if oofthing == False:
+							passing = False
+							break
+
+					if passing:
+						result.append(thing)
+
+
+
+					#if (restriction).subs(thing):
+					#	print("passed this: "+str(restriction)+"  "+str(thing))
+					#	result.append(thing)
+
+	return result
+```
+
+
+Which is way more convoluted than it has to be, but it does the job. Now finally I can do this:
+
+```
+
+triangle x0=0.4 y0=0.1 x1=1 y1=0.2 x2=1 y2=1
+line a=0.1 b=1 c=-0.5
+intersect triangle0 line0
+quit
+```
+
+and it produces the right results:
+
+```
+[{x: 0.625000000000000, y: 0.437500000000000}, {x: 1.00000000000000, y: 0.400000000000000}]
+```
+
+Now another thing which I would like to implement is a way to get an angle between two line objects, because that makes it a lot easier to calculate for example the angles inside a triangle.
+The angle between a line and the x axis is arctan(-a/b) therefore the line between two lines is:
+
+```
+
+abs(abs(arctan(-a1/b1))-abs(arctan(-a2/b2)))
+```
+
+
+When the lines are a1*x+b1*y+c=0 and a2x*x+b2*y+c=0 
+
+
+For example in the next picture we have x+2*y+3=0 and 4*x+5*y+6=0 
+
+
+
+![angle_example](/pictures/angle_example.png)
+
+
+and the angle is around 12.09 degrees .
+
+
+Lets use the formula and check our work:
+
+```
+abs(abs(arctan(-a1/b1))-abs(arctan(-a2/b2)))
+```
+
+in xcas:
+
+```
+a1:=1
+b1:=2
+a2:=4
+b2:=5
+abs(arctan(-a1/b1)-arctan(-a2/b2))
+```
+
+results is:
+
+```
+12.094757077
+```
+
+so our formula works. Lets put it into the program:
+
+```
+def angle_between_lines(line1, line2):
+
+	result = simplify(parse_expr("Abs(atan(-{}/{})-atan(-{}/{}))".format(str(line1.a), str(line1.b), str(line2.a), str(line2.b))))
+	# it is in radians so convert to degrees.
+
+	result *=360
+	result /= 2
+	result /= 3.14159265358979323846 # pi
+	return result
+```
+
+and the command thing:
+
+```
+def angle_between_lines_command(command:str, objects:list):
+
+	# returns the angle between two lines
+	args = command.split(" ")
+
+	args = args[1:]
+
+	first_line = get_object_by_name(args[0])
+	second_line = get_object_by_name(args[1])
+
+	final_result = angle_between_lines(first_line, second_line)
+
+	print_col(bcolors.OKBLUE, "Angle between lines: "+str(final_result)+" == " + str((final_result).evalf()))
+
+	return (final_result).evalf()
+```
+
+
+One thing which actually stood out to me was that the tests passed on the first try so I was a bit sceptical of that. Looking through the code the code was originally this:
+
+```
+		for thing in os.listdir("tests/"):
+			if results[count]:
+				# pass
+				print_col(bcolors.OKGREEN, "Test: tests/"+str(thing)+" PASSED!")
+			else:
+				# fail:
+				print_col(bcolors.FAIL, "Test: tests/"+str(thing)+" FAILED!")
+				fail=True
+			
+		print("\n\n")
+		if fail:
+			print_col(bcolors.FAIL, "Some tests failed!\n\n")
+		else:
+			print_col(bcolors.OKGREEN, "All tests passed!\n\n")
+		print_col(bcolors.OKBLUE, "=================================================")
+```
+
+We do not increment the "count" variable so if the first test passes then this code incorrectly reports that every test passed so we need to increment the count variable like so:
+
+```
+
+		for thing in os.listdir("tests/"):
+			if results[count]:
+				# pass
+				print_col(bcolors.OKGREEN, "Test: tests/"+str(thing)+" PASSED!")
+			else:
+				# fail:
+				print_col(bcolors.FAIL, "Test: tests/"+str(thing)+" FAILED!")
+				fail=True
+			count += 1
+		print("\n\n")
+		if fail:
+			print_col(bcolors.FAIL, "Some tests failed!\n\n")
+		else:
+			print_col(bcolors.OKGREEN, "All tests passed!\n\n")
+		print_col(bcolors.OKBLUE, "=================================================")
+```
+
+
+Also another issue which I faced was that the environment had to be reset in between each testsuite file because otherwise the definition of variables in the last testsuite screws stuff up in the next testsuite.
+
+## Implementing tangents
+
+
+Another feature to add is adding tangents to this program. We get a tangentline on a point on an object. We also could probably make a tangent thing for many object to get all tangentlines which are tangent to two or more objects (if there are any).
+
+To do this just use the line passing through a point formula and the derivative of the function at that point for the derivative of the tangent:
+
+```
+
+def get_tangents(objects:list):
+
+	# get the tangentlines which are shared by all the objects (if there exists any)
+
+	if len(objects) == 1:
+		
+		# just get the tangent line stuff at x=x0 and return it
+
+		# triangles are not supported because reasons.
+
+		# the point is (x0,f(x0)) and the derivative aka k is derivative(f(x),x)|x=x0
+		obj = objects[0]
+
+		equation_list = obj.get_equations()
+
+		# first solve y from the equation
+
+		#y_eqs = []
+		
+		tangent_lines = []
+		for eq in equation_list:
+
+			y_eqs = solve(eq, 'y')
+
+			for y_eq in y_eqs:
+
+
+				#k = simplify(derivative(y_eq, x))
+
+				x0 = Symbol('x0')
+
+				print("y_eq: "+str(y_eq))
+				print("equation_list: "+str(equation_list))
+
+				tangent = get_tangent_from_point_and_derivative(x0,y_eq.subs({"x":x0}))
+
+				tangent = tangent.subs({"xnew":x0})
+
+				tangent_lines.append(tangent)
+		
+		return tangent_lines
+```
+
+
+and:
+
+```
+
+def get_tangent_from_point_and_derivative(x0thing,fx0):
+
+	xnew = Symbol('xnew')
+	x0 = Symbol('x0')
+	x = Symbol('x')
+	k = simplify(Derivative(fx0,x0thing)).subs({str(x0thing):xnew})
+	print("k : "+str(k))
+
+	# y - y0 = k*(x - x0)
+
+	print("x0 : "+str(x0))
+	print("fx0 : "+str(fx0))
+	derivative_line = simplify(k*(x - x0thing.subs({x0thing:xnew})) + fx0.subs({str(x0thing):xnew}))
+	print("derivative_line: "+str(derivative_line))
+
+	return derivative_line
+```
+
+and here is a testuite which I made:
+
+```
+circle xc=0 yc=0 r=1
+circle0.name = mycircle
+tangents mycircle
+quit
+
+
+#[(x*x0 - 1)/sqrt(1 - x0**2), (-x*x0 + 1)/sqrt(1 - x0**2)]
+```
+
+And it passes all of the tests. Nice! Now we can get a tangent of one object. In addition to getting a tangent of one object I would like to also get a shared tangent between two objects aka tangent lines which are tangent to two objects at the same time but I will save that for tomorrow.
 
 
 
