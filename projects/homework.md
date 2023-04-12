@@ -1,7 +1,7 @@
 
 ### How I automated my geometry homework.
 
-This is a story of how I automated my geometry homework (partly) (you can find the complete source code for this tool on: ). (!!! NOTE: I MAY ADD UPDATES TO THIS BLOG LATER. THIS PROJECT IS NOT YET COMPLETELY FINISHED !!!)
+This is a story of how I automated my geometry homework (partly) (you can find the complete source code for this tool on: https://github.com/personnumber3377/Geometrylib ). (!!! NOTE: I MAY ADD UPDATES TO THIS BLOG LATER. THIS PROJECT IS NOT YET COMPLETELY FINISHED !!!)
 
 # The problem description:
 
@@ -2461,7 +2461,50 @@ quit
 #[(x*x0 - 1)/sqrt(1 - x0**2), (-x*x0 + 1)/sqrt(1 - x0**2)]
 ```
 
-And it passes all of the tests. Nice! Now we can get a tangent of one object. In addition to getting a tangent of one object I would like to also get a shared tangent between two objects aka tangent lines which are tangent to two objects at the same time but I will save that for tomorrow.
+And it passes all of the tests. Nice! Now we can get a tangent of one object. In addition to getting a tangent of one object I would like to also get a shared tangent between two objects aka tangent lines which are tangent to two objects at the same time but I will save that for later.
+
+
+## Implementing common tangents:
+
+To implement a way to solve for tangent lines which are shared upon many objects is to find a line which are in both groups of all possible tangent lines for each object. To do this we need to implement a function which checks if a line is the same line as another line.
+
+Because an object may have multiple equations describing it, we need to run through every one of them for every object, and since there may be any arbitrary amount of objects, we need to basically do this bullshit for every one of them.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
