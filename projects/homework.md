@@ -2470,29 +2470,312 @@ To implement a way to solve for tangent lines which are shared upon many objects
 
 Because an object may have multiple equations describing it, we need to run through every one of them for every object, and since there may be any arbitrary amount of objects, we need to basically do this bullshit for every one of them.
 
+Now running this script:
+
+```
+circle xc=0 yc=0 r=1
+circle0.name = circleone
+circle xc=2 yc=0 r=1
+circle0.name = circletwo
+
+tangents circleone circletwo
+quit
+
+```
+
+Results in this output:
+
+```
+
+Welcome to geometrylib 1.0 !
+Type "help" for help menu.
+Running commands from file ./tests/check_common_tangent.txt.
+Command string: 
+Command string: circle xc=0 yc=0 r=1
+fewfeewfewfewf
+arguments: ['xc=0', 'yc=0', 'r=1']
+object_name: circle
+{'xc': '0', 'yc': '0', 'r': '1'}
+*arguments_thing : {'xc': '0', 'yc': '0', 'r': '1'}
+bullshit: {'xc': '0', 'yc': '0', 'r': '1'}
+bullshit: {'xc': '0', 'yc': '0', 'r': '1'}
+the_object.name == circle0
+setting parameter xc to this: xc0
+the_object.name == circle0
+setting parameter yc to this: yc0
+the_object.name == circle0
+setting parameter r to this: r0
+the_object.name == circle0
+setting parameter x to this: x0
+the_object.name == circle0
+setting parameter y to this: y0
+Names of global objects at the end of common_arg_stuff: []
+global_objects at the start: []
+objects after creation of new_object : []
+gregregregrr
+global_objects at the start: ['circle0']
+objects after appending new_object: ['circle0']
+global_objects after appending new_object: ['circle0']
+Created new object.
+Command result: 0
+Command string: circle0.name = circleone
+thing
+==================================================================================
+Setting property : name
+On object: circle0
+selected_property: name
+value: circleone
+self.yc : 0
+result: None
+Command string: circle xc=2 yc=0 r=1
+fewfeewfewfewf
+arguments: ['xc=2', 'yc=0', 'r=1']
+object_name: circle
+{'xc': '2', 'yc': '0', 'r': '1'}
+*arguments_thing : {'xc': '2', 'yc': '0', 'r': '1'}
+bullshit: {'xc': '2', 'yc': '0', 'r': '1'}
+bullshit: {'xc': '2', 'yc': '0', 'r': '1'}
+the_object.name == circle0
+setting parameter xc to this: xc0
+the_object.name == circle0
+setting parameter yc to this: yc0
+the_object.name == circle0
+setting parameter r to this: r0
+the_object.name == circle0
+setting parameter x to this: x0
+the_object.name == circle0
+setting parameter y to this: y0
+Names of global objects at the end of common_arg_stuff: ['circleone']
+global_objects at the start: ['circleone']
+objects after creation of new_object : ['circleone']
+gregregregrr
+global_objects at the start: ['circleone', 'circle0']
+objects after appending new_object: ['circleone', 'circle0']
+global_objects after appending new_object: ['circleone', 'circle0']
+Created new object.
+Command result: 0
+Command string: circle0.name = circletwo
+thing
+==================================================================================
+Setting property : name
+On object: circle0
+selected_property: name
+value: circletwo
+self.yc : 0
+result: None
+Command string: 
+Command string: tangents circleone circletwo
+fewfeewfewfewf
+name_str: circleone
+['circleone', 'circletwo']
+---------------------------
+circleone
+circletwo
+---------------------------
+name_str: circletwo
+['circleone', 'circletwo']
+---------------------------
+circleone
+circletwo
+---------------------------
+obj.name == circleone
+Circle equation bullshit: 
+((x)-(0))**2+((y)-(0))**2=(1)**2
+oof
+oof22
+y_eq: -sqrt(1 - x**2)
+equation_list: [Eq(x**2 + y**2, 1)]
+k : xnew/sqrt(1 - xnew**2)
+x0 : x0
+fx0 : -sqrt(1 - x0**2)
+derivative_line: (x*xnew - 1)/sqrt(1 - xnew**2)
+y_eq: sqrt(1 - x**2)
+equation_list: [Eq(x**2 + y**2, 1)]
+k : -xnew/sqrt(1 - xnew**2)
+x0 : x0
+fx0 : sqrt(1 - x0**2)
+derivative_line: (-x*xnew + 1)/sqrt(1 - xnew**2)
+Circle equation bullshit: 
+((x)-(2))**2+((y)-(0))**2=(1)**2
+oof
+oof22
+y_eq: -sqrt(-(x - 3)*(x - 1))
+equation_list: [Eq(y**2 + (x - 2)**2, 1)]
+k : sqrt(-(xnew - 3)*(xnew - 1))*(2 - xnew)/((xnew - 3)*(xnew - 1))
+x0 : x0
+fx0 : -sqrt(-(x1 - 3)*(x1 - 1))
+derivative_line: (x*xnew - 2*x - 2*xnew + 3)/sqrt(-xnew**2 + 4*xnew - 3)
+y_eq: sqrt(-(x - 3)*(x - 1))
+equation_list: [Eq(y**2 + (x - 2)**2, 1)]
+k : -sqrt(-(xnew - 3)*(xnew - 1))*(2 - xnew)/((xnew - 3)*(xnew - 1))
+x0 : x0
+fx0 : sqrt(-(x1 - 3)*(x1 - 1))
+derivative_line: sqrt(-(xnew - 3)*(xnew - 1))*((x - xnew)*(xnew - 2) + (xnew - 3)*(xnew - 1))/((xnew - 3)*(xnew - 1))
+
+
+Running run_through_list: 
+
+
+thing1: (x*x0 - 1)/sqrt(1 - x0**2)
+thing2: (x*x1 - 2*x - 2*x1 + 3)/sqrt(-x1**2 + 4*x1 - 3)
+Solution stuff: [(sqrt(1 - x0**2)/sqrt(-x1**2 + 4*x1 - 3), x0, y0, x1, y1)]
+
+
+thing1: (x*x0 - 1)/sqrt(1 - x0**2)
+thing2: sqrt(-(x1 - 3)*(x1 - 1))*((x - x1)*(x1 - 2) + (x1 - 3)*(x1 - 1))/((x1 - 3)*(x1 - 1))
+Solution stuff: [(-sqrt(1 - x0**2)/sqrt(-x1**2 + 4*x1 - 3), x0, y0, x1, y1)]
+thing1: (-x*x0 + 1)/sqrt(1 - x0**2)
+thing2: (x*x1 - 2*x - 2*x1 + 3)/sqrt(-x1**2 + 4*x1 - 3)
+Solution stuff: [(-sqrt(1 - x0**2)/sqrt(-x1**2 + 4*x1 - 3), x0, y0, x1, y1)]
+thing1: (-x*x0 + 1)/sqrt(1 - x0**2)
+thing2: sqrt(-(x1 - 3)*(x1 - 1))*((x - x1)*(x1 - 2) + (x1 - 3)*(x1 - 1))/((x1 - 3)*(x1 - 1))
+Solution stuff: [(sqrt(1 - x0**2)/sqrt(-x1**2 + 4*x1 - 3), x0, y0, x1, y1)]
+
+
+Final solutions: [(sqrt(1 - x0**2)/sqrt(-x1**2 + 4*x1 - 3), x0, y0, x1, y1)]
+Command result: None
+Command string: quit
+fewfeewfewfewf
+Thank you for using geometrylib! See you again soon!
+
+
+```
+
+Obviously this is wrong.
+
+Lets draw a picture of the situation in a graphing calculator:
+
+
+t = (sqrt(1 - x0**2)/sqrt(-x1**2 + 4*x1 - 3)
+
+(x*b - 2*x - 2*b + 3)/sqrt(-b^2 + 4*b - 3)
 
 
 
 
 
 
+```
+thing1: (x*x0 - 1)/sqrt(1 - x0**2)
+thing2: (x*x1 - 2*x - 2*x1 + 3)/sqrt(-x1**2 + 4*x1 - 3)
+Solution stuff: [(sqrt(1 - x0**2)/sqrt(-x1**2 + 4*x1 - 3), x0, y0, x1, y1)]
+```
+
+i am going to mark x0 as a, x1 as b, y0 as c and y1 as d
+
+
+t = sqrt(1 - (x0^2))/sqrt(-(x1^2) + 4*x1 - 3)
+
+t = sqrt(1 - (a^2))/sqrt(-(b^2) + 4*b - 3)
+
+
+f(x) = (x*b - 2*x - 2*b + 3)/sqrt(-(b^2) + 4*b - 3)*t
+
+l(x) = (x*a - 1)/sqrt(1 - a^2)
+
+
+I think that this is because the approach I am taking for solving the tangents is wrong, see I am checking if the lines are the same, but instead I want to check that their derivatives are the same and they pass through the same points.
 
 
 
+(-sqrt(x1**2 - 4*x1 + 4), y0, x1, y1), (sqrt(x1**2 - 4*x1 + 4), y0, x1, y1)
+
+
+-sqrt(x1**2 - 4*x1 + 4), y0, x1, y1), (sqrt(x1**2 - 4*x1 + 4)
+
+Now, there is some peculiar behaviour:
+
+```
+
+>>> simplify(Derivative(-sqrt(1 - x0**2), x0))
+x0/sqrt(1 - x0**2)
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1)))
+KeyboardInterrupt
+>>> simplify(Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1)))
+  File "<stdin>", line 1
+    simplify(Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1)))
+                                                       ^
+SyntaxError: unmatched ')'
+>>> simplify(Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1))
+sqrt(-(x1 - 3)*(x1 - 1))*(2 - x1)/((x1 - 3)*(x1 - 1))
+>>> (sqrt(-(x1 - 3)*(x1 - 1))*(2 - x1)/((x1 - 3)*(x1 - 1))).subs({x1:0.5})
+1.34164078649987*I
+>>> (sqrt(-(x1 - 3)*(x1 - 1))*(2 - x1)/((x1 - 3)*(x1 - 1))).subs({x1:2.5})
+0.577350269189626
+>>> (x0/sqrt(1 - x0**2)).subs({x0:0.5})
+0.577350269189626
+>>> solve((sqrt(-(x1 - 3)*(x1 - 1))*(2 - x1)/((x1 - 3)*(x1 - 1))))
+KeyboardInterrupt
+>>> solve(Eq((sqrt(-(x1 - 3)*(x1 - 1))*(2 - x1)/((x1 - 3)*(x1 - 1))), (x0/sqrt(1 - x0**2))), (x1,x0))
+[(x0 + 2, x0)]
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1)))
+[]
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)))))
+[]
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)))), x0)
+[]
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)))), (x1,x0))
+[]
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)))))
+[]
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2, x0)), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1)))
+[]
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2, x0)), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1)), x0)
+[]
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2, x0)), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1)))
+[]
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1)))
+[]
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1)), x0)
+[]
+>>> solve(Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1)))
+[]
+>>> simplify(Derivative(-sqrt(1 - x0**2), x0))
+x0/sqrt(1 - x0**2)
+>>> simplify(Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1))
+sqrt(-(x1 - 3)*(x1 - 1))*(2 - x1)/((x1 - 3)*(x1 - 1))
+>>> Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1))
+Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt((3 - x1)*(x1 - 1)), x1))
+>>> simplify(Eq(Derivative(-sqrt(1 - x0**2), x0), Derivative(-sqrt(-(x1 - 3)*(x1 - 1)), x1)))
+Eq(x0/sqrt(1 - x0**2), sqrt(-(x1 - 3)*(x1 - 1))*(2 - x1)/((x1 - 3)*(x1 - 1)))
+>>> solve(Eq(x0/sqrt(1 - x0**2), sqrt(-(x1 - 3)*(x1 - 1))*(2 - x1)/((x1 - 3)*(x1 - 1))),x0)
+[x1 - 2]
+>>> solve(Eq(x0/sqrt(1 - x0**2), sqrt(-(x1 - 3)*(x1 - 1))*(2 - x1)/((x1 - 3)*(x1 - 1))),(x0,x1))
+[(x1 - 2, x1)]
+>>> solve(Eq(x0/sqrt(1 - x0**2), sqrt(-(x1 - 3)*(x1 - 1))*(2 - x1)/((x1 - 3)*(x1 - 1))),x0,x1)
+[(x1 - 2, x1)]
+>>> 
 
 
 
+```
+
+Now, I came accross a very peculiar bug. This time the bug I think is actually in the sympy package instead of my own code. I filed this issue to the sympy github page: https://github.com/sympy/sympy/issues/25057 . Lets hope that the devs fix it soon. In the mean time we can just use the simplify for our purposes.
 
 
+After doing that fix now we get some very strange behaviour. Our tangent in the thing has the correct intersection with the circle, but the derivative is the opposite sign of what it should be.
 
+Ok I found the bug. Originally these lines:
 
+```
 
+thing_y_1 = solve(thing_y_1, 'y')[counter1]
+thing_y_2 = solve(thing_y_2, 'y')[counter2]
 
+```
 
+where this:
 
+```
 
+thing_y_1 = solve(thing_y_1, 'y')[0]
+thing_y_2 = solve(thing_y_2, 'y')[0]
 
+```
 
+because I made the assumption that every object had only one equation associated with them.
+
+After the tangents have been determined for two objects, we can then make a very obvious optimization that we can just check that the lines are tangent to the other objects. We do not need to solve for the lines, because the tangents which are tangent between two objects also have to be tangent to those other objects in order for the tangent to be shared by all of them (by definition) . This may give us some problems in the future when we try to implement this stuff in 3d but I think that this is fine for now (that is a problem for future me).
 
 
 

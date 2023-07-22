@@ -1,0 +1,389 @@
+<h2 id="making-my-own-spice-simulator.">Making my own spice simulator.</h2>
+<p>I have always been curious as to how spice simulators work. I think that they solve the differential equations which describe the movement of charges, but I wanted to learn how they worked in more depth. This is my journey of implementing my own spice simulator.</p>
+<h2 id="digging-through-existing-simulators.">Digging through existing simulators.</h2>
+<p>My preferred programming language is python so I searched for Spice simulators which were written in that language. I quickly came across this: https://github.com/PySpice-org/PySpice which seems quite manageable.</p>
+<p>The source code is only around 17k lines:</p>
+<pre><code>cyberhacker@cyberhacker-h8-1131sc:~/Asioita/Ohjelmointi/spicesimulation/plagiarized/PySpice/PySpice$ find -name \*.py | xargs wc -l
+   176 ./Tools/EnumFactory.py
+    53 ./Tools/Path.py
+   292 ./Tools/File.py
+    84 ./Tools/StringTools.py
+     0 ./Tools/__init__.py
+   477 ./Probe/WaveForm.py
+     0 ./Probe/__init__.py
+    43 ./Probe/Plot.py
+    64 ./Physics/PhysicalConstants.py
+    66 ./Physics/SemiConductor.py
+    30 ./Physics/Resistor.py
+     0 ./Physics/__init__.py
+    40 ./Physics/MaterialProperties.py
+   164 ./Math/Calculus.py
+    46 ./Math/__init__.py
+    48 ./Doc/ExampleTools.py
+     0 ./Doc/__init__.py
+   470 ./Scripts/pyspice_post_installation.py
+    70 ./Scripts/cir2py.py
+     0 ./Scripts/__init__.py
+  1292 ./Spice/Netlist.py
+  1715 ./Spice/BasicElement.py
+   407 ./Spice/Expression/Ast.py
+   346 ./Spice/Expression/Parser.py
+    19 ./Spice/Expression/__init__.py
+   395 ./Spice/ElementParameter.py
+  1236 ./Spice/Simulation.py
+  1324 ./Spice/NgSpice/Shared.py
+   127 ./Spice/NgSpice/Simulation.py
+    90 ./Spice/NgSpice/SimulationType.py
+   234 ./Spice/NgSpice/RawFile.py
+    23 ./Spice/NgSpice/__init__.py
+   162 ./Spice/NgSpice/Server.py
+    73 ./Spice/Xyce/Simulation.py
+   175 ./Spice/Xyce/RawFile.py
+     0 ./Spice/Xyce/__init__.py
+   140 ./Spice/Xyce/Server.py
+   150 ./Spice/Library.py
+   865 ./Spice/HighLevelElement.py
+   417 ./Spice/RawFile.py
+  1486 ./Spice/Parser_jmgc.py
+  1057 ./Spice/Parser.py
+    75 ./Spice/__init__.py
+   106 ./DeviceLibrary/__init__.py
+    60 ./Plot/BodeDiagram.py
+     0 ./Plot/__init__.py
+    27 ./__init__.py
+    65 ./Config/ConfigInstall.py
+     0 ./Config/__init__.py
+  1944 ./Unit/Unit.py
+   330 ./Unit/SiUnits.py
+   244 ./Unit/__init__.py
+     0 ./Logging/__init__.py
+    69 ./Logging/Logging.py
+ 16776 total
+</code></pre>
+<p>Out of these subdirectories the interesting ones are the Math, Physics, Spice and Unit .</p>
+<p>Ok after a bit of digging I found out that the simulation of the circuit is actually done by either ngspice or Xyce which so lets look at the source code of those. I was quite suspicious about the low line count. Lets get the total lines inside src/ for ngspice:</p>
+<pre><code>  515131 total</code></pre>
+<p>There we go! That seems more like it!</p>
+<p>So going through the entire ngspice code base is not going to happen, because I am dumb. Instead of that lets try to do some physics reading. After a bit of reading I basically have an idea of how I am going to go about doing this. I am going to Implement a “Component” class which, as the name suggests, can be any type of component. battery, resistor, capacitor, anything. Then for all the batteries or voltage sources just update the voltage at every Node. I am a bit sussed out about transistors, but I think that I can simulate that with a switch which is controlled by the input voltage. We also need to implement a Node object which is an electrical node.</p>
+<p>Also I think that this is a very good chance to learn about inheritance in python.</p>
+<p>Anyway, lets first think this out on a somewhat high level before jumping in as I would normally do, because I think this actually requires some planning ahead of time:</p>
+<p>The algorithm will basically be:</p>
+<ul>
+<li>Calculate effective resistance of each component.</li>
+<li>Calculate the total current.</li>
+<li>Calculate the voltage at the desired point.</li>
+</ul>
+<p>After a bit of digging I found this: https://github.com/giaccone/SpicePy which is a spice simulator written in pure python. The only criticism I have of it is that it does not support transistors, but lets take a look at it anyway.</p>
+<p>So after staring at formulas and the code for a long bit I think that I have alteast some sort of understanding of what does what. Calling the library on a siple circuit with a power source and a singular resistor basically calls the dc_solve function. The dc_solve function first creates the conductance matrix (self.G):</p>
+<pre><code>def dc_solve(net):
+    &quot;&quot;&quot;
+    &quot;dc_solve&quot; solves DC network
+
+    :return:
+        * x, solution
+    &quot;&quot;&quot;
+    print(&quot;dc_solve&quot;)
+    net.conductance_matrix()
+    #print(&quot;conductance_matrix: &quot;+str(net.conductance_matrix()))
+    net.rhs_matrix()
+
+    # linear system definition
+    print(&quot;net.G == &quot;+str(net.G))
+    print(&quot;net.rhs == &quot;+str(net.rhs))
+    net.x = spsolve(net.G, net.rhs)
+    print(&quot;net.x == &quot;+str(net.x))</code></pre>
+<p>and then after that it creates the right hand side matrix. The right hand side matrix is basically this when not in transient analysis:</p>
+<pre><code>
+            # initialize rhs
+            rhs = [0] * (self.node_num + len(self.isort[1]) + len(self.isort[3]) + len(self.isort[5]) + len(self.isort[8]))
+
+            # get index
+            NL = len(self.isort[1])
+            indexV = sorted(self.isort[3])
+            indexI = self.isort[4]
+
+            # cycle on independent voltage sources
+            for k, iv in enumerate(indexV):
+                # update rhs
+                rhs[self.node_num + NL + k] += self.values[iv]
+
+            # cycle on independent current sources
+            for ii in indexI:
+                # get nodes
+                N1, N2 = self.nodes[ii]
+
+                if N1 == 0:
+                    # update rhs
+                    rhs[N2 - 1] += self.values[ii]
+
+                elif N2 == 0:
+                    # update rhs
+                    rhs[N1 - 1] -= self.values[ii]
+
+                else:
+                    # update rhs
+                    rhs[N1 - 1] -= self.values[ii]
+                    rhs[N2 - 1] += self.values[ii]
+
+            self.rhs = np.array(rhs)</code></pre>
+<p>it first initializes the matrix to zeros with length (amount of nodes + num of all components which are NOT resistors) This code basically for all of the voltage sources puts that voltage of the voltage source to that index of the resulting array. To RHS is basically the V vector with the currents.</p>
+<p>The G matrix is the conductance matrix. Conductance is basically defined as the repricocal of the resistance. I dunno how this actually works physically but I am just going to accept that for now.</p>
+<p>The conductance matrix is calculated by this algorithm:</p>
+<pre><code>        g = []
+        g_row = []
+        g_col = []
+
+        # reorder if necessary
+        if self.isort is None:
+            self.reorder()
+
+        # get index
+        indexR = self.isort[0]
+        indexL = sorted(self.isort[1])
+        indexV = sorted(self.isort[3])
+        indexE = sorted(self.isort[5])
+        indexF = sorted(self.isort[6])
+        indexG = sorted(self.isort[7])
+        indexH = sorted(self.isort[8])
+
+        print(&quot;indexR == &quot;+str(indexR))
+        print(&quot;indexL == &quot;+str(indexL))
+        print(&quot;indexV == &quot;+str(indexV))
+        print(&quot;indexE == &quot;+str(indexE))
+        print(&quot;indexF == &quot;+str(indexF))
+        print(&quot;indexG == &quot;+str(indexG))
+        print(&quot;indexH == &quot;+str(indexH))
+
+
+        # cycle on resistances
+        for ir in indexR:
+            # get nores
+            print(&quot;Resistor&quot;)
+            print(&quot;self.nodes: &quot;+str(self.nodes))
+            N1, N2 = self.nodes[ir]
+
+            # detect connection
+            if (N1 == 0) or (N2 == 0): # if grounded...
+                # diagonal term
+                print(&quot;Grounded&quot;)
+                g.append(1.0 / self.values[ir])
+                g_row.append(max([N1, N2]) - 1)
+                g_col.append(max([N1, N2]) - 1)
+
+            else:                      # if not grounded...
+                # diagonal term
+                g.append(1.0 / self.values[ir])
+                g_row.append(N1 - 1)
+                g_col.append(N1 - 1)
+
+                # diagonal term
+                g.append(1.0 / self.values[ir])
+                g_row.append(N2 - 1)
+                g_col.append(N2 - 1)
+
+                # N1-N2 term
+                g.append(-1.0 / self.values[ir])
+                g_row.append(N1 - 1)
+                g_col.append(N2 - 1)
+
+                # N2-N1 term
+                g.append(-1.0 / self.values[ir])
+                g_row.append(N2 - 1)
+                g_col.append(N1 - 1)</code></pre>
+<p>This is repeated for the other components like inductors and stuff, but we are only going to make the conductance matrix for now. The indexR variable has the indexes of all of the resistor connections and the self.nodes has all of the connections defined in the example file:</p>
+<pre><code>* Example of DC network
+
+V1 1 0 5 
+R2 2 1 2 
+R1 2 1 1
+R3 3 2 10
+R4 0 3 10
+.op</code></pre>
+<p>This yields this as the nodes:</p>
+<pre><code>self.nodes: [[1 0]
+ [2 1]
+ [2 1]
+ [3 2]
+ [0 3]]</code></pre>
+<p>I found these two pages which are really useful imo: http://lpsa.swarthmore.edu/Systems/Electrical/mna/MNA2.html and http://lpsa.swarthmore.edu/Systems/Electrical/mna/MNA3.html</p>
+<p>Lets first make the algorithm quickly in python before advancing.</p>
+<p>I actually got it now! The first resistor equations are added because then the voltages are known. If we didn’t add the currents into the matrix then the only solution to the matrix would be that all voltages would be zero, and it makes sense because we are not adding the currents in to it. The repricocal of the resistance times the voltage is the current because U = R<em>I therefore I = (1/R)</em>U . This causes us to actually find the correct solution instead of all zeroes.</p>
+<p>Here is my algorithm:</p>
+<pre><code>def generate_matrix(indexes, values):
+    print(&quot;Indexes: &quot;+str(indexes))
+    print(&quot;Values: &quot;+str(values))
+    max_row_num = max([thing[0] for thing in indexes])
+    max_col_num = max([thing[1] for thing in indexes])
+    matrix = [[0.0 for _ in range((max_col_num+1))] for _ in range(max_row_num+1)]
+    count = 0
+    print(&quot;Indexes: &quot;+str(indexes))
+    print(&quot;Values: &quot;+str(values))
+    for ind in indexes:
+        print(&quot;rrrrrrrrrrrrrr: &quot;+str(matrix))
+        print(&quot;ind == &quot;+str(ind))
+        if ind[0] == 0 and ind[1] == 0:
+            print(&quot;Updating matrix[0][0] with value : &quot;+str(values[count]))
+            print(&quot;Matrix before: &quot;+str(matrix))
+
+        matrix[ind[0]][ind[1]] += values[count]
+        count += 1
+        if ind[0] == 0 and ind[1] == 0:
+            print(&quot;Matrix after: &quot;+str(matrix))
+
+    print(&quot;Matrix: &quot;+str(matrix))
+    return matrix
+
+def get_conductance_matrix(resistor_values, nodes):
+    
+    &#39;&#39;&#39;
+            for ir in indexR:
+            # get nores
+            print(&quot;Resistor&quot;)
+            print(&quot;self.nodes: &quot;+str(self.nodes))
+            N1, N2 = self.nodes[ir]
+
+            # detect connection
+            if (N1 == 0) or (N2 == 0): # if grounded...
+                # diagonal term
+                print(&quot;Grounded&quot;)
+                g.append(1.0 / self.values[ir])
+                g_row.append(max([N1, N2]) - 1)
+                g_col.append(max([N1, N2]) - 1)
+
+            else:                      # if not grounded...
+                # diagonal term
+                g.append(1.0 / self.values[ir])
+                g_row.append(N1 - 1)
+                g_col.append(N1 - 1)
+
+                # diagonal term
+                g.append(1.0 / self.values[ir])
+                g_row.append(N2 - 1)
+                g_col.append(N2 - 1)
+
+                # N1-N2 term
+                g.append(-1.0 / self.values[ir])
+                g_row.append(N1 - 1)
+                g_col.append(N2 - 1)
+
+                # N2-N1 term
+                g.append(-1.0 / self.values[ir])
+                g_row.append(N2 - 1)
+                g_col.append(N1 - 1)
+    &#39;&#39;&#39;
+
+    g = []
+    g_row = []
+    g_col = []
+    count = 0
+    print(&quot;========================================================&quot;)
+    for node in nodes:
+        N1 = node[0]
+        N2 = node[1]
+
+        print(&quot;N1: &quot;+str(N1))
+        print(&quot;N2: &quot;+str(N2))
+        print(&quot;values[ir]: &quot;+str(resistor_values[count]))
+        if N1 == 0 or N2 == 0:
+
+            g.append(1/resistor_values[count])
+            g_row.append(max(N1, N2) - 1)
+            g_col.append(max(N1, N2) - 1)
+        
+        else:
+
+            g.append(1/resistor_values[count])
+            g_row.append(N1 - 1)
+            g_col.append(N1 - 1)
+
+            g.append(1/resistor_values[count])
+            g_row.append(N2 - 1)
+            g_col.append(N2 - 1)
+
+            g.append(-1/resistor_values[count])
+            g_row.append(N1 - 1)
+            g_col.append(N2 - 1)
+
+            g.append(-1/resistor_values[count])
+            g_row.append(N2 - 1)
+            g_col.append(N1 - 1)
+        count += 1
+        print(&quot;g : &quot;+str(g))
+        print(&quot;g_row: &quot;+str(g_row))
+        print(&quot;g_col: &quot;+str(g_col))
+    print(&quot;========================================================&quot;)
+
+    if len(g_col) != len(g_row): # the matrix must be square
+        print(&quot;Something went wrong.&quot;)
+        exit(1)
+    print(&quot;g : &quot;+str(g))
+    print(&quot;g_row: &quot;+str(g_row))
+    print(&quot;g_col: &quot;+str(g_col))
+    print(&quot;resistor_values: &quot;+str(resistor_values))
+    &#39;&#39;&#39;
+    Expected values:
+
+    g == [1.0, 1.0, -1.0, -1.0, 0.5, 0.5, -0.5, -0.5, 0.1, 0.1, -0.1, -0.1, 0.1]
+    g_row == [1, 0, 1, 0, 1, 0, 1, 0, 2, 1, 2, 1, 2]
+    g_col == [1, 0, 0, 1, 1, 0, 0, 1, 2, 1, 1, 2, 2]
+
+    &#39;&#39;&#39;
+
+
+    index_stuff = [[g_row[i],g_col[i]] for i in range(len(g_col))]
+    
+    resulting_matrix = generate_matrix(index_stuff, g)
+
+    stuff = csr_matrix((g,(g_row, g_col)))
+    print(stuff)
+    print(stuff.toarray())
+
+
+    print(&quot;Resulting matrix: &quot;+str(resulting_matrix))
+    return resulting_matrix</code></pre>
+<p>The generate_matrix is basically a function which is synonomous with the csr_matrix function.</p>
+<p>The diagonal on the conductance matrix is the sum of all of the conductances to a point. The other elements on any of the rows of the matrix are the conductances of the resistors going out from that node. Lets make a quick example:</p>
+<p><img src="pictures/schematic.png" /></p>
+<p>This schematic basically is this:</p>
+<pre><code>V1 1 0 5 
+R1 1 2 10
+R2 2 0 20
+R3 2 0 30
+.op</code></pre>
+<p>and the solution is this:</p>
+<pre><code>Solution: [ 5.          2.72727273 -0.22727273]</code></pre>
+<p>The first two are the voltages at nodes 1 and 2 and the last is the current which goes through V1</p>
+<p>If we look at the matrix before adding the voltage sources:</p>
+<pre><code>Matrix before voltage sources: [[0.1, -0.1], [-0.1, 0.18333333333333335]]</code></pre>
+<p>This is the same as this:</p>
+<p><img src="pictures/matrix.png" /></p>
+<p>If we take the last row of the matrix, it is basically just the conductances to the point at index 2. The first column and the second row (-0.1) is the conductance of the resistor R1 times V1 we subtract this from the sum and the result is the conductances through R2 and R3 multiplied by V2 (aka vb).</p>
+<p>Ok I think I finally understand how this works.</p>
+<p>The current to/from another point to some point called p is the voltage drop across that wire times the conductance of that wire. Because U = R<em>I therefore I = U</em>(1/R) .</p>
+<p>The current is therefore:</p>
+<p><br /><img style="vertical-align:middle" src="https://latex.codecogs.com/png.latex?I_%7Bp%7D%3D%5Cfrac%7BV_%7Bp%7D-V_%7Bn%7D%7D%7BR_%7Bn%7D%7D" alt="I_{p}=\frac{V_{p}-V_{n}}{R_{n}}" title="I_{p}=\frac{V_{p}-V_{n}}{R_{n}}" /><br /></p>
+<p>We sum all of these from each of the nodes. (Note that we use the plus sign everywhere because if the current is into the node, the voltage difference is negative between the nodes if the current is into the node and the current is positive when the current is out of the node, because the voltage in the node is greater than the other node.)</p>
+<p><br /><img style="vertical-align:middle" src="https://latex.codecogs.com/png.latex?I_%7Bp%7D%3D%5Csum_%7Bn%3D1%7D%5E%7Bk%7DI_%7Bp_%7Bn%7D%7D%3D%5Csum_%7Bn%3D1%7D%5E%7Bk%7D%5Cfrac%7BV_%7Bp%7D-V_%7Bn%7D%7D%7BR_%7Bn%7D%7D" alt="I_{p}=\sum_{n=1}^{k}I_{p_{n}}=\sum_{n=1}^{k}\frac{V_{p}-V_{n}}{R_{n}}" title="I_{p}=\sum_{n=1}^{k}I_{p_{n}}=\sum_{n=1}^{k}\frac{V_{p}-V_{n}}{R_{n}}" /><br /></p>
+<p>Where k is the number of nodes where the current node p connects to.</p>
+<p>Note that this simplifies to this:</p>
+<p><br /><img style="vertical-align:middle" src="https://latex.codecogs.com/png.latex?%5Csum_%7Bn%3D1%7D%5E%7Bk%7D%5Cfrac%7BV_%7Bp%7D-V_%7Bn%7D%7D%7BR_%7Bn%7D%7D%3D%5Csum_%7Bn%3D1%7D%5E%7Bk%7D%5Cfrac%7BV_%7Bp%7D%7D%7BR_%7Bn%7D%7D-%5Csum_%7Bn%3D1%7D%5E%7Bk%7D%5Cfrac%7BV_%7Bn%7D%7D%7BR_%7Bn%7D%7D%3DV_%7Bp%7D%28%5Csum_%7Bn%3D1%7D%5E%7Bk%7D%5Cfrac%7B1%7D%7BR_%7Bn%7D%7D%29-%28%5Csum_%7Bn%3D1%7D%5E%7Bk%7D%5Cfrac%7BV_%7Bn%7D%7D%7BR_%7Bn%7D%7D%29" alt="\sum_{n=1}^{k}\frac{V_{p}-V_{n}}{R_{n}}=\sum_{n=1}^{k}\frac{V_{p}}{R_{n}}-\sum_{n=1}^{k}\frac{V_{n}}{R_{n}}=V_{p}(\sum_{n=1}^{k}\frac{1}{R_{n}})-(\sum_{n=1}^{k}\frac{V_{n}}{R_{n}})" title="\sum_{n=1}^{k}\frac{V_{p}-V_{n}}{R_{n}}=\sum_{n=1}^{k}\frac{V_{p}}{R_{n}}-\sum_{n=1}^{k}\frac{V_{n}}{R_{n}}=V_{p}(\sum_{n=1}^{k}\frac{1}{R_{n}})-(\sum_{n=1}^{k}\frac{V_{n}}{R_{n}})" /><br /></p>
+<p>The <img style="vertical-align:middle" src="https://latex.codecogs.com/png.latex?V_%7Bp%7D%28%5Csum_%7Bn%3D1%7D%5E%7Bk%7D%5Cfrac%7B1%7D%7BR_%7Bn%7D%7D%29" alt="V_{p}(\sum_{n=1}^{k}\frac{1}{R_{n}})" title="V_{p}(\sum_{n=1}^{k}\frac{1}{R_{n}})" /> term is the sum of the conductances from the inspected point (this is the term on the diagonal) times the voltage at that point (remember that we multiply the matrix with the voltage and current vector which results in this term.) The <img style="vertical-align:middle" src="https://latex.codecogs.com/png.latex?-%28%5Csum_%7Bn%3D1%7D%5E%7Bk%7D%5Cfrac%7BV_%7Bn%7D%7D%7BR_%7Bn%7D%7D%29" alt="-(\sum_{n=1}^{k}\frac{V_{n}}{R_{n}})" title="-(\sum_{n=1}^{k}\frac{V_{n}}{R_{n}})" /> term is the other terms in the row of the matrix. (Remember the negative terms? These are those.) The algorithm which we just programmed just implements this automatically, because it inserts the resistors in to the matrix automatically.</p>
+<p>If we just inspect this code:</p>
+<pre><code>        else:
+            # This adds the admittance to the start point.
+            g.append(1/resistor_values[count])
+            g_row.append(N1 - 1)
+            g_col.append(N1 - 1)
+            # This adds the admittance to the start point.
+            g.append(1/resistor_values[count])
+            g_row.append(N2 - 1)
+            g_col.append(N2 - 1)
+
+            g.append(-1/resistor_values[count])
+            g_row.append(N1 - 1)
+            g_col.append(N2 - 1)
+
+            g.append(-1/resistor_values[count])
+            g_row.append(N2 - 1)
+            g_col.append(N1 - 1)</code></pre>
+<p>The first two segments just add the resistor value to the end and start indexes to the diagonal, because one resistor adds two connections. The start index is N1 so if the resistor is between indexes 1 and 2, then it adds the resistor at coordinates (1,1) and (2,2) because now the nodes 1 and 2 have this connection. The two ones after that adds the non-diagonal elements which describe the <img style="vertical-align:middle" src="https://latex.codecogs.com/png.latex?-%28%5Csum_%7Bn%3D1%7D%5E%7Bk%7D%5Cfrac%7BV_%7Bn%7D%7D%7BR_%7Bn%7D%7D%29" alt="-(\sum_{n=1}^{k}\frac{V_{n}}{R_{n}})" title="-(\sum_{n=1}^{k}\frac{V_{n}}{R_{n}})" /> elements. If some resistor already exists at that point (lets say we add a resistor between nodes 1 and 2 and there already is a resistor there), then we just subtract that from the existing value. If there is nothing there then we just set that element in the matrix to that (because anything subtracted from zero is that negative anything like 0-1 = (-1)<em>1 and 0-14 = (-1)</em>14 = -14) .</p>
