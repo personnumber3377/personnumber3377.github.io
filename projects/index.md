@@ -7,7 +7,7 @@ Here is a list of different kinds of projects which I have made.
 
 [How I automated my geometry homework.](/projects/homework.html)
 
-[Making a QR code generator from scratch.](/projects/making_a_qr_code_generator.md)
+[Making a QR code generator from scratch.](/projects/making_a_qr_code_generator.html)
 ## Hacking
 
 [Fuzzing apache httpd](/projects/fuzzing_apache_httpd.html)
