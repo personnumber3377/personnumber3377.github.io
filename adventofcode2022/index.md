@@ -13,6 +13,7 @@ The source code for all of these are at my github repository https://github.com/
 [Day 15](adventofcode2022/advent_of_code_day15.html)
 [Day 17](adventofcode2022/advent_of_code_day17.html)
 [Day 18](adventofcode2022/advent_of_code_day18.html)
+[Day 20](adventofcode2022/advent_of_code_day20.html)
 [Day 21](adventofcode2022/advent_of_code_day21.html)
 [Day 22](adventofcode2022/advent_of_code_day22.html)
 [Day 23](adventofcode2022/advent_of_code_day23.html)
