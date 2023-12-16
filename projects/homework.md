@@ -2777,6 +2777,415 @@ because I made the assumption that every object had only one equation associated
 
 After the tangents have been determined for two objects, we can then make a very obvious optimization that we can just check that the lines are tangent to the other objects. We do not need to solve for the lines, because the tangents which are tangent between two objects also have to be tangent to those other objects in order for the tangent to be shared by all of them (by definition) . This may give us some problems in the future when we try to implement this stuff in 3d but I think that this is fine for now (that is a problem for future me).
 
+3.12.2023
+
+
+Ok so it has been a while and I decided to make this tool a bit better. It has actually been around nine months. Time flies. (See the commit history here: https://github.com/personnumber3377/Geometrylib)
+
+I was scrolling youtube and I found this video: https://www.youtube.com/watch?v=qOOnBTaHG_Q . I began to wonder if my tool could accomplish this task. I am going to first clean up the project on github a bit and I am going to remove some unnecessary files and stuff.
+
+Done.
+
+Now it is time to see if I can solve it. First we want to convert the problem into geometric expressions my program can understand.
+
+There are two circles. I am going to call the radius r instead of the scalar value of five, because I like generality. Who doesn't?
+
+I have to actually remind myself how this tool (which I wrote myself) works.
+
+Does this work?
+
+```
+circle xc=0 yc=0 r=r0
+```
+
+Yes, it works!
+
+Ok, soooo... the other circle should be: `circle xc=2*r0 yc=0 r=r0` ? Yeah, that seems to work.
+
+Let's simplify the problem a bit. We need to find out a point on the circle, such that the distance from the horizontal bottom line is half the distance to the vertical line which is tangent to the circle. The coordinates where the horizontal and vertical point cross each other is `r,-r` and the slope of the line which represents the distances is -2, so therefore we should add a line which goes through the point `(r,-r)` and has a slope of -2.
+
+sooo like this???
+
+```
+point
+point0.name = firstlinepoint
+point
+point0.name = secondlinepoint
+firstlinepoint.set_point_to_values r0-1 r0+2
+secondlinepoint.set_point_to_values r0 r0
+line
+line0.name = helperline
+helperline.set_values_two_points firstlinepoint secondlinepoint
+circle xc=0 yc=0 r=r0
+intersect circle helperline
+```
+
+Uh oh...
+
+```
+
+    arguments_for_method.append(float(arguments[i]))
+                                ^^^^^^^^^^^^^^^^^^^
+ValueError: could not convert string to float: 'r0-1'
+
+```
+
+I programmed this tool in such a way that the functions always expect float inputs, so I should better make a change, such that expressions as inputs are allowed. There is even this comment: `# assumed to be a constant:` on the next before that line! I was quite dumb nine months ago.
+
+Ok, now I get this:
+
+```
+Command result: [(-sqrt(5*r0**2 - 16)/5 - 8/5, 2*sqrt(5*r0**2 - 16)/5 - 4/5), (sqrt(5*r0**2 - 16)/5 - 8/5, -2*sqrt(5*r0**2 - 16)/5 - 4/5)]
+```
+
+which is this:
+
+```
+(-3.6880613017821102, 3.3761226035642204)
+```
+
+
+I added a debug statement which prints helperline.
+
+Here is the output stuff:
+
+```
+
+Welcome to geometrylib 1.0 !
+Type "help" for help menu.
+Running commands from file circle_thing.txt.
+Command string: point
+fewfeewfewfewf
+arguments: []
+object_name: point
+{}
+*arguments_thing : {}
+bullshit: {}
+bullshit: {}
+the_object.name == point0
+setting parameter x to this: x0
+the_object.name == point0
+setting parameter y to this: y0
+Names of global objects at the end of common_arg_stuff: []
+global_objects at the start: []
+objects after creation of new_object : []
+gregregregrr
+global_objects at the start: ['point0']
+objects after appending new_object: ['point0']
+global_objects after appending new_object: ['point0']
+Command result: 0
+Command string: point0.name = firstlinepoint
+thing
+==================================================================================
+Setting property : name
+On object: point0
+selected_property: name
+value: firstlinepoint
+result: None
+Command string: point
+fewfeewfewfewf
+arguments: []
+object_name: point
+{}
+*arguments_thing : {}
+bullshit: {}
+bullshit: {}
+the_object.name == point0
+setting parameter x to this: x0
+the_object.name == point0
+setting parameter y to this: y0
+Names of global objects at the end of common_arg_stuff: ['firstlinepoint']
+global_objects at the start: ['firstlinepoint']
+objects after creation of new_object : ['firstlinepoint']
+gregregregrr
+global_objects at the start: ['firstlinepoint', 'point0']
+objects after appending new_object: ['firstlinepoint', 'point0']
+global_objects after appending new_object: ['firstlinepoint', 'point0']
+Command result: 0
+Command string: point0.name = secondlinepoint
+thing
+==================================================================================
+Setting property : name
+On object: point0
+selected_property: name
+value: secondlinepoint
+result: None
+Command string: firstlinepoint.set_point_to_values r0-1 r0+2
+thing
+bullshitrgregreg
+command: firstlinepoint.set_point_to_values r0-1 r0+2
+self.method_arg_types : [['float', 'float'], []]
+self.method_arg_types : [['float', 'float'], []]
+SHITSHITSHIT
+self.x == r0 - 1
+self.y == r0 + 2
+x_in: r0 - 1
+y_in: r0 + 2
+result: 0
+Command string: secondlinepoint.set_point_to_values r0 r0
+thing
+bullshitrgregreg
+command: secondlinepoint.set_point_to_values r0 r0
+self.method_arg_types : [['float', 'float'], []]
+self.method_arg_types : [['float', 'float'], []]
+SHITSHITSHIT
+self.x == r0
+self.y == r0
+x_in: r0
+y_in: r0
+result: 0
+Command string: line
+fewfeewfewfewf
+objects at the start: ['firstlinepoint', 'secondlinepoint']
+arguments: []
+object_name: line
+{}
+*arguments_thing : {}
+bullshit: {}
+bullshit: {}
+the_object.name == line0
+setting parameter a to this: a0
+the_object.name == line0
+setting parameter b to this: b0
+the_object.name == line0
+setting parameter c to this: c0
+the_object.name == line0
+setting parameter x to this: x0
+the_object.name == line0
+setting parameter y to this: y0
+Names of global objects at the end of common_arg_stuff: ['firstlinepoint', 'secondlinepoint']
+global_objects at the start: ['firstlinepoint', 'secondlinepoint']
+objects after creation of new_object : ['firstlinepoint', 'secondlinepoint']
+gregregregrr
+global_objects at the start: ['firstlinepoint', 'secondlinepoint', 'line0']
+objects after appending new_object: ['firstlinepoint', 'secondlinepoint', 'line0']
+global_objects after appending new_object: ['firstlinepoint', 'secondlinepoint', 'line0']
+objects at the end: ['firstlinepoint', 'secondlinepoint', 'line0']
+[92mCreated new object.[0m
+Command result: 0
+Command string: line0.name = helperline
+thing
+==================================================================================
+Setting property : name
+On object: line0
+selected_property: name
+value: helperline
+result: None
+Command string: helperline.set_values_two_points firstlinepoint secondlinepoint
+thing
+bullshitrgregreg
+command: helperline.set_values_two_points firstlinepoint secondlinepoint
+self.method_arg_types : [['point', 'point'], ['point', 'point'], [], []]
+name_str: firstlinepoint
+['firstlinepoint', 'secondlinepoint', 'helperline']
+---------------------------
+firstlinepoint
+secondlinepoint
+helperline
+---------------------------
+self.method_arg_types : [['point', 'point'], ['point', 'point'], [], []]
+name_str: secondlinepoint
+['firstlinepoint', 'secondlinepoint', 'helperline']
+---------------------------
+firstlinepoint
+secondlinepoint
+helperline
+---------------------------
+obj.name == firstlinepoint
+==========================================
+point1.x : r0 - 1 point1.y: r0 + 2
+point2.x : r0 point2.y: r0
+==========================================
+-1*point1.x+point2.x == 1
+-1*point1.x == 1 - r0
+type(point1.x) == <class 'sympy.core.add.Add'>
+xv: 1
+yv: -2
+0000000
+yv: -2
+x0: r0 - 1
+xv: 1
+y0: r0 + 2
+string_oof_1 : -(-2/(r0 - 1*-2-1*r0 + 2))
+string_oof_2 == 1/(r0 - 1*-2-1*r0 + 2)
+self.a ==1/2
+self.b ==1/4
+result: None
+Command string: helperline
+thing
+name_str: helperline
+['firstlinepoint', 'secondlinepoint', 'helperline']
+---------------------------
+firstlinepoint
+secondlinepoint
+helperline
+---------------------------
+obj.name == firstlinepoint
+obj.name == secondlinepoint
+=======================
+Type: line
+a = 1/2
+b = 1/4
+c = 1
+name = helperline
+=======================
+		
+Command string: circle xc=0 yc=0 r=r0
+fewfeewfewfewf
+arguments: ['xc=0', 'yc=0', 'r=r0']
+object_name: circle
+{'xc': '0', 'yc': '0', 'r': 'r0'}
+*arguments_thing : {'xc': '0', 'yc': '0', 'r': 'r0'}
+bullshit: {'xc': '0', 'yc': '0', 'r': 'r0'}
+bullshit: {'xc': '0', 'yc': '0', 'r': 'r0'}
+the_object.name == circle0
+setting parameter xc to this: xc0
+the_object.name == circle0
+setting parameter yc to this: yc0
+the_object.name == circle0
+setting parameter r to this: r0
+the_object.name == circle0
+setting parameter x to this: x0
+the_object.name == circle0
+setting parameter y to this: y0
+Names of global objects at the end of common_arg_stuff: ['firstlinepoint', 'secondlinepoint', 'helperline']
+global_objects at the start: ['firstlinepoint', 'secondlinepoint', 'helperline']
+objects after creation of new_object : ['firstlinepoint', 'secondlinepoint', 'helperline']
+gregregregrr
+global_objects at the start: ['firstlinepoint', 'secondlinepoint', 'helperline', 'circle0']
+objects after appending new_object: ['firstlinepoint', 'secondlinepoint', 'helperline', 'circle0']
+global_objects after appending new_object: ['firstlinepoint', 'secondlinepoint', 'helperline', 'circle0']
+[92mCreated new object.[0m
+Command result: 0
+Command string: intersect circle0 helperline
+fewfeewfewfewf
+Args : ['intersect', 'circle0', 'helperline']
+obj_name1 : circle0
+obj_name2 : helperline
+name_str: circle0
+['firstlinepoint', 'secondlinepoint', 'helperline', 'circle0']
+---------------------------
+firstlinepoint
+secondlinepoint
+helperline
+circle0
+---------------------------
+obj.name == firstlinepoint
+obj.name == secondlinepoint
+obj.name == helperline
+name_str: helperline
+['firstlinepoint', 'secondlinepoint', 'helperline', 'circle0']
+---------------------------
+firstlinepoint
+secondlinepoint
+helperline
+circle0
+---------------------------
+obj.name == firstlinepoint
+obj.name == secondlinepoint
+poopooo
+obj1: =======================
+Type: circle
+x0 = 0
+y0 = 0
+r = r0
+name = circle0
+=======================
+		
+obj2: =======================
+Type: line
+a = 1/2
+b = 1/4
+c = 1
+name = helperline
+=======================
+		
+================================================
+object1 : =======================
+Type: circle
+x0 = 0
+y0 = 0
+r = r0
+name = circle0
+=======================
+		
+object2 : =======================
+Type: line
+a = 1/2
+b = 1/4
+c = 1
+name = helperline
+=======================
+		
+object1 : <class '__main__.circle'>
+object2 : <class '__main__.line'>
+================================================
+Circle equation bullshit: 
+((x)-(0))**2+((y)-(0))**2=(r0)**2
+oof
+oof22
+oof
+oof22
+All equations as a list: [Eq(x**2 + y**2, r0**2), Eq(x/2 + y/4 + 1, 0)]
+result: [(-sqrt(5*r0**2 - 16)/5 - 8/5, 2*sqrt(5*r0**2 - 16)/5 - 4/5), (sqrt(5*r0**2 - 16)/5 - 8/5, -2*sqrt(5*r0**2 - 16)/5 - 4/5)]
+[33mObjects intersect atleast at one point.[0m
+[33mIntersections are at points: [(-sqrt(5*r0**2 - 16)/5 - 8/5, 2*sqrt(5*r0**2 - 16)/5 - 4/5), (sqrt(5*r0**2 - 16)/5 - 8/5, -2*sqrt(5*r0**2 - 16)/5 - 4/5)][0m
+Command result: [(-sqrt(5*r0**2 - 16)/5 - 8/5, 2*sqrt(5*r0**2 - 16)/5 - 4/5), (sqrt(5*r0**2 - 16)/5 - 8/5, -2*sqrt(5*r0**2 - 16)/5 - 4/5)]
+[94m>>> [0mfewfeewfewfewf
+[92mThank you for using geometrylib! See you again soon![0m
+
+
+```
+
+
+and here is the line:
+
+```
+
+obj2: =======================
+Type: line
+a = 1/2
+b = 1/4
+c = 1
+name = helperline
+=======================
+
+```
+
+ax + bx + c = 0
+
+actually I had `r0+2` when `-r0+2` is actually correct.
+
+ok so here is the working prompt:
+
+```
+
+point
+point0.name = firstlinepoint
+point
+point0.name = secondlinepoint
+firstlinepoint.set_point_to_values r0-1 -r0+2
+secondlinepoint.set_point_to_values r0 -r0
+line
+line0.name = helperline
+helperline.set_values_two_points firstlinepoint secondlinepoint
+helperline
+circle xc=0 yc=0 r=r0
+intersect circle0 helperline
+
+
+```
+
+after that, it is trivial to get the area.
+
+and actually I had to change the `{}/({}*{}-{}*{})` to `({})/(({})*({})-({})*({}))` in set_values_two_points.
+
+Ok, so this tool is a bit clunky. There are a couple of things to add, for example I could add a way to define a line with a slope and a point, also I could add a way to just parse raw expressions on the command line. (Which aren't functions or geometry things.)
+
+
+
+
+
 
 
 
