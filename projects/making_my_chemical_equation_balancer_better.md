@@ -417,7 +417,7 @@ tada! Maybe we should add some error checking where we check the type of `route`
 
 After commiting I am now in the 51cb9dd0549085bf9e701fe98d7c66067126db5e commit .
 
-
+Next up: I Think refactoring the code would be a good next step. There are plenty of dumb code comments and stuff, so maybe I should clean those up next.
 
 
 
