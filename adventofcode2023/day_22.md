@@ -690,9 +690,245 @@ def fall_check_recursive(brick: Brick, cur_count = 0) -> int:
 ```
 and it results in the answer of 10 for the toy input, which is wrong. There must be some error somewhere which causes this error.
 
+Instead of a recursive function, we can actually just make it a while loop. This should simplify debugging.
 
+Tada!
 
+```
+def fall_check_new(initial_brick: Brick) -> int:
+    # This function checks the bricks recursively to find out how many bricks would fall if one is removed.
+    # First get the bricks are below the current brick and loop over them.
+    bricks_which_we_supported = []
+    bricks = [initial_brick]
+    cur_count = 0
+    while bricks != []:
+        new_bricks = []
+        for brick in bricks:
+            print("current brick == "+str(brick))
+            print("brick.supporting() == "+str(brick.supporting()))
+            for b in brick.supporting():
+                if len(b.is_supported_by()) == 1: # The brick is supported only by this one brick, so therefore add one to the count and then add it to the list.
+                    cur_count += 1
+                    new_bricks.append(b) # Loop over this next brick.
+        bricks = new_bricks
+    return cur_count
 
+```
+
+Now, I think the error is that when checking the bricks, which could fall, we do not account for the fact that if one brick supports two bricks, then those two bricks support one brick, then when checking the very top brick, the `if len(b.is_supported_by()) == 1:` check fails and it doesn't count the top brick as fallen, even though it should, so instead of checking the length of the is_supported_by list, we should make a set of all of the blocks, which fall when removing one block. This way we circumvent the problem.
+
+Here is the new code:
+
+```
+def fall_check_new(initial_brick: Brick) -> int:
+    # This function checks the bricks recursively to find out how many bricks would fall if one is removed.
+    # First get the bricks are below the current brick and loop over them.
+    bricks_which_we_supported = []
+    bricks = [initial_brick]
+    falling_bricks = set([initial_brick])
+    cur_count = 0
+    while bricks != []:
+        new_bricks = []
+        for brick in bricks:
+            for b in brick.supporting():
+                #if len(b.is_supported_by()) == 1: # The brick is supported only by this one brick, so therefore add one to the count and then add it to the list.
+                if all(b in falling_bricks for b in b.is_supported_by()): # 
+                    cur_count += 1
+                    new_bricks.append(b) # Loop over this next brick.
+                    falling_bricks.add(b)
+        bricks = new_bricks
+    return cur_count
+```
+
+it now almost works. I debugged for around twenty minutes and realized that it lacks a check for checking if the block we are now processing has already fell or not.
+
+Here is the function with the check added:
+
+```
+def fall_check_new(initial_brick: Brick) -> int:
+    # This function checks the bricks recursively to find out how many bricks would fall if one is removed.
+    # First get the bricks are below the current brick and loop over them.
+    bricks_which_we_supported = []
+    bricks = [initial_brick]
+    falling_bricks = set([initial_brick])
+    cur_count = 0
+    while bricks != []:
+        new_bricks = []
+        for brick in bricks:
+            for b in brick.supporting():
+                if b in falling_bricks: # Do not try to drop a brick many times. Just once.
+                    continue
+                #if len(b.is_supported_by()) == 1: # The brick is supported only by this one brick, so therefore add one to the count and then add it to the list.
+                if all(b in falling_bricks for b in b.is_supported_by()): # 
+                    cur_count += 1
+                    new_bricks.append(b) # Loop over this next brick.
+                    falling_bricks.add(b)
+        bricks = new_bricks
+    return cur_count
+```
+
+now it works for the toy input, but does it work for the actual input? It does! Now let's try to improve performance:
+
+```
+         21256843 function calls (21217876 primitive calls) in 4.704 seconds
+
+   Ordered by: internal time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+   789365    1.526    0.000    2.691    0.000 newblocks.py:54(overlaps)
+  7988765    0.720    0.000    0.720    0.000 {built-in method builtins.min}
+  3252575    0.578    0.000    0.860    0.000 newblocks.py:30(lowest_point)
+  4938774    0.458    0.000    0.458    0.000 {built-in method builtins.max}
+     1251    0.427    0.000    1.256    0.001 newblocks.py:115(<listcomp>)
+  2368095    0.289    0.000    0.289    0.000 newblocks.py:47(ranges_overlap)
+   789365    0.215    0.000    2.906    0.000 newblocks.py:50(is_under)
+        1    0.189    0.189    4.469    4.469 newblocks.py:107(drop_bricks)
+     1257    0.067    0.000    0.228    0.000 newblocks.py:193(fall_check_new)
+   151938    0.033    0.000    0.047    0.000 newblocks.py:27(highest_point)
+   101292    0.032    0.000    0.090    0.000 newblocks.py:33(is_level_below)
+  31426/1    0.031    0.000    0.069    0.069 copy.py:128(deepcopy)
+   170893    0.026    0.000    0.026    0.000 {method 'add' of 'set' objects}
+    70360    0.017    0.000    0.028    0.000 {built-in method builtins.all}
+   145551    0.011    0.000    0.011    0.000 newblocks.py:207(<genexpr>)
+     1240    0.009    0.000    0.054    0.000 newblocks.py:37(<listcomp>)
+    70360    0.008    0.000    0.062    0.000 newblocks.py:35(is_supported_by)
+     1257    0.008    0.000    0.053    0.000 newblocks.py:43(<listcomp>)
+    70858    0.008    0.000    0.061    0.000 newblocks.py:40(supporting)
+    89713    0.006    0.000    0.006    0.000 {method 'append' of 'list' objects}
+3771/1257    0.006    0.000    0.063    0.000 copy.py:259(_reconstruct)
+    66623    0.005    0.000    0.005    0.000 {method 'get' of 'dict' objects}
+   5029/1    0.005    0.000    0.069    0.069 copy.py:201(_deepcopy_list)
+     1257    0.004    0.000    0.055    0.000 copy.py:227(_deepcopy_dict)
+    10057    0.004    0.000    0.005    0.000 copy.py:243(_keep_alive)
+    51541    0.003    0.000    0.003    0.000 {built-in method builtins.id}
+        1    0.003    0.003    0.006    0.006 newblocks.py:134(parse_input)
+     2515    0.002    0.000    0.003    0.000 copyreg.py:113(_slotnames)
+     3771    0.002    0.000    0.005    0.000 {method '__reduce_ex__' of 'object' objects}
+     7542    0.001    0.000    0.009    0.000 copy.py:264(<genexpr>)
+    21369    0.001    0.000    0.001    0.000 copy.py:182(_deepcopy_atomic)
+     1257    0.001    0.000    0.001    0.000 newblocks.py:13(__init__)
+     1247    0.001    0.000    0.001    0.000 newblocks.py:74(drop)
+     7542    0.001    0.000    0.001    0.000 {built-in method builtins.getattr}
+     3772    0.001    0.000    0.001    0.000 {built-in method builtins.hasattr}
+     1257    0.001    0.000    0.229    0.000 newblocks.py:214(chain_reaction)
+     5028    0.001    0.000    0.001    0.000 newblocks.py:141(<genexpr>)
+     5028    0.001    0.000    0.001    0.000 newblocks.py:142(<genexpr>)
+        1    0.000    0.000    4.704    4.704 newblocks.py:219(main)
+     5028    0.000    0.000    0.000    0.000 {built-in method builtins.isinstance}
+     3772    0.000    0.000    0.000    0.000 {method 'split' of 'str' objects}
+        2    0.000    0.000    0.001    0.001 {method 'sort' of 'list' objects}
+     1257    0.000    0.000    0.001    0.000 newblocks.py:24(on_ground)
+     1257    0.000    0.000    0.001    0.000 copyreg.py:104(__newobj__)
+     3771    0.000    0.000    0.000    0.000 {built-in method builtins.issubclass}
+     2515    0.000    0.000    0.000    0.000 {method 'get' of 'mappingproxy' objects}
+        1    0.000    0.000    0.229    0.229 newblocks.py:159(solve)
+     1257    0.000    0.000    0.001    0.000 newblocks.py:110(<lambda>)
+     1257    0.000    0.000    0.000    0.000 {method 'update' of 'dict' objects}
+     1257    0.000    0.000    0.001    0.000 newblocks.py:131(<lambda>)
+     1257    0.000    0.000    0.000    0.000 {built-in method __new__ of type object at 0x00007FFAA853DF90}
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.print}
+     1257    0.000    0.000    0.000    0.000 {method 'items' of 'dict' objects}
+        1    0.000    0.000    0.000    0.000 {method 'read' of '_io.TextIOWrapper' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method _codecs.charmap_decode}
+        1    0.000    0.000    4.704    4.704 newblocks.py:1(<module>)
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.__build_class__}
+        1    0.000    0.000    0.000    0.000 <frozen _sitebuiltins>:19(__call__)
+        1    0.000    0.000    0.000    0.000 {method 'close' of '_io.TextIOWrapper' objects}
+        1    0.000    0.000    4.704    4.704 {built-in method builtins.exec}
+        1    0.000    0.000    0.000    0.000 cp1252.py:22(decode)
+        1    0.000    0.000    0.000    0.000 newblocks.py:12(Brick)
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+```
+
+Cprofile output looks quite interesting. One thing, is that we can memoize lowest and highest points. Now, when we drop the bricks, we can call an "update" function, which updates the new value for the lowest and highest points.
+
+Also we can do the same type of memoization for the range stuff, because after dropping the blocks, we know that the ranges no longer change, therefore we can just store them. Also we don't even need to compute the z range, because it is completely unused. The only use for the `overlaps` function is inside the `is_under` function and in that function we just discard the result of the z overlap:
+
+```
+    def is_under(self, other) -> bool: # Check for x and y overlap.
+        x_overlap, y_overlap, _ = self.overlaps(other)
+        return x_overlap and y_overlap
+```
+
+So therefore we do not even need to check for z overlap. Let's implement these changes!
+
+After implementing the highest and lowest point memoization, we now have this code:
+
+```
+76511
+         17936189 function calls (17892194 primitive calls) in 3.641 seconds
+
+   Ordered by: internal time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+   789370    1.406    0.000    2.515    0.000 faster_blocks.py:66(overlaps)
+  4791876    0.424    0.000    0.424    0.000 {built-in method builtins.max}
+  4736220    0.421    0.000    0.421    0.000 {built-in method builtins.min}
+     1251    0.335    0.000    0.490    0.000 faster_blocks.py:127(<listcomp>)
+  2368110    0.271    0.000    0.271    0.000 faster_blocks.py:59(ranges_overlap)
+   789370    0.203    0.000    2.718    0.000 faster_blocks.py:62(is_under)
+  3252576    0.160    0.000    0.160    0.000 faster_blocks.py:41(lowest_point)
+        1    0.157    0.157    3.459    3.459 faster_blocks.py:119(drop_bricks)
+     1257    0.070    0.000    0.175    0.000 faster_blocks.py:207(fall_check_new)
+  36454/1    0.031    0.000    0.067    0.067 copy.py:128(deepcopy)
+   101292    0.025    0.000    0.036    0.000 faster_blocks.py:45(is_level_below)
+   177803    0.020    0.000    0.020    0.000 {method 'add' of 'set' objects}
+    77090    0.018    0.000    0.030    0.000 {built-in method builtins.all}
+   159973    0.012    0.000    0.012    0.000 faster_blocks.py:221(<genexpr>)
+   151938    0.010    0.000    0.010    0.000 faster_blocks.py:37(highest_point)
+    77768    0.008    0.000    0.033    0.000 faster_blocks.py:52(supporting)
+    77090    0.008    0.000    0.032    0.000 faster_blocks.py:47(is_supported_by)
+     1240    0.006    0.000    0.024    0.000 faster_blocks.py:49(<listcomp>)
+     1257    0.006    0.000    0.025    0.000 faster_blocks.py:55(<listcomp>)
+    96623    0.006    0.000    0.006    0.000 {method 'append' of 'list' objects}
+3771/1257    0.005    0.000    0.062    0.000 copy.py:259(_reconstruct)
+     1257    0.005    0.000    0.055    0.000 copy.py:227(_deepcopy_dict)
+    76679    0.005    0.000    0.005    0.000 {method 'get' of 'dict' objects}
+   5029/1    0.004    0.000    0.067    0.067 copy.py:201(_deepcopy_list)
+    10057    0.003    0.000    0.004    0.000 copy.py:243(_keep_alive)
+    56569    0.003    0.000    0.003    0.000 {built-in method builtins.id}
+        1    0.003    0.003    0.007    0.007 faster_blocks.py:148(parse_input)
+     2515    0.002    0.000    0.003    0.000 copyreg.py:113(_slotnames)
+     3771    0.002    0.000    0.004    0.000 {method '__reduce_ex__' of 'object' objects}
+    26397    0.001    0.000    0.001    0.000 copy.py:182(_deepcopy_atomic)
+     7542    0.001    0.000    0.008    0.000 copy.py:264(<genexpr>)
+     1257    0.001    0.000    0.002    0.000 faster_blocks.py:13(__init__)
+     2505    0.001    0.000    0.001    0.000 faster_blocks.py:28(update_highest)
+     3772    0.001    0.000    0.001    0.000 {built-in method builtins.hasattr}
+     7542    0.001    0.000    0.001    0.000 {built-in method builtins.getattr}
+     5028    0.001    0.000    0.001    0.000 faster_blocks.py:155(<genexpr>)
+     1257    0.001    0.000    0.175    0.000 faster_blocks.py:228(chain_reaction)
+     5028    0.001    0.000    0.001    0.000 faster_blocks.py:156(<genexpr>)
+     2505    0.001    0.000    0.001    0.000 faster_blocks.py:31(update_lowest)
+     1248    0.000    0.000    0.000    0.000 faster_blocks.py:86(drop)
+     3772    0.000    0.000    0.000    0.000 {method 'split' of 'str' objects}
+     5028    0.000    0.000    0.000    0.000 {built-in method builtins.isinstance}
+     1257    0.000    0.000    0.001    0.000 copyreg.py:104(__newobj__)
+        2    0.000    0.000    0.001    0.000 {method 'sort' of 'list' objects}
+     1257    0.000    0.000    0.000    0.000 faster_blocks.py:34(on_ground)
+     3771    0.000    0.000    0.000    0.000 {built-in method builtins.issubclass}
+     2515    0.000    0.000    0.000    0.000 {method 'get' of 'mappingproxy' objects}
+        1    0.000    0.000    0.176    0.176 faster_blocks.py:173(solve)
+     1257    0.000    0.000    0.000    0.000 {method 'update' of 'dict' objects}
+        1    0.000    0.000    3.641    3.641 faster_blocks.py:233(main)
+     1257    0.000    0.000    0.000    0.000 faster_blocks.py:145(<lambda>)
+     1257    0.000    0.000    0.000    0.000 faster_blocks.py:122(<lambda>)
+     1257    0.000    0.000    0.000    0.000 {built-in method __new__ of type object at 0x00007FFAA853DF90}
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.print}
+     1257    0.000    0.000    0.000    0.000 {method 'items' of 'dict' objects}
+        1    0.000    0.000    0.000    0.000 {method 'read' of '_io.TextIOWrapper' objects}
+        1    0.000    0.000    3.641    3.641 faster_blocks.py:1(<module>)
+        1    0.000    0.000    0.000    0.000 {built-in method _codecs.charmap_decode}
+        1    0.000    0.000    0.000    0.000 {built-in method builtins.__build_class__}
+        1    0.000    0.000    0.000    0.000 <frozen _sitebuiltins>:19(__call__)
+        1    0.000    0.000    0.000    0.000 {method 'close' of '_io.TextIOWrapper' objects}
+        1    0.000    0.000    3.641    3.641 {built-in method builtins.exec}
+        1    0.000    0.000    0.000    0.000 faster_blocks.py:12(Brick)
+        1    0.000    0.000    0.000    0.000 cp1252.py:22(decode)
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+```
+
+So it is faster!
 
 
 
