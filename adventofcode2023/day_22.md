@@ -930,6 +930,120 @@ After implementing the highest and lowest point memoization, we now have this co
 
 So it is faster!
 
+Now let's get rid of the z range calculation, which is basically just dead weight.
+
+Here is the current cProfile output:
+
+```
+         13989327 function calls (13945332 primitive calls) in 15.193 seconds
+
+   Ordered by: internal time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+   789370    4.729    0.000    8.658    0.000 faster_blocks.py:66(overlaps)
+     1251    2.408    0.002    3.315    0.003 faster_blocks.py:124(<listcomp>)
+  3157480    1.482    0.000    1.482    0.000 {built-in method builtins.min}
+  3213136    1.454    0.000    1.454    0.000 {built-in method builtins.max}
+  1578740    1.031    0.000    1.031    0.000 faster_blocks.py:59(ranges_overlap)
+        1    1.010    1.010   14.333   14.333 faster_blocks.py:116(drop_bricks)
+  3252576    0.935    0.000    0.935    0.000 faster_blocks.py:41(lowest_point)
+   789370    0.921    0.000    9.580    0.000 faster_blocks.py:62(is_under)
+     1257    0.299    0.000    0.806    0.001 faster_blocks.py:204(fall_check_new)
+   101292    0.130    0.000    0.183    0.000 faster_blocks.py:45(is_level_below)
+  36454/1    0.119    0.000    0.314    0.314 copy.py:118(deepcopy)
+    77090    0.088    0.000    0.127    0.000 {built-in method builtins.all}
+   177803    0.057    0.000    0.057    0.000 {method 'add' of 'set' objects}
+   151938    0.045    0.000    0.045    0.000 faster_blocks.py:37(highest_point)
+    77090    0.044    0.000    0.170    0.000 faster_blocks.py:47(is_supported_by)
+    77768    0.042    0.000    0.168    0.000 faster_blocks.py:52(supporting)
+   159961    0.039    0.000    0.039    0.000 faster_blocks.py:218(<genexpr>)
+    56569    0.038    0.000    0.038    0.000 {built-in method builtins.id}
+     1240    0.036    0.000    0.126    0.000 faster_blocks.py:49(<listcomp>)
+     1257    0.032    0.000    0.126    0.000 faster_blocks.py:55(<listcomp>)
+    96623    0.032    0.000    0.032    0.000 {method 'append' of 'list' objects}
+3771/1257    0.026    0.000    0.293    0.000 copy.py:247(_reconstruct)
+     1257    0.022    0.000    0.263    0.000 copy.py:217(_deepcopy_dict)
+        1    0.018    0.018    0.018    0.018 {method 'read' of '_io.TextIOWrapper' objects}
+    76679    0.018    0.000    0.018    0.000 {method 'get' of 'dict' objects}
+   5029/1    0.016    0.000    0.314    0.314 copy.py:191(_deepcopy_list)
+     3772    0.015    0.000    0.015    0.000 {built-in method builtins.hasattr}
+     2515    0.013    0.000    0.028    0.000 copyreg.py:107(_slotnames)
+    10057    0.013    0.000    0.017    0.000 copy.py:231(_keep_alive)
+     3771    0.012    0.000    0.040    0.000 {method '__reduce_ex__' of 'object' objects}
+        1    0.012    0.012    0.050    0.050 faster_blocks.py:145(parse_input)
+
+```
+
+
+the reason why the time is slower, is because I am currently fuzzing in the meantime.
+
+Because the bricks only fall downwards, we also can just make a dictionary where we store the under stuff, also because the z value is completely irrelevant, we should only store the x and y coordinates in the dictionary.
+
+Here is the output after doing this optimization:
+
+```
+
+         9896834 function calls (9849068 primitive calls) in 7.578 seconds
+
+   Ordered by: internal time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+   789370    1.786    0.000    4.539    0.000 faster_blocks.py:63(is_under)
+   415612    1.442    0.000    2.753    0.000 faster_blocks.py:77(overlaps)
+     1251    1.160    0.001    1.665    0.001 faster_blocks.py:135(<listcomp>)
+        1    0.520    0.520    7.098    7.098 faster_blocks.py:127(drop_bricks)
+  3252576    0.519    0.000    0.519    0.000 faster_blocks.py:42(lowest_point)
+  1662448    0.501    0.000    0.501    0.000 {built-in method builtins.min}
+  1718104    0.458    0.000    0.458    0.000 {built-in method builtins.max}
+   831224    0.378    0.000    0.378    0.000 faster_blocks.py:60(ranges_overlap)
+     1257    0.186    0.000    0.440    0.000 faster_blocks.py:215(fall_check_new)
+  38968/1    0.131    0.000    0.308    0.308 copy.py:118(deepcopy)
+   101292    0.061    0.000    0.085    0.000 faster_blocks.py:46(is_level_below)
+    77090    0.044    0.000    0.069    0.000 {built-in method builtins.all}
+   177803    0.031    0.000    0.031    0.000 {method 'add' of 'set' objects}
+2514/1257    0.029    0.000    0.253    0.000 copy.py:217(_deepcopy_dict)
+3771/1257    0.025    0.000    0.284    0.000 copy.py:247(_reconstruct)
+    77090    0.025    0.000    0.085    0.000 faster_blocks.py:48(is_supported_by)
+    77768    0.025    0.000    0.083    0.000 faster_blocks.py:53(supporting)
+   159951    0.025    0.000    0.025    0.000 faster_blocks.py:229(<genexpr>)
+   151938    0.021    0.000    0.021    0.000 faster_blocks.py:38(highest_point)
+    81707    0.018    0.000    0.018    0.000 {method 'get' of 'dict' objects}
+   5029/1    0.018    0.000    0.308    0.308 copy.py:191(_deepcopy_list)
+    61597    0.016    0.000    0.016    0.000 {built-in method builtins.id}
+     1240    0.016    0.000    0.059    0.000 faster_blocks.py:50(<listcomp>)
+     2515    0.016    0.000    0.018    0.000 copyreg.py:107(_slotnames)
+     1257    0.016    0.000    0.058    0.000 faster_blocks.py:56(<listcomp>)
+    11314    0.015    0.000    0.020    0.000 copy.py:231(_keep_alive)
+        1    0.015    0.015    0.037    0.037 faster_blocks.py:156(parse_input)
+
+
+```
+
+Here is the actual optimization:
+
+```
+
+    def is_under(self, other) -> bool: # Check for x and y overlap.
+        x1, y1, _ = self.pos1
+        x2, y2, _ = self.pos2
+
+        x3, y3, _ = other.pos1
+        x4, y4, _ = other.pos2
+        dict_input = tuple((x1,y1,x2,y2,x3,y3,x4,y4))
+        if dict_input not in self.under_dict:
+            x_overlap, y_overlap = self.overlaps(other)
+            res = x_overlap and y_overlap
+            self.under_dict[dict_input] = res
+            return res
+        return self.under_dict[dict_input]
+
+```
+
+and it works!
+
+Ok, so I think this is good enough for now. Let's go on to the next challenge!
+
+
 
 
 
