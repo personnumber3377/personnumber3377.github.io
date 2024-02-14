@@ -1141,6 +1141,24 @@ Here is the plan:
 
 - 
 
+12.2.2024
+
+Ok, so it has been quite a while since I last looked at this project, and now it is time to actually implement the non-linear components.
+
+Now, I tried asking for simple explanations on stackoverflow, but my question was closed as too broad. (https://stackoverflow.com/questions/77978672/any-simple-explanations-on-how-spice-simulators-work-with-non-linear-components)
+
+Anyway, let's try to maybe implement this for a singular diode, resistor and a battery???? Here is the diode equation: https://en.wikipedia.org/wiki/Shockley_diode_equation
+
+Now, I am a bit lost, since I am doing this without a clear guide, but I am certain that I am able to solve this...
+
+Before we can add diodes we need to add current sources, because we model a diode using a resistor and a current source. See this: https://electronics.stackexchange.com/questions/328027/modified-nodal-analysis-for-diode-approach
+
+
+
+
+
+
+
 
 
 
