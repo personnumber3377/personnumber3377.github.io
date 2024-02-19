@@ -1189,7 +1189,77 @@ if __name__=="__main__":
 
 Ok, so to decrypt, we just need to program the reverse functions for each of the functions used in encryption.
 
+I am also programming some test functions for the functions used in encryption and decryption, so I think that separating those to a separate python file would be good, but I am going to do that later (aka. never). These sanity tests are mainly to check that if we input x to some function and then pass the result to the reverse function, then of course we should end up with the original input.
 
+Here is an example to test the SubBytes and RevSubBytes:
+
+```
+def test_s_box() -> None:
+	# Go through every index and check the reverse.
+	for ind in range(256):
+		orig_val = access_table(rijndael.S_BOX_MATRIX, ind)
+		should_be_ind = access_table(rijndael.S_BOX_MATRIX_REV, ind)
+		assert should_be_ind == ind
+	print("test_s_box passed!")
+	return
+```
+
+I also put the way to access a table into a separate function for convenience:
+
+```
+def access_table(table: list, index: int) -> int: # This is used to access the S box and the reverse S box.
+	assert index <= 255 and index >= 0 # Sanity check.
+	ind_x = index & 0b1111
+	ind_y = (index & 0b11110000) >> 4
+	return table[ind_y][ind_x]
+```
+
+Here is my current code:
+
+```
+def SubBytes(input_matrix: list) -> list:
+	for i in range(len(input_matrix)):
+		for j in range(len(input_matrix[0])):
+			input_matrix[i][j] = access_table(rijndael.S_BOX_MATRIX, input_matrix[i][j])
+	return input_matrix
+
+def InvSubBytes(input_matrix: list) -> list:
+	# Reverse of SubBytes. Otherwise similar, but use the reverse matrix instead.
+	for i in range(len(input_matrix)):
+		for j in range(len(input_matrix[0])):
+			input_matrix[i][j] = access_table(rijndael.S_BOX_MATRIX_REV, input_matrix[i][j])
+	return input_matrix
+```
+
+we can just refactor that to this:
+
+```
+def SubBytes(input_matrix: list, table=rijndael.S_BOX_MATRIX) -> list:
+	for i in range(len(input_matrix)):
+		for j in range(len(input_matrix[0])):
+			input_matrix[i][j] = access_table(table, input_matrix[i][j])
+	return input_matrix
+
+def InvSubBytes(input_matrix: list) -> list:
+	# Reverse of SubBytes. Otherwise similar, but use the reverse matrix instead.
+	return SubBytes(input_matrix, table=rijndael.S_BOX_MATRIX_REV)
+```
+
+Next up is InvMixColumns . This is quite hard, because I didn't initially even understand precisely how this works, so I think I am going to just reason my way out of this.
+
+Ok, so looking at the inverse matrix in the pdf file, we need a lot more intermediary lists than in the forward pass MixColumns. This is because we need to multiply by 0xe, 0x9, 0xd and 0xb .
+
+I wondered why there was the 0x1B and where it came from. After reading the pdf file a bit more closely, I realized there is this part: "In the polynomial representation, multiplication in GF(28) (denoted by •) corresponds with the multiplication of polynomials modulo an irreducible polynomial of degree 8. A polynomial is irreducible if its only divisors are one and itself. For the AES algorithm, this irreducible polynomial is x\*\*8 + x\*\*4 + x\*\*3 + x\*\*2 + x + 1 "
+
+ok, so that is where the (1)1b comes from in the code.
+
+The reverse function multiplies by 0xb and stuff. Now, in the forward case we could weasel out of implementing polynomial multiplication in G(2), because the maximum result was pretty much always less than 256*2, so you can just subtract the modulo polynomial , but now when we are multiplying by 0xd and stuff, we need to implement polynomial multiplication properly.
+
+Here:
+
+```
+
+```
 
 
 
