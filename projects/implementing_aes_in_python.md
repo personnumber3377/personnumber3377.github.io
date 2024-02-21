@@ -2724,6 +2724,470 @@ Yeah, I don't really understand the additional stuff for the InvMixColumns in fi
 
 To be continued.
 
+Ok, so I changed the key_expansion to this:
+
+```
+def key_expansion(encryption_key: bytes, AES_version: str):
+	# Thanks wikipedia https://en.wikipedia.org/wiki/AES_key_schedule  !!!
+	#if len(encryption_key) != 16:
+	#	fail("Encryption key must be 128 bits in length! Other lengths are not supported!")
+	
+	# N as the length of the key in 32-bit words: 4 words for AES-128, 6 words for AES-192, and 8 words for AES-256
+	# K0, K1, ... KN-1 as the 32-bit words of the original key
+	# R as the number of round keys needed: 11 round keys for AES-128, 13 keys for AES-192, and 15 keys for AES-256
+	# W0, W1, ... W4R-1 as the 32-bit words of the expanded key
+	assert AES_version in VALID_VERSIONS
+	num_bits = int(AES_version)
+	N = (num_bits)//32 # Length of key in bits divided by 32
+	R = 10+((VALID_VERSIONS.index(AES_version)*2)+1)
+	encryption_key = pad_key(encryption_key, N)
+	assert len(encryption_key) == N*4
+	# Splice K
+	K = splice_K(encryption_key)
+	# Now here is the actual key expansion.
+	W_list = []
+	for i in range(4*R): # We include 4R.
+		W_list.append(W(i, N, K, W_list))
+	# Ok, so now the expanded key is in W_list
+	#return W_list
+	#print(W_list)
+	#print("length of W_list: "+str(len(W_list)))
+	# This cuts the matrix into 4x4 matrixes.
+	W_list = [W_list[x:x+4] for x in range(0, len(W_list),4)]
+	W_actual = make_integer_list(W_list)
+	inverse_key_stuff = copy.deepcopy(W_actual)
+	# Now do the stuff...
+	'''
+	for round = 1 step 1 to Nr-1
+		InvMixColumns(dw[round*Nb, (round+1)*Nb-1]) 
+	'''
+	inverse_key_mat = [inverse_key_stuff[0]] # add the initial key shit.
+	for k in range(1,len(inverse_key_stuff)):
+		# Here do the inverse shit.
+		inverse_key = [] # This is the 4x4 matrix.
+		assert len(inverse_key_stuff[k]) == 4 # Sanity.
+		cur_mat = inverse_key_stuff[k]
+		for l in range(4):
+			cur_column = [cur_mat[j][l] for j in range(4)]
+			cur_column = rev_mix_column(cur_column)
+			inverse_key.append(cur_column)
+		inverse_key_mat.append(inverse_key)
+
+	return R, W_actual, inverse_key_mat # inverse_key_mat is basically the reverse key list, where each element is the 4x4 key matrix.
+```
+
+and it produces the wrong key.
+
+See, in the pdf document the `.ik_sch` lines are the corresponding key matrixes printed as hex. And it is wrong. Now i get `round[0].ik_sch == 000102030405060708090a0b0c0d0e0f` even though it should be `13111d7fe3944a17f307a78b4d2b30c5` . Here is the stuff which i do not understand in figure 15:
+
+```
+For the Equivalent Inverse Cipher, the following pseudo code is added at
+the end of the Key Expansion routine (Sec. 5.2):
+	for i = 0 step 1 to (Nr+1)*Nb-1
+		dw[i] = w[i]
+	end for
+	for round = 1 step 1 to Nr-1
+		InvMixColumns(dw[round*Nb, (round+1)*Nb-1]) // note change of type
+	end for
+Note that, since InvMixColumns operates on a two-dimensional array of bytes
+while the Round Keys are held in an array of words, the call to
+InvMixColumns in this code sequence involves a change of type (i.e. the
+input to InvMixColumns() is normally the State array, which is considered
+to be a two-dimensional array of bytes, whereas the input here is a Round
+Key computed as a one-dimensional array of words).
+```
+
+This part here:
+
+```
+for i = 0 step 1 to (Nr+1)*Nb-1
+		dw[i] = w[i]
+	end for
+```
+
+just copies the keys and stuff.
+
+...
+
+Ok, so I implemented this function to print the keys:
+
+```
+def print_keys(keys: list) -> list:
+	print("="*30)
+	for key_mat in keys:
+		stuff = print_hex(key_mat)
+		print(stuff)
+	print("="*30)
+	return
+```
+
+and then when printing the keys (the non-reversed keys aka the ones which are used in the encryption function) I get this output:
+```
+==============================
+000102030405060708090a0b0c0d0e0f
+d6aa74fdd2af72fadaa678f1d6ab76fe
+b692cf0b643dbdf1be9bc5006830b3fe
+b6ff744ed2c2c9bf6c590cbf0469bf41
+47f7f7bc95353e03f96c32bcfd058dfd
+3caaa3e8a99f9deb50f3af57adf622aa
+5e390f7df7a69296a7553dc10aa31f6b
+14f9701ae35fe28c440adf4d4ea9c026
+47438735a41c65b9e016baf4aebf7ad2
+549932d1f08557681093ed9cbe2c974e
+13111d7fe3944a17f307a78b4d2b30c5
+==============================
+```
+
+ok, so the inverse cipher and the equivalent inverse cipher aren't the same thing and the weird stuff with the expanded key are only in the equivalent inverse cipher. (See this: https://www.studocu.com/en-us/messages/question/2863800/what-is-the-difference-between-the-aes-decryption-algorithm-and-the-equivalent-inverse-cipher)
+
+Because I do not want to deal with the inverse cipher bullshit, I am just going to use the inverse cipher.
+
+Ok, so the reason why it didn't work is that I looked at the equivalent inverse cipher, when I actually wanted to use the normal inverse cipher. I looked at the wrong pseudocode.
+
+Here is the actual pseudocode for the correct inverse cipher:
+
+```
+InvCipher(byte in[4*Nb], byte out[4*Nb], word w[Nb*(Nr+1)])
+begin
+byte state[4,Nb]
+state = in
+AddRoundKey(state, w[Nr*Nb, (Nr+1)*Nb-1]) // See Sec. 5.1.4
+for round = Nr-1 step -1 downto 1
+InvShiftRows(state) // See Sec. 5.3.1
+InvSubBytes(state) // See Sec. 5.3.2
+AddRoundKey(state, w[round*Nb, (round+1)*Nb-1])
+InvMixColumns(state) // See Sec. 5.3.3
+end for
+InvShiftRows(state)
+InvSubBytes(state)
+AddRoundKey(state, w[0, Nb-1])
+out = state
+end
+```
+
+(As seen in Figure 12.)
+
+and here is my current decryption function:
+
+```
+def decrypt_state(expanded_key: list, encrypted_data: list, num_rounds: int, W_list: list) -> str:
+	# This is the main decryption function.
+	state = create_state(encrypted_data)
+	print("round[0].iinput: "+str(print_hex(state)))
+	#state = AddRoundKey(state, num_rounds-1, W_list)
+	print("num_rounds-1 == "+str(num_rounds-1))
+	print("len(W_list) == "+str(len(W_list)))
+	state = AddRoundKey(state, num_rounds-1, W_list, cur_round_num=0)
+
+	#state = AddRoundKey(state, 0, W_list, cur_round_num=0) # Maybe this will actually work?????
+	#print("round[0].ik_sch == "+str(print_hex(state)))
+	# for round = Nr-1 step -1 downto 1
+	count = 0
+	for i in range(num_rounds-2, 0, -1): # zero is not included, so 1 is the final value of i
+		count += 1
+		# InvShiftRows(state) 
+		print("round["+str(count)+"].istart: "+str(print_hex(state)))
+		state = InvSubBytes(state)
+		print("round["+str(count)+"].is_row: "+str(print_hex(state)))
+		state = InvShiftRows(state)
+		print("round["+str(count)+"].is_box: "+str(print_hex(state)))
+		state = InvMixColumns(state)
+		print("round["+str(count)+"].im_col: "+str(print_hex(state)))
+		state = AddRoundKey(state, i, W_list, cur_round_num=count)
+		#print("round["+str(count)+"].istart: "+str(print_hex(state)))
+	print("End of the loop!!!!")
+	state = InvSubBytes(state)
+	state = InvShiftRows(state)
+	state = AddRoundKey(state, 0, W_list)
+
+	return state
+```
+
+As we can see, I used the equivalent inverse cipher pseudocode instead of the normal inverse cipher. Let's fix that.
+
+After fixing the decryption function to actually match the correct pseudocode, it now works:
+
+```
+
+def decrypt_state(expanded_key: list, encrypted_data: list, num_rounds: int, W_list: list) -> str:
+	# This is the main decryption function.
+	state = create_state(encrypted_data)
+	print("round[0].iinput: "+str(print_hex(state)))
+	#state = AddRoundKey(state, num_rounds-1, W_list)
+	print("num_rounds-1 == "+str(num_rounds-1))
+	print("len(W_list) == "+str(len(W_list)))
+	state = AddRoundKey(state, num_rounds-1, W_list, cur_round_num=0)
+
+	#state = AddRoundKey(state, 0, W_list, cur_round_num=0) # Maybe this will actually work?????
+	#print("round[0].ik_sch == "+str(print_hex(state)))
+	# for round = Nr-1 step -1 downto 1
+	count = 0
+	for i in range(num_rounds-2, 0, -1): # zero is not included, so 1 is the final value of i
+		count += 1
+		# InvShiftRows(state) 
+		print("round["+str(count)+"].istart: "+str(print_hex(state)))
+		state = InvShiftRows(state)
+		print("round["+str(count)+"].is_row: "+str(print_hex(state)))
+		state = InvSubBytes(state)
+		#print("round["+str(count)+"].im_col: "+str(print_hex(state)))
+		state = AddRoundKey(state, i, W_list, cur_round_num=count)
+		print("round["+str(count)+"].is_box: "+str(print_hex(state)))
+		state = InvMixColumns(state)
+		#print("round["+str(count)+"].istart: "+str(print_hex(state)))
+	print("End of the loop!!!!")
+	state = InvShiftRows(state)
+	state = InvSubBytes(state)
+	state = AddRoundKey(state, 0, W_list)
+
+	return state
+```
+
+Now it decrypts the stuff correctly:
+
+```
+# SNIP
+Here is the cur_column: [247, 190, 59, 41]
+cur_column: [247, 190, 59, 41]
+output from rev_mix_column: [205, 112, 183, 81]
+Here is the cur_column: [29, 185, 249, 26]
+cur_column: [29, 185, 249, 26]
+output from rev_mix_column: [186, 202, 208, 231]
+Outputting this from MixColumns: [[99, 83, 224, 140], [9, 96, 225, 4], [205, 112, 183, 81], [186, 202, 208, 231]]
+End of the loop!!!!
+Cor key thing: [[0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15]]
+Here is the final decrypted result: 00112233445566778899aabbccddeeff
+Done!
+```
+
+## Where to go from here?
+
+Ok, so maybe we could add support for the 192 and 256 bit variants. There are some nuances in both of these. Also I think there are actually different modes of aes, some of which are more secure than others (https://ciit.finki.ukim.mk/data/papers/10CiiT/10CiiT-46.pdf) . ECB (Electronic Code Book) is the weakest, because it encrypts each 16 byte block independently and therefore if there are repetitions of 16 bytes, they are easily recognizable and therefore decreasing entropy. There is also CBC (Cipher Block Chaining) which is a bit stronger. According to this: https://stackoverflow.com/questions/1220751/how-to-choose-an-aes-encryption-mode-cbc-ecb-ctr-ocb-cfb OCB is the most secure, but that mode is not mentioned in that pdf file and it also has some patent shit going on. Ok, so I think I am going to first start to try to support 192 and 256 bit modes on AES before trying to implement the multiblock encryption.
+
+Also another thing is to refactor the code. For example separate the tests from the actual code and also wrap the encrypt and decrypt stuff into a class maybe. (Yucky! Object oriented programming!)
+
+Ok, so I moved all of the test stuff to tests.py:
+
+```
+
+
+from main import * # This is used to import the functions which this file actually tests.
+import rijndael
+
+def run_tests() -> None:
+	print("="*30)
+	print("="*30)
+	print("="*30)
+	print("Now running tests!!!")
+	test_transpose_mat()
+	test_S()
+	test_key_expansion()
+	test_print_hex()
+	test_s_box()
+	# Test the reverse functions. If there is a function called f and an inverse function called F , then f(F(x)) = F(f(x)) = x
+	test_shift()
+	test_poly_mul()
+	test_bits()
+	test_poly_mod()
+	test_mix_col()
+	print("All tests passed!!!")
+	print("="*30)
+	print("="*30)
+	print("="*30)
+
+	return
+
+def test_transpose_mat() -> None:
+	test_mat = [[0,4,8,12],
+				[1,5,9,13],
+				[2,6,10,14],
+				[3,7,11,15]]
+	out = transpose_mat(test_mat)
+	assert out == [[0,1,2,3],
+				[4,5,6,7],
+				[8,9,10,11],
+				[12,13,14,15]]
+
+def test_S() -> None:
+	assert rijndael.S_BOX[0x9a] == 0xb8
+
+def test_key_expansion():
+	string = "2b 7e 15 16 28 ae d2 a6 ab f7 15 88 09 cf 4f 3c"
+	key = bytes([int(x, base=16) for x in string.split(" ")])
+	_, expanded_key, _ = key_expansion(bytes(key), "128")
+	print_hex(expanded_key)
+
+
+def test_print_hex() -> None:
+	test_mat = [[0,4,8,12],
+				[1,5,9,13],
+				[2,6,10,14],
+				[3,7,11,15]]
+	# Now test the printing
+	print("Here is the test output.")
+	out = print_hex(test_mat)
+	print(out)
+	# 000102030405060708090a0b0c0d0e0f
+	assert out == "000102030405060708090a0b0c0d0e0f" # Should be this
+
+def test_transpose_mat() -> None:
+	test_mat = [[0,4,8,12],
+				[1,5,9,13],
+				[2,6,10,14],
+				[3,7,11,15]]
+	out = transpose_mat(test_mat)
+	assert out == [[0,1,2,3],
+				[4,5,6,7],
+				[8,9,10,11],
+				[12,13,14,15]]
+
+
+def test_shift() -> None:
+	paska = [[0,1,2,3],
+			[4,5,6,7],
+			[8,9,10,11],
+			[12,13,14,15]]
+	old_paska = copy.deepcopy(paska)
+	ret = ShiftRows(paska)
+	oof = [[0,1,2,3],
+			[5,6,7,4],
+			[10,11,8,9],
+			[15,12,13,14]]
+	assert ret == oof
+	# Now test inverse function.
+	oof = InvShiftRows(paska)
+	assert oof == old_paska
+	print("Passed test_shift!")
+
+def test_s_box() -> None:
+	# Go through every index and check the reverse.
+	for ind in range(256):
+		orig_val = access_table(rijndael.S_BOX_MATRIX, ind)
+		should_be_ind = access_table(rijndael.S_BOX_MATRIX_REV, orig_val)
+		assert should_be_ind == ind
+	print("test_s_box passed!")
+	return
+
+
+def test_poly_mul() -> None:
+	a = 0b100
+	b = 0b100
+	res = poly_mul(a,b)
+	assert res == 0b10000 # x**2 * x**2 == x**4
+	
+	# This example is ripped straight from the polynomial multiplication section of this pdf document: https://csrc.nist.gov/files/pubs/fips/197/final/docs/fips-197.pdf
+	a = 87
+	b = 131
+	res = poly_mul(a,b)
+	assert res == 193
+	print("test_poly_mul passed")
+	return
+
+
+MAX_TEST_BITS = 0xffff
+
+def test_bits() -> None:
+	for i in range(1,MAX_TEST_BITS):
+		assert bits(i) == len(bin(i))-2
+
+def test_poly_mod() -> None:
+	# Tests the polynomial modulo (remainder) in GF(2)
+	pol1 = 0b100 # x**2
+	pol2 = 0b10000 # x**4
+	res = poly_mod(pol2, pol1)
+	print("result of the polynomial modulo test: "+str(res))
+	assert res == 0 # Polynomial remainder should be zero.
+	#input()
+	# A bit of a more complex testcase. This is taken from the pdf file multiplication section.
+	pol1 = 11129
+	pol2 = 283
+	res = poly_mod(pol1, pol2)
+	print("res == "+str(bin(res)))
+	assert res == 193
+	#input()
+	return
+
+def test_mix_col() -> None:
+	# This is ripped straight from wikipedia.  https://en.wikipedia.org/wiki/Rijndael_MixColumns#Test_vectors_for_MixColumn()
+	tests = testdatahelper.MIX_COL_TESTS
+	for x,y in tests: # x is input and y is expected output. We also test the reverse function.
+		print("Now running another test.")
+		print("Here is the expected: "+str(hex_list_to_str(y)))
+		print("Here is the input: "+str(hex_list_to_str(x)))
+		x_copy = copy.deepcopy(x)
+		x = mix_col(x)
+		assert x == y # Should be the expected output
+		# Test the reverse function now. We should end up with the original input.
+		x = rev_mix_column(y)
+		print("Here is the output from the reverse function: "+str(hex_list_to_str(x)))
+		assert x == x_copy
+	print("test_mix_col passed!!!")
+	return
+
+```
+
+Maybe I should create a function called test_enc_dec to test the encryption and decryption. Done! Now, let's create a function which tests the 192 bit encryption version. I don't think that there are any nuances in the 192 bit version, but we'll see soon enough.
+
+And holy shit!!!!!!!!! I can't believe it! The code works immediately without any debugging for the 192 bit key version! This is absolutely fantastic!
+
+## Ironing out the 256-bit version
+
+Ok, so in the pdf file (this one: )
+
+There is this notice in section 5.2 ("Key expansion"): "It is important to note that the Key Expansion routine for 256-bit Cipher Keys (Nk = 8) is slightly different than for 128- and 192-bit Cipher Keys. If Nk = 8 and i-4 is a multiple of Nk, then SubWord() is applied to w\[i-1\] prior to the XOR." so therefore we need to add a special case to the key expansion function, which accounts for this.
+
+As it turns out, that stuff said in the pdf file is total bullshit, because if I have this code here in the W function (the key expansion function):
+
+```
+# This is the main key expansion function which does the heavy lifting.
+def W(i: int, N: int, K: bytes, W: list, version="128") -> bytes: # The W list is being filled as we go.
+
+	if version == "256": # This is the special case for the 256 bit key
+		# Taken from https://csrc.nist.gov/files/pubs/fips/197/final/docs/fips-197.pdf
+		# See section 5.2
+		'''
+		It is important to note that the Key Expansion routine for 256-bit Cipher Keys (Nk = 8) is slightly different than for 128- and 192-bit Cipher Keys. If Nk = 8 and i-4 is a multiple of Nk, then SubWord() is applied to w[i-1] prior to the XOR.
+		'''
+		if (i-4) % 8 == 0: # If Nk = 8 and i-4 is a multiple of Nk, then...
+			# ... SubWord() is applied to w[i-1] prior to the XOR.
+			#W_list[-1] = SubWord(W_list[-1])
+			W[-1] = SubWord(W[-1])
+
+	if i < N:
+		return K[i]
+	elif i >= N and (i % N == 0 % N):
+		return xor_bytes(xor_bytes((W[i-N]), SubWord(RotWord(W[i-1]))), rcon(i//N))
+	elif i >= N and N > 6 and (i % N == 4 % N):
+		return xor_bytes(W[i-N], SubWord(W[i-1]))
+	else:
+		#print("paskaaa")
+		return xor_bytes(W[i-N], W[i-1])
+```
+
+it produces the wrong answer, but if I remove the special case for the 256 bit key stuff, it works perfectly:
+
+```
+# This is the main key expansion function which does the heavy lifting.
+def W(i: int, N: int, K: bytes, W: list, version="128") -> bytes: # The W list is being filled as we go.
+	if i < N:
+		return K[i]
+	elif i >= N and (i % N == 0 % N):
+		return xor_bytes(xor_bytes((W[i-N]), SubWord(RotWord(W[i-1]))), rcon(i//N))
+	elif i >= N and N > 6 and (i % N == 4 % N):
+		return xor_bytes(W[i-N], SubWord(W[i-1]))
+	else:
+		#print("paskaaa")
+		return xor_bytes(W[i-N], W[i-1])
+```
+
+Then it works correctly. I don't know if the people who made the pdf just forgot to add this stuff to their implementation, which produced the example vectors, so there is a chance that the example vectors in the pdf are wrong, or maybe the special case stuff is somehow wrong idk.. I am just going to leave the code out for now, such that my code produces the example vector outputs.
+
+## Cleaner wrapper and multiblock encryption
+
+Ok, so I think it is time to make a cleaner wrapper around these encryption and decryption functions, and make it such that the user can just provide a list of bytes as the key and a list of bytes as the plaintext data which we need to encode. 
+
+
+
+
 
 
 
