@@ -3185,7 +3185,413 @@ Then it works correctly. I don't know if the people who made the pdf just forgot
 
 Ok, so I think it is time to make a cleaner wrapper around these encryption and decryption functions, and make it such that the user can just provide a list of bytes as the key and a list of bytes as the plaintext data which we need to encode. 
 
+To accomplish this, we need to create a function which pads the bytes with zeroes when the data length is not a multiple of 16 bytes.
 
+After a bit of typing, this is what I came up with:
+
+```
+def split_data_blocks(data: bytes) -> list: # This creates a list of data blocks.
+	blocks = [data[i:i+16] for i in range(0,math.ceil(len(data)/16),16)] # Split into blocks.
+	# Then we should pad the very last block.
+	assert all([len(x)<=16 for x in blocks]) # Sanity checking
+	if len(blocks[-1]) < 16:
+		# pad the last block, because data length is not a multiple of 16 (in bytes).
+		blocks[-1] = pad_plain_text(blocks[-1])
+		assert len(blocks[-1]) == 16 # Sanity checking.
+	return blocks
+```
+
+... create a test function ...
+
+```
+def test_split_data_blocks() -> None: # This tests the splitting of the data to 16 byte blocks. If the length of the data is not a multiple of 16 bytes, then pad the very last block with zeroes.
+	example_data = "\x41"*16+"\x42\x43\x44\x45" # There are 16 "A" characters followed by "BCDE" in ascii.
+	# Now try splitting.
+	blocks = split_data_blocks(example_data)
+	assert len(blocks) == 2 # There should only be 2 blocks.
+	assert blocks[0] == "\x41"*16# The first block should be just 16 "A" characters.
+	assert blocks[1] == "\x42\x43\x44\x45"+(16-len("\x42\x43\x44\x45"))*"\x00" # In the second block, there should be "\x42\x43\x44\x45" followed by 16-4=12 null bytes.
+	print("test_split_data_blocks passed!!!")
+	return
+```
+
+Does it pass? Fuck! It doesn't...
+
+```
+    assert len(blocks) == 2 # There should only be 2 blocks.
+           ^^^^^^^^^^^^^^^^
+AssertionError
+```
+
+Ok, so after a bit of debugging, I now have this:
+
+```
+def split_data_blocks(data: bytes) -> list: # This creates a list of data blocks.
+	print("math.ceil(len(data)/16) == "+str(math.ceil(len(data)/16)))
+	blocks = [data[i:i+16] for i in range(0,math.ceil(len(data)/16)*16,16)] # Split into blocks.
+	print("blocks == "+str(blocks))
+	# Then we should pad the very last block.
+	assert all([len(x)<=16 for x in blocks]) # Sanity checking
+	if len(blocks[-1]) < 16:
+		# pad the last block, because data length is not a multiple of 16 (in bytes).
+		blocks[-1] = pad_plain_text(blocks[-1], 16)
+		assert len(blocks[-1]) == 16 # Sanity checking.
+	return blocks
+```
+
+The bug was here: `math.ceil(len(data)/16)` , now it is: `math.ceil(len(data)/16)*16` , because we want to loop as if there were two full blocks instead of one full and one partial.
+
+Then I had to modify the test function a bit, because I accidentally used strings instead of bytes.
+
+```
+def test_split_data_blocks() -> None: # This tests the splitting of the data to 16 byte blocks. If the length of the data is not a multiple of 16 bytes, then pad the very last block with zeroes.
+	example_data = (b"\x41")*16+(b"\x42\x43\x44\x45") # There are 16 "A" characters followed by "BCDE" in ascii.
+	# Now try splitting.
+	blocks = split_data_blocks(example_data)
+	print("Here is the blocks: "+str(blocks))
+	assert len(blocks) == 2 # There should only be 2 blocks.
+	assert blocks[0] == (b"\x41")*16# The first block should be just 16 "A" characters.
+	assert blocks[1] == b"\x42\x43\x44\x45"+(16-len("\x42\x43\x44\x45"))*(b"\x00") # In the second block, there should be "\x42\x43\x44\x45" followed by 16-4=12 null bytes.
+	print("test_split_data_blocks passed!!!")
+	example_data = (b"\x41")*16 # There are 16 "A" characters 
+	# Now try splitting.
+	blocks = split_data_blocks(example_data)
+	assert len(blocks) == 1
+	assert blocks[0] == (b"\x41")*16
+	return
+```
+
+Ok, so let's keep on programming the main encryption function. Currently it looks like this:
+
+```
+def encrypt(data: bytes, key: bytes, mode="ECB") -> bytes: # This is the main encryption function. Default to the electronic code book encryption mode. (ECB is the WEAKEST!!!)
+	# Now get the appropriate AES version.
+	version = get_aes_ver_from_key(key)
+	# Now run the key expansion.
+	num_rounds, expanded_key, reverse_keys = key_expansion(key, version) # Use the 192 bit version instead of the 128
+	print_keys(expanded_key)
+	if mode == "ECB": # Electronic code book mode.
+		# Now go over the data blocks.
+		data_blocks = split_data_blocks(data)
+	return # Stub for now
+```
+
+Yeah, I know that ECB is like the weakest usage of AES, but I do not really care, because I'll implement the stronger modes later on.
+
+Here is the final encryption function:
+
+```
+def encrypt(data: bytes, key: bytes, mode="ECB") -> bytes: # This is the main encryption function. Default to the electronic code book encryption mode. (ECB is the WEAKEST!!!)
+	# Now get the appropriate AES version.
+	version = get_aes_ver_from_key(key)
+	# Now run the key expansion.
+	num_rounds, expanded_key, reverse_keys = key_expansion(key, version) # Use the 192 bit version instead of the 128
+	print_keys(expanded_key)
+	if mode == "ECB": # Electronic code book mode.
+		# Now go over the data blocks.
+		data_blocks = split_data_blocks(data)
+		# encrypt each data block separately.
+		# def encrypt_state(expanded_key: list, plaintext: bytes, num_rounds: int, W_list: list) -> bytes:
+		# encrypt_state(expanded_key, example_plaintext, num_rounds, expanded_key)
+		orig_expanded_key = copy.deepcopy(expanded_key)
+		encrypted_data_blocks = [encrypt_state(expanded_key, block, num_rounds, expanded_key) for block in data_blocks] # Encrypt each block.
+		assert orig_expanded_key == expanded_key # Check for in-place modification. This should not change.
+		# Join data blocks.
+		encrypted_as_hex = ''.join(encrypted_data_blocks)
+		# Convert to bytes.
+		encrypted = bytes.fromhex(encrypted_as_hex)
+		# Sanity check.
+		assert len(encrypted) == 16 # Should be the size of the "state" matrix.
+		return encrypted
+	return # Stub for now
+```
+
+once again, I am going to program a test function for this. I should also program a test function for they key padding too.
+
+One bug, which I found was that I forgot to put the `len` around the key in this function. Now I fixed it:
+
+```
+def get_aes_ver_from_key(key: bytes) -> str:
+	if len(key) > (256//8):
+		# Invalid key size.
+		print("Invalid key size!!!")
+		print("length of key must be less than or equal to 256!!!")
+		print("length of key: "+str(len(key)))
+		assert False # Invalid key size.
+	version = None
+	if len(key) > (192//8):
+		# key must be 256 bit
+		version = "256"
+	elif len(key) > (128//8):
+		# key must be 192 bit
+		version = "192"
+	else:
+		version = "128" # default to 128 bit key.
+	assert version != None # We should have assigned version as of now.
+	return version
+```
+
+Here is the test functions:
+
+```
+def encrypt_helper(data: str, key: str, expected_result: str) -> bool: # Returns true if passed.
+	example_plaintext = bytes.fromhex(data)
+	key_bytes = bytes.fromhex(key)
+	encrypted = encrypt(example_plaintext, key_bytes, mode="ECB") # Just Electronic Code Book, for now.
+	return encrypted == bytes.fromhex(expected_result) # Check.
+
+def test_enc() -> None:
+	assert encrypt_helper("00112233445566778899aabbccddeeff", "000102030405060708090a0b0c0d0e0f", "69c4e0d86a7b0430d8cdb78070b4c55a") # 128 bit keysize.
+	assert encrypt_helper("00112233445566778899aabbccddeeff", "000102030405060708090a0b0c0d0e0f1011121314151617", "dda97ca4864cdfe06eaf70a0ec0d7191") # 192 bit keysize.
+	assert encrypt_helper("00112233445566778899aabbccddeeff", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "8ea2b7ca516745bfeafc49904b496089") # 256 bit keysize.
+	print("test_enc passed!!!")
+	return
+```
+
+and the tests pass! Hooray!!!
+
+Let's just create a test for the key padding function.
+
+```
+def test_key_padding() -> None:
+	num_bits = 128
+	N = (num_bits)//32 # Length of key in bits divided by 32
+	R = 10+((0*2)+1)
+	# encryption_key = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
+	encryption_key = bytes.fromhex("000102030405060708090a0b0c0d") # Just removed two bytes from the end.
+	encryption_key = pad_key(encryption_key, N)
+	assert len(encryption_key) == N*4
+	assert encryption_key == bytes.fromhex("000102030405060708090a0b0c0d0000") # Check for the padded zeroes.
+	print("test_key_padding passed!!!")
+	return
+```
+
+## Implementing the decryption wrapper.
+
+Ok, so now that we have programmed the encryption wrapper, it is time to program the decryption wrapper. I'll just use the same code as in encryption. Also I commented out this line: `assert len(encrypted) == 16 # Should be the size of the "state" matrix.` , because it only applied to the tests.
+
+I just modified the encryption function to use the decryption:
+
+```
+def encrypt(data: bytes, key: bytes, mode="ECB", encryption=True) -> bytes: # This is the main encryption function. Default to the electronic code book encryption mode. (ECB is the WEAKEST!!!) encryption=True means that we are encrypting and encryption=False means that we are decrypting.
+	# Now get the appropriate AES version.
+	version = get_aes_ver_from_key(key)
+	# Now run the key expansion.
+	num_rounds, expanded_key, reverse_keys = key_expansion(key, version) # Use the 192 bit version instead of the 128
+	print_keys(expanded_key)
+	if mode == "ECB": # Electronic code book mode.
+		# Now go over the data blocks.
+		data_blocks = split_data_blocks(data)
+		# encrypt each data block separately.
+		# def encrypt_state(expanded_key: list, plaintext: bytes, num_rounds: int, W_list: list) -> bytes:
+		# encrypt_state(expanded_key, example_plaintext, num_rounds, expanded_key)
+		orig_expanded_key = copy.deepcopy(expanded_key)
+		if encryption:
+
+			encrypted_data_blocks = [encrypt_state(expanded_key, block, num_rounds, expanded_key) for block in data_blocks] # Encrypt each block.
+		else:
+			# Decryption
+			encrypted_data_blocks = [decrypt_state(expanded_key, block, num_rounds, expanded_key) for block in data_blocks] # Encrypt each block.
+		assert orig_expanded_key == expanded_key # Check for in-place modification. This should not change.
+		# Join data blocks.
+		encrypted_as_hex = ''.join(encrypted_data_blocks)
+		# Convert to bytes.
+		encrypted = bytes.fromhex(encrypted_as_hex)
+		# Sanity check.
+		#assert len(encrypted) == 16 # Should be the size of the "state" matrix.
+		return encrypted
+	return # Stub for now
+```
+and here is the decrypt function:
+```
+def decrypt(encrypted: bytes, key: bytes, mode="ECB") -> bytes:
+	return encrypt(encrypted, key, mode=mode)
+```
+
+Here is the test helper:
+
+```
+def decrypt_helper(data: str, key: str, expected_result: str) -> bool:# Returns true if passed.
+	example_plaintext = bytes.fromhex(data)
+	key_bytes = bytes.fromhex(key)
+	decrypted = decrypt(example_plaintext, key_bytes, mode="ECB") # Just Electronic Code Book, for now.
+	return decrypted == bytes.fromhex(expected_result) # Check.
+```
+and here is the decryption test:
+
+```
+def test_dec() -> None:
+	assert decrypt_helper("69c4e0d86a7b0430d8cdb78070b4c55a", "000102030405060708090a0b0c0d0e0f", "00112233445566778899aabbccddeeff") # 128 bit keysize.
+	assert decrypt_helper("dda97ca4864cdfe06eaf70a0ec0d7191", "000102030405060708090a0b0c0d0e0f1011121314151617", "00112233445566778899aabbccddeeff") # 192 bit keysize.
+	assert decrypt_helper("8ea2b7ca516745bfeafc49904b496089", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f", "00112233445566778899aabbccddeeff") # 256 bit keysize.
+	print("test_enc passed!!!")
+	return
+```
+
+does it pass???!!??! It does!
+
+Now, let's create a final test with data which is not a multiple of 16 and an arbitrary key.
+
+Actually no, the decryption did not pass, because I actually put `test_dec` instead of `test_dec()` in the tests function!
+Fuck!!!!
+
+Here is the error:
+
+```
+    assert decrypt_helper("69c4e0d86a7b0430d8cdb78070b4c55a", "000102030405060708090a0b0c0d0e0f", "00112233445566778899aabbccddeeff") # 128 bit keysize.
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+```
+
+Ahhh, i see:
+
+Here is my current code:
+
+```
+def decrypt(encrypted: bytes, key: bytes, mode="ECB") -> bytes:
+	return encrypt(encrypted, key, mode=mode)
+```
+
+and here is the fixed code:
+
+```
+def decrypt(encrypted: bytes, key: bytes, mode="ECB") -> bytes:
+	return encrypt(encrypted, key, mode=mode, encryption=False)
+```
+
+I forgot to actually tell the function to decrypt instead of encrypt. Let's try again..
+
+Uh oh...
+
+```
+   encrypted_as_hex = ''.join(encrypted_data_blocks)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: sequence item 0: expected str instance, list found
+```
+
+That is because in the encryption function we actually return the stuff as a hex string, but in the decryption function we return as bytes: `return state` it should be : `return print_hex(state)`
+
+Let's make it such that the decrypt and encrypt functions actually return bytes instead of the hex string. It will make our lives a lot easier. I don't know why I even initially made it such that the functions return a hex string.
+
+Here is a tiny helper function:
+
+```
+def list_to_bytes(bytes_list: bytes) -> bytes: # This function returns the 4x4 matrix or whatever as a bytes string.
+	if len(byte_list) == 4 and len(byte_list[0]) == 4 and isinstance(byte_list[0][0], int):
+		# Now transpose, because the state is a 4x4 matrix.
+		'''
+		[[b0,b4,b8,b12],
+		[b1,b5,b9,b13],
+		[b2,b6,b10,b14],
+		[b3,b7,b11,b15]]
+		'''
+
+		byte_list = transpose_mat(byte_list)
+	flattened_list = list(flatten(byte_list))
+	out = b""
+	for x in flattened_list:
+		out += bytes([x])
+	return out
+```
+
+Here is the test function:
+
+```
+def test_list_to_bytes() -> None:
+	# This tests the 4x4 matrix to bytes conversion.
+	test_mat = [[0,4,8,12],
+				[1,5,9,13],
+				[2,6,10,14],
+				[3,7,11,15]]
+	# Now just create the bytes string.
+	bytes_string = list_to_bytes(test_mat)
+	# Check the result.
+	assert bytes_string == bytes.fromhex("000102030405060708090a0b0c0d0e0f")
+	print("test_list_to_bytes passed!!!")
+	return
+```
+
+and it passes!!! Good. Ok, so now we just need to change the stuff to work with this instead.
+
+Ok, so I changed some stuff such that it now assumes that both encrypt and decrypt return bytes instead of hex string. (This is in commit 54b5838714aa235c4e602328095842d5260db3d8 )
+
+## Implementing different encryption modes
+
+Ok, so now we only support ECB, which is the least secure out of all of these. I was sussed out that there wasn't a wikipedia page on the different block encryption modes in AES, but I was just searching with the wrong keywords. Here is the page: https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation
+
+We actually probably don't need to pad the input bytes with zeroes, because of this: https://en.wikipedia.org/wiki/Ciphertext_stealing Maybe I should implement that too.
+
+Let's implement Cipher Block Chaining first for example: https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_block_chaining_(CBC)
+
+Now, the bad thing about these different block encryption modes is that there aren't that many test vectors available in the pdf, because the pdf just describes the aes encryption itself, but not how to use AES in multiple blocks of data. After googling, I found this: https://github.com/ircmaxell/quality-checker/blob/master/tmp/gh_18/PHP-PasswordLib-master/test/Data/Vectors/aes-cbc.test-vectors which seems what we are looking for. It is for the CBC mode. CBC mode is more secure than ECB, but it is still quite insecure. I am still going to implement it because reasons.
+
+## Implementing CBC (Cipher Block Chaining)
+
+Let's look at wikipedia (as usual) https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_block_chaining_(CBC)
+
+I modified the encryption helper a bit:
+```
+def encrypt_helper(data: str, key: str, expected_result: str, mode="ECB") -> bool: # Returns true if passed.
+	example_plaintext = bytes.fromhex(data)
+	key_bytes = bytes.fromhex(key)
+	encrypted = encrypt(example_plaintext, key_bytes, mode=mode) # Just Electronic Code Book, for now.
+	return encrypted == bytes.fromhex(expected_result) # Check.
+```
+I also made this test:
+```
+def test_encrypt_cbc() -> None: # Cipher Block Chaining mode.
+	# See https://github.com/ircmaxell/quality-checker/blob/master/tmp/gh_18/PHP-PasswordLib-master/test/Data/Vectors/aes-cbc.test-vectors for the CBC test vectors.
+	assert encrypt_helper("6bc1bee22e409f96e93d7e117393172a", "2b7e151628aed2a6abf7158809cf4f3c", "7649abac8119b246cee98e9b12e9197d", mode="CBC") # 128 bit keysize.
+```
+
+which fails. The reason for why it fails is because in the test vectors (aka here: https://github.com/ircmaxell/quality-checker/blob/master/tmp/gh_18/PHP-PasswordLib-master/test/Data/Vectors/aes-cbc.test-vectors ) we have iv defined and the iv is basically just the stuff with which we xor the input before passing it to the encryption function. Because there aren't test vectors which do not have this, we need to program a special case for this:
+
+```
+def encrypt(data: bytes, key: bytes, mode="ECB", encryption=True, iv=None) -> bytes: # This is the main encryption function. Default to the electronic code book encryption mode. (ECB is the WEAKEST!!!) encryption=True means that we are encrypting and encryption=False means that we are decrypting.
+	# Now get the appropriate AES version.
+	version = get_aes_ver_from_key(key)
+	# Now run the key expansion.
+	num_rounds, expanded_key, reverse_keys = key_expansion(key, version) # Use the 192 bit version instead of the 128
+	print_keys(expanded_key)
+	if mode == "ECB" or mode == "CBC": # Electronic code book mode.
+		# Now go over the data blocks.
+		data_blocks = split_data_blocks(data)
+		# encrypt each data block separately.
+		# def encrypt_state(expanded_key: list, plaintext: bytes, num_rounds: int, W_list: list) -> bytes:
+		# encrypt_state(expanded_key, example_plaintext, num_rounds, expanded_key)
+		orig_expanded_key = copy.deepcopy(expanded_key)
+		if encryption:
+			if mode == "CBC":
+				# CBC mode
+				# Encrypt the first block normally, then xor the input with the last encrypted output before putting it through the encryption process in subsequent blocks.
+				# Here is the debug shit. If the iv variable is defined, then just do the xor straight away with the iv vector.
+				if iv == None:
+
+					encrypted_data_blocks = [encrypt_state(expanded_key, data_blocks[0], num_rounds, expanded_key)] # Encrypt the first block normally.
+					for block in data_blocks[1:]:
+						# First xor the input. with the previous encrypted block.
+						input_block = xor_bytes(block, encrypted_data_blocks[-1])
+						encrypted_block = encrypt_state(expanded_key, input_block, num_rounds, expanded_key)
+						# Now append the encrypted block to the output.
+						encrypted_data_blocks.append(encrypted_block)
+				else:
+					# This is the debug shit.
+					encrypted_data_blocks = []
+					#encrypted_data_blocks = [encrypt_state(expanded_key, data_blocks[0], num_rounds, expanded_key)] # Encrypt the first block normally.
+					first_block = True
+					for block in data_blocks:
+						if first_block:
+							input_block = xor_bytes(block, bytes.fromhex(iv)) # This is used to simulate the earlier blocks...
+						else:
+							# First xor the input. with the previous encrypted block.
+							input_block = xor_bytes(block, encrypted_data_blocks[-1])
+						encrypted_block = encrypt_state(expanded_key, input_block, num_rounds, expanded_key)
+						# Now append the encrypted block to the output.
+						encrypted_data_blocks.append(encrypted_block)
+```
+
+after adding this special case, now the code works properly. Now it is time to implement the decryption using CBC mode. Ok, so if you actually read the wikipedia article, the iv stands for initialization vector and is actually a required part of encryption. I am going to program a function which generates this initalization vector later on. Let's keep on implementing the CBC decryption...
 
 
 
