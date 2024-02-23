@@ -3593,6 +3593,127 @@ def encrypt(data: bytes, key: bytes, mode="ECB", encryption=True, iv=None) -> by
 
 after adding this special case, now the code works properly. Now it is time to implement the decryption using CBC mode. Ok, so if you actually read the wikipedia article, the iv stands for initialization vector and is actually a required part of encryption. I am going to program a function which generates this initalization vector later on. Let's keep on implementing the CBC decryption...
 
+Here is my current implementation of CBC decryption:
+
+```
+			if mode == "CBC":
+				# CBC mode.
+				# https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_block_chaining_(CBC)
+				#assert False # Decryption for CBC mode is not implemented!!!
+				assert iv != None # We should have the initialization vector.
+				# First create a copy of the input data blocks.
+				copy_input = copy.deepcopy(data_blocks)
+				# First just decrypt each block.
+				decrypted_final = [] # This is the original stuff.
+				decrypted_data_blocks = [decrypt_state(expanded_key, block, num_rounds, expanded_key) for block in data_blocks] # Decrypt each block.
+				# Now xor with the original input blocks. (If we are decrypting the very first block, then use the initialization vector to XOR with)
+				for i, block in enumerate(decrypted_data_blocks):
+					if i == 0: # Very first block.
+						# Use the initialization vector
+						xor_value = iv
+					else:
+						xor_value = decrypted_data_blocks[i-1] # Use the previous encrypted ciphertext to xor.
+					# Sanity checking...
+					assert isinstance(block, bytes)
+					assert isinstance(xor_value, bytes)
+					# Do the xor.
+					decrypted_final.append(xor_bytes(block, xor_value))
+
+				return # This is a stub for now.
+```
+
+... make a testcase ...
+
+and it doesn't work. Well, that is because there is the return without a return value, so we are actually returning None...
+
+After commenting out the return stub, now the code works as intended.
+
+One change which I would want to do is to make the "iv" variable a list of bytes instead of a hex string. Done. I am going to make a commit now, and add a commit message that the CBC mode is now implemented too. The current commit is 63f4b46e26ee52023b1330ceab67980fc66ac39f .
+
+## Implementing OCB1
+
+Ok so there are a million different encryption ways to do, so instead of implementing each one separately, let's implement OCB, which seems to be the strongest encryption available according to this: https://stackoverflow.com/questions/1220751/how-to-choose-an-aes-encryption-mode-cbc-ecb-ctr-ocb-cfb . It also mentions that there are patents on OCB in the US, but luckily for me I do not live in the US.
+
+The wikipedia page didn't tell me anything about the different OCB versions, so I need to do some more googling to figure out how it actually works.
+
+This here seems what we are looking for: https://www.researchgate.net/publication/322878834_The_offset_codebook_OCB_block_cipher_mode_of_operation_for_authenticated_encryption
+
+I am just going to add another file called ocb.py which has the OCB mode encryption and decryption. I don't want to put all of the stuff in the main.py file..
+
+...
+
+Ok, so it looks like OCB uses some version of a Nonce system (a nonce is a number which is used to encrypt only one file or one piece of data etc. and then it is then used in the decryption process. Never use the same nonce when encrypting other pieces of data with the SAME KEY!!!)
+
+The researchgate paper says this: "The nonce must not be kept secret and is communicated to the recipient in a  manner  outside the scope  of the specification." so that is very useful in not describing how to handle the nonce.
+
+Ok, so it looks like the nonce doesn't need to be kept secret: https://security.stackexchange.com/a/163555 so we are good.
+
+"OCB1 uses GF(2128), defined with the irreducible polynomial  m(x) = x128 + x7 + x2 + 1 (see the  Appendix for  a brief introduction to  finite fields)." ok, so we need to do some bytes to integer magic, because my poly_mod function takes an integer, not a bytes array.
+
+Also of course we should program tests for the OCB mode too.
+
+Let's for starters program the ntz function: "The operator ntz(i) denotes the  number  of trailing (least significant) zeros in  i."
+
+Here:
+```
+def ntz(n: int) -> int:
+    count = 0
+    while not ((1 << count) & n):
+        count += 1
+    return count
+```
+
+and a test function...
+
+```
+def test_ntz() -> None:
+    # 8 == 0b1000
+    # 11 = 0b1011
+    assert ntz(8) == 3
+    assert ntz(11) == 0
+    print("test_ntz passed!!!")
+    return
+```
+
+Next up let's create the function which generates Z for us. Here is the E_K function, which is needed in the generation of the Z stuff:
+
+```
+def E_K(data: bytes, key: bytes) -> bytes: # This is the E_K function. This is basically just the encryption of data plaintext with a key with aes.
+    # The data should be the block length
+    assert len(data) == 16
+    # encrypt(data: bytes, key: bytes, mode="ECB", encryption=True, iv=None)
+    return encrypt(data, key, mode="ECB", encryption=True, iv=None) # Just use the ECB mode for now, I assume that OCB1 uses ECB.
+```
+
+I think I have to modify my poly_mul function to take a divisor value, instead of assuming it to be 0x11B like in other cases. For example in this case we need to divisor to be the "x128 + x7 + x2 + 1" polynomial.
+
+Here is the modified version:
+
+```
+def poly_mul(a: int, b: int, divisor=0x11B) -> int: # This function multiplies the polynomial a with b in G(2) and then modulo x**8 + x**4 + x**3 + x**2 + x + 1.
+	out = 0
+	k = b
+	while k: # This basically shifts left and then if the current bit is a one, then xor the current thing with the thing.
+		cur_bit = k & 1 # current bit.
+		if cur_bit:
+			out ^= (a) # xor if bit is one.
+		# shift
+		a <<= 1
+		k >>= 1
+	# Now modulo in polynomial in GF(2) # See https://en.wikipedia.org/wiki/Finite_field_arithmetic#Rijndael's_(AES)_finite_field
+	#print("passing "+str(hex(out))+" to poly mod.")
+	out = poly_mod(out, divisor)
+	#print("result is this: "+str(hex(out)))
+	assert out < divisor
+	if divisor == 0x11B:
+
+		assert out < 256
+	return out
+```
+
+now, let's see if it still passes the tests. It does. Good!
+
+
 
 
 
