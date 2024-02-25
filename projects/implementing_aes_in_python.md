@@ -3713,6 +3713,208 @@ def poly_mul(a: int, b: int, divisor=0x11B) -> int: # This function multiplies t
 
 now, let's see if it still passes the tests. It does. Good!
 
+....
+
+Here is my current code for OCB1:
+
+```
+
+# This file is partly based on this: https://www.researchgate.net/publication/322878834_The_offset_codebook_OCB_block_cipher_mode_of_operation_for_authenticated_encryption#pf4
+
+from main import * # Import AES functions.
+from test_ocb import *
+
+def ntz(n: int) -> int:
+    assert isinstance(n, int)
+    count = 0
+    while not ((1 << count) & n):
+        count += 1
+    return count
+
+def E_K(data: bytes, key: bytes) -> bytes: # This is the E_K function. This is basically just the encryption of data plaintext with a key with aes.
+    # The data should be the block length
+    assert len(data) == 16
+    # encrypt(data: bytes, key: bytes, mode="ECB", encryption=True, iv=None)
+    return encrypt(data, key, mode="ECB", encryption=True, iv=None) # Just use the ECB mode for now, I assume that OCB1 uses ECB.
+
+def R(N: bytes, key: bytes) -> bytes: # N is the nonce
+    # R = E_K(N XOR L)
+    return E_K(xor_bytes(N, L0(key)), key) # Data is not used in generating R.
+
+
+def L0(key: bytes) -> bytes: # This is L(0) = L = E_K(0^n)
+    # Just encrypt a lot of zeroes with the specified key.
+    return E_K(bytes([0 for _ in range(16)]), key)
+
+def L(i: int, key: bytes, prev_L=None) -> bytes: # This creates the L(i) thing. This is used in generating the Z list.
+    if i == 0:
+        return L0(key)
+    else:
+        # get the previous element.
+        assert prev_L != None
+        return poly_mul(2, prev_L, divisor=0x100000000000000000000000000000085) # 0x100000000000000000000000000000085 aka x^128 + x^7 + x^2 + 1
+
+def Z(i: int, key: bytes, N: bytes, prev_Z=None, prev_L=None) -> list: # This generates the Z array.
+    if i == 0: # Z[1]
+        
+        return L0(key), xor_bytes(L0(key), R(N,key))
+    else: # Z[i]
+        assert prev_Z != None # We should define the previous Z value.
+        assert prev_L != None
+
+        return L(ntz(i), key, prev_L=prev_L), xor_bytes(prev_Z, L(ntz(i), key, prev_L=prev_L)) # Z(i - 1) XOR L(ntz(i))
+
+def generate_Z_list(m: int, key: bytes, N: bytes) -> tuple: # m is the number of data blocks.
+    out_Z_list = []
+    out_L_list = []
+    for i in range(m+1):
+        if i == 0:
+
+            new_L, new_Z = Z(0, key, N, prev_Z=None, prev_L=None)
+            out_L_list.append(new_L)
+            out_Z_list.append(new_Z)
+        else:
+            new_L, new_Z = Z(i, key, N, prev_Z=out_Z_list[-1], prev_L=out_L_list[-1])
+            out_L_list.append(new_L)
+            out_Z_list.append(new_Z)
+    return out_L_list, out_Z_list # Return L, and Z
+
+def generate_nonce() -> bytes: # Basically generates a random sequence of 16 bytes. (NOTE: NOT CRYPTOGRAPHICALLY SECURE!!!!)
+    return bytes([random.randrange(0,256) for _ in range(16)])
+
+# Here is the OCBv1 encryption function.
+# def encrypt(data: bytes, key: bytes, mode="ECB", encryption=True, iv=None) -> bytes:
+def ocb_ver_1_encrypt(data: bytes, key: bytes, nonce=None, test=False) -> bytes:
+    '''
+    The  message  M  to  be encrypted  and  authenticated  is  divided  into  n-bit  blocks,  with  the  exception of  the  last  block,  which  may  be  less  than  n  bits.  Typically,  n = 128.  Only  a single  pass  through  the  message  is  required  to  generate  both  the  ciphertext and the  authentication code.  The total number  of blocks is  m = dlen(M)/ne.
+    '''
+
+    version = get_aes_ver_from_key(key)
+
+    data_blocks = split_data_blocks(data) # here is the splitting of the data to blocks.
+    '''
+    Note  that the  encryption structure  for  OCB  is  similar  to that  of electronic codebook  (ECB)  mode.  Each  block  is  encrypted  independently  of  the  other blocks, so that it is possible to perform all m encryptions simultaneously. With ECB,  if  the  same  b-bit  block  of  plaintext  appears  more  than  once  in  the message,  it always  produces  the same  ciphertext.  Because of  this,  for lengthy messages,  the  ECB  mode  may  not  be  secure.  OCB  eliminates  this  property by  using  an  offset  Z[i]  for  each  block  M[i],  such  that  each  Z[i]  is  unique; the  offset  is  XORed  with  the  plaintext and  XORed  again  with  the encrypted output.  Thus, with  encryption  key  K, we  have
+
+    C[i] = E_K(M[i] XOR Z[i]) XOR Z[i]
+
+    where E_K[X] is the encryption  of  plaintext X using key K,  and XOR is the bitwise exclusive or operator.
+    '''
+    # Generate Nonce.
+    
+    # ...
+
+    # The calculation of the Z[i] is somewhat complex and is summarized in the following equations:
+    # L(0) = L = E_K(0^n) , where 0^n is consists of n zero bits.
+    # R = E_K(N XOR L)
+    # L(i) = 2* L(i - 1)
+    # Z[1] = L XOR R # I don't know if
+    # Z[i] = Z(i - 1) XOR L(ntz(i))
+
+    # generate_Z_list(m: int, key: bytes, N: bytes) -> tuple:
+
+    # num_rounds, expanded_key, reverse_keys = key_expansion(key, version) # Use the 192 bit version instead of the 128
+
+    num_rounds, expanded_key, reverse_keys = key_expansion(key, version) # Use the 192 bit version instead of the 128
+    m = math.ceil(len(data)/((int(version))//8)) # m = ceil(len(M)/n) , where n is the version integer.
+    if nonce == None: # Check for assigned nonce
+        nonce = generate_nonce() # Just create random bytes.
+    L_list, Z_list = generate_Z_list(m, key, nonce)
+    print("Here is the L list: "+str(L_list))
+    print("Here is the Z list: "+str(Z_list))
+    return # Stub for now.
+
+
+
+def main_ocb() -> int:
+    run_tests_ocb()
+    return 0
+
+if __name__=="__main__":
+    exit(main_ocb())
+```
+
+Here is the test function:
+
+```
+
+def test_ocb1_encrypt() -> None:
+    # There are test vectors at https://datatracker.ietf.org/doc/html/rfc7253
+    # "K : 000102030405060708090A0B0C0D0E0F"
+    # K, string of KEYLEN bits                      // Key
+    # N, string of no more than 120 bits            // Nonce
+    # N : BBAA99887766554433221100
+    # C, string of at least TAGLEN bits             // Ciphertext
+    # A, string of any length                       // Associated data
+    #nonce = bytes([0x41 for _ in range(16)]) # ASCII "AAAA..."
+    nonce = bytes.fromhex("BBAA99887766554433221100") # This should only be 120 bits long aka 15 bytes
+    # assert len(nonce) == 15
+    #key = bytes([0x42 for _ in range(16)]) # ASCII "BBBB..."
+    key = bytes.fromhex("000102030405060708090A0B0C0D0E0F")
+    # A: 0001020304050607
+
+    # L_* = ENCIPHER(K, zeros(128))
+    data = bytes([0 for _ in range(16)])
+
+    # def ocb_ver_1_encrypt(data: bytes, key: bytes, nonce=None, test=False) -> bytes:
+
+    L, Z = ocb_ver_1_encrypt(data, key, nonce=nonce, test=True) # Encrypt.
+    print("Here is L: "+str(L))
+    # Later on in the test stuff:
+    '''
+    L_*       : C6A13B37878F5B826F4F8162A1C8D879
+    L_$       : 8D42766F0F1EB704DE9F02C54391B075
+    L_0       : 1A84ECDE1E3D6E09BD3E058A8723606D
+    L_1       : 3509D9BC3C7ADC137A7C0B150E46C0DA
+    bottom    : 15 (decimal)
+    Ktop      : 9862B0FDEE4E2DD56DBA6433F0125AA2
+    Stretch   : 9862B0FDEE4E2DD56DBA6433F0125AA2FAD24D13A063F8B8
+    Offset_0  : 587EF72716EAB6DD3219F8092D517D69
+    Offset_1  : 42FA1BF908D7D8D48F27FD83AA721D04
+    Offset_2  : 77F3C24534AD04C7F55BF696A434DDDE
+    Offset_*  : B152F972B3225F459A1477F405FC05A7
+    Checksum_1: 000102030405060708090A0B0C0D0E0F
+    Checksum_2: 10101010101010101010101010101010
+    Checksum_*: 30313233343536379010101010101010
+
+    '''
+
+
+```
+
+here is the result:
+
+```
+Cor key thing: [[19, 227, 243, 77], [17, 148, 7, 43], [29, 74, 167, 48], [127, 23, 139, 197]]
+round[10].k_sch == c6a13b37878f5b826f4f8162a1c8d879
+Final state after encryption: c6a13b37878f5b826f4f8162a1c8d879
+Traceback (most recent call last):
+  File "/home/cyberhacker/Asioita/Ohjelmointi/Python/pythonaes/ocb.py", line 113, in <module>
+    exit(main_ocb())
+  File "/home/cyberhacker/Asioita/Ohjelmointi/Python/pythonaes/ocb.py", line 109, in main_ocb
+    run_tests_ocb()
+  File "/home/cyberhacker/Asioita/Ohjelmointi/Python/pythonaes/test_ocb.py", line 55, in run_tests_ocb
+    test_ocb1_encrypt()
+  File "/home/cyberhacker/Asioita/Ohjelmointi/Python/pythonaes/test_ocb.py", line 32, in test_ocb1_encrypt
+    L, Z = ocb_ver_1_encrypt(data, key, nonce=nonce, test=True) # Encrypt.
+  File "/home/cyberhacker/Asioita/Ohjelmointi/Python/pythonaes/ocb.py", line 101, in ocb_ver_1_encrypt
+    L_list, Z_list = generate_Z_list(m, key, nonce)
+  File "/home/cyberhacker/Asioita/Ohjelmointi/Python/pythonaes/ocb.py", line 53, in generate_Z_list
+    new_L, new_Z = Z(0, key, N, prev_Z=None, prev_L=None)
+  File "/home/cyberhacker/Asioita/Ohjelmointi/Python/pythonaes/ocb.py", line 40, in Z
+    return L0(key), xor_bytes(L0(key), R(N,key))
+  File "/home/cyberhacker/Asioita/Ohjelmointi/Python/pythonaes/ocb.py", line 22, in R
+    return E_K(xor_bytes(N, L0(key)), key) # Data is not used in generating R.
+  File "/home/cyberhacker/Asioita/Ohjelmointi/Python/pythonaes/main.py", line 49, in xor_bytes
+    assert len(a) == len(b)
+AssertionError
+
+```
+
+We can see that we have `L_*` as `c6a13b37878f5b826f4f8162a1c8d879` so therefore we encrypt the stuff in the actual encryption function correctl (the internal AES encryption).
+
+This error is because the length of the nonce is not 16 bytes, but less than that. Now here is a question, do we pad the input from the left or from the right?
+
+Let's see...
 
 
 
