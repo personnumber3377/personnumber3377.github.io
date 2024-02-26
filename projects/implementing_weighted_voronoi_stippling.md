@@ -71,7 +71,7 @@ I am going to follow this pseudocode here: https://en.wikipedia.org/wiki/Bowyer%
 
 Ok, so I need to implement the circumcenter function. The circumcircle is the smallest circle which enscribes all three of the points in a triangle. This link here describes a formula for the center point and the radius: https://ics.uci.edu/~eppstein/junkyard/circumcenter.html
 
-
+26.2.2024 ok so i implemented a bit of the delaunay stuff. I am now in commit ac060cfb7f5c5f6ceeb60989b3d6e5ce2801d7a9
 
 
 
