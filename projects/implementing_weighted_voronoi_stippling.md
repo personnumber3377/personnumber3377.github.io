@@ -524,18 +524,685 @@ Let's add this to the update function: `assert math.sqrt((new_points[-1][0]**2)+
 
 Yeah, that was it. I get an assertion error there. We need to do some function which prevents the points from moving farther than that and we should be good.
 
+Ok, so I am just going to actually go look at the source code of the fucking library. I think my code otherwise works perfectly, but for the fucking bounds checking stuff, which is handled by the library which the guy used.
+
+Here is the source code: https://github.com/d3/d3-delaunay
+
+Here is the constructor for the voronoi shit:
+
+```
+export default class Voronoi {
+  constructor(delaunay, [xmin, ymin, xmax, ymax] = [0, 0, 960, 500]) {
+    if (!((xmax = +xmax) >= (xmin = +xmin)) || !((ymax = +ymax) >= (ymin = +ymin))) throw new Error("invalid bounds");
+    this.delaunay = delaunay;
+    this._circumcenters = new Float64Array(delaunay.points.length * 2);
+    this.vectors = new Float64Array(delaunay.points.length * 2);
+    this.xmax = xmax, this.xmin = xmin;
+    this.ymax = ymax, this.ymin = ymin;
+    this._init();
+  }
+  // SNIP
+```
+
+Here I actually realized the problem:
+
+```
+delaunay.py:58: RuntimeWarning: invalid value encountered in scalar divide
+  p_0 = (((a_0 - c_0) * (a_0 + c_0) + (a_1 - c_1) * (a_1 + c_1)) / 2 * (b_1 - c_1) -  ((b_0 - c_0) * (b_0 + c_0) + (b_1 - c_1) * (b_1 + c_1)) / 2 * (a_1 - c_1)) / D
+\delaunay.py:59: RuntimeWarning: divide by zero encountered in scalar divide
+  p_1 = (((b_0 - c_0) * (b_0 + c_0) + (b_1 - c_1) * (b_1 + c_1)) / 2 * (a_0 - c_0) -  ((a_0 - c_0) * (a_0 + c_0) + (a_1 - c_1) * (a_1 + c_1)) / 2 * (b_0 - c_0)) / D
+```
+
+so we have degenerate cases where stuff goes haywire and breaks.
+
+Here is the bounds check in the library itself:
+
+```
+if (Math.abs(ab) < 1e-9) {
+        // For a degenerate triangle, the circumcenter is at the infinity, in a
+        // direction orthogonal to the halfedge and away from the “center” of
+        // the diagram <bx, by>, defined as the hull’s barycenter.
+        if (bx === undefined) {
+          bx = by = 0;
+          for (const i of hull) bx += points[i * 2], by += points[i * 2 + 1];
+          bx /= hull.length, by /= hull.length;
+        }
+        const a = 1e9 * Math.sign((bx - x1) * ey - (by - y1) * ex);
+        x = (x1 + x3) / 2 - a * ey;
+        y = (y1 + y3) / 2 + a * ex;
+      } else {
+```
+
+so let's add this to our code???
+Yeah, let's just set D to some tiny number if it is really small.
+```
+		if D <= 10**(-9):
+			D = 0.01 # Just force it
+```
+ok, so now it runs for a bit and then I get this error:
+
+```
+    for i, neigh in enumerate(self.triangles[tri_op]):
+                              ~~~~~~~~~~~~~~^^^^^^^^
+KeyError: (18, 15, 8)
+```
+
+It is quite hard to debug a bug, when you don't even know how the code works.
+
+One thing is to do a minimal testcase which reproduces this bug. Let's try to add just two points.
+
+Now, If I try a minimal testcase with this: `seeds = [(-10,0), (10,0)]` . We get some weird lines. If I try this: https://editor.p5js.org/codingtrain/sketches/04sgsAcNu with two points, there is just a singular line going through the thing.
+
+I think the reason for why my code doesn't work, is because my way of calculating the area of the stuff to calculate the centroids is flawed. See, we are getting the average of all of the points, but the "middle" is actually outside the bounding box, therefore we need to actually set the points on the border instead of letting them go outside of the box, therefore we get the actual middle of the area inside the box. See, I added a debug stuff which shows the centroids too:
+
+I added this to the render function:
+
+```
+self.draw_points(t=t, points=self.prev_centroids)
+```
+
+and here is the current draw_points function:
+
+```
+    def draw_points(self, t=None, points=None): # This draws all of the points.
+        
+        if t == None:
+            t = turtle.Turtle()
+        turtle.speed(0)
+        t.penup()
+        if points == None:
+            points = self.points
+        t.color("black")
+        for p in points:
+            # Just place a dot everywhere where the points are.
+            t.goto(scale_point(p))
+            t.dot()
+        turtle.update()
+        return
+```
+
+So before calculating the centroids, we want to clip the coordinates to be inside the box.
+
+Here is my current code to calculate the centroids:
+
+```
+    def get_centroid(self, region) -> tuple: # This computes the rough centroid. (Using the average of all of the points in the region)
+        # Ok so this assumes that the region is the value in the self.regions dictionary, so the region is a list of point indexes.
+        point_indexes = region
+        pts = [self.circumcenters[point_indexes[i]] for i in range(len(point_indexes))]
+        # pts is the stuff which enscribes one of the regions.
+        # Now calculate rough centroid.
+        return (sum([p[0] for p in pts])/len(pts), sum([p[1] for p in pts])/len(pts)) # Return the average of the coordinates. This is not the actual centroid, but close enough.
+```
+
+so, before calculating we need to put a clipping check before the return statement.
+
+Ok, so that sure made it a bit better, but still not great. I think we should just implement the proper area shit. I am looking at this: https://editor.p5js.org/codingtrain/sketches/04sgsAcNu
+
+and the area algorithm is this:
+
+```
+  for (let poly of cells) {
+    let area = 0;
+    let centroid = createVector(0, 0);
+    for (let i = 0; i < poly.length; i++) {
+      let v0 = poly[i];
+      let v1 = poly[(i + 1) % poly.length];
+      let crossValue = v0[0] * v1[1] - v1[0] * v0[1];
+      area += crossValue;
+      centroid.x += (v0[0] + v1[0]) * crossValue;
+      centroid.y += (v0[1] + v1[1]) * crossValue;
+    }
+    area /= 2;
+    centroid.div(6 * area);
+    centroids.push(centroid);
+  }
+```
+
+So the pseudocode would be:
+```
+For each polygon polygons:
+	initialize area to zero
+	initialize centroid to the zero vector
+	for vertex in polygon:
+		initialize v0 to the current vertex
+		initialize v1 to the vertex after this.
+		initialize crossValue to the equation stuff.
+
+```
+
+I think the guy used this method: https://www.themathdoctors.org/polygon-coordinates-and-areas/ to calculate the area shit.
+
+I need to implement a triangle clipping algorithm, because the fucking area algorithm fucks up the stuff.
+
+If you look at the code here: https://github.com/d3/d3-delaunay/blob/main/src/voronoi.js you can see that roughly two thirds of the code is devoted to solely to triangle clipping.
+
+FUCK!
+
+I am just going to put it into a separate file called triangle_clipping.py in which I am going to implement an algorithm which cuts the points which are outside of the bounding box.
+
+This is probably why the guy used external libraries, because then you don't have to implement another entire library to just compute something which is just a very tiny part of the actual algorithm which we want to implement.
+
+I am going to try to implement this: https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm#Pseudocode
+
+Here is a new file called triangle_clipping.py :
+
+```
+def is_outside(point, radius):
+    # This function checks if "point" is outside of the bounding box.
+    x = point[0]
+    y = point[1]
+    if x > radius or x < -1*radius or y > radius or y < -1*radius:
+        return True # The point is outside the bounding box.
+    return False # Not outside the box.
+
+def get_vec(prev_point, current_point): # Returns the vector from prev_point to current_point.
+    return tuple((-1*prev_point[0]+current_point[0], -1*prev_point[1]+current_point[1]))
+
+
+
+def ComputeIntersection(prev_point, current_point, clipEdge):
+    # This computes the intersection between clipEdge and the vector created by the line from prev_point to cur_point.
+    vec = get_vec(prev_point, current_point)
+    
+    if clipEdge[1] == None: # The line is x = something
+        x_coord = clipEdge[0]
+        # solve the equation prev_point[0] + k*vec[0] = x_coord => k = (x_coord - prev_point[0])/(vec[0])
+        k =  (x_coord - prev_point[0])/(vec[0])
+        # Now add vec*k to the previous point to get intersection point.
+        intersec = tuple((prev_point[0]+k*vec[0], prev_point[1]+k*vec[1]))
+        return intersec
+    else:
+        # The line is y = something
+        # Just do the same, but with the y coordinate.
+        y_coord = clipEdge[1]
+        # solve the equation prev_point[0] + k*vec[0] = x_coord => k = (x_coord - prev_point[0])/(vec[0])
+        k =  (x_coord - prev_point[1])/(vec[1])
+        # Now add vec*k to the previous point to get intersection point.
+        intersec = tuple((prev_point[1]+k*vec[1], prev_point[1]+k*vec[1]))
+        return intersec
+
+
+def sutherland_hodgman(points, radius):
+    # This clips the polygon described by points against the box which is of distance "radius" from (0,0) . This assumes that the points list is in order (aka the points are in the order where you would connect them).
+    '''
+    List outputList = subjectPolygon;  
+
+    for (Edge clipEdge in clipPolygon) do
+        List inputList = outputList;
+        outputList.clear();
+
+        for (int i = 0; i < inputList.count; i += 1) do
+            Point current_point = inputList[i];
+            Point prev_point = inputList[(i − 1) % inputList.count];
+
+            Point Intersecting_point = ComputeIntersection(prev_point, current_point, clipEdge)
+
+            if (current_point inside clipEdge) then
+                if (prev_point not inside clipEdge) then
+                    outputList.add(Intersecting_point);
+                end if
+                outputList.add(current_point);
+
+            else if (prev_point inside clipEdge) then
+                outputList.add(Intersecting_point);
+            end if
+
+        done
+    done
+    '''
+
+    out = points
+    for clipEdge in [(radius,None),(-radius,None),(None, radius), (None, -radius)]: # This is just a list of the bounding box lines.
+        inputList = out
+        out = []
+        for i in range(len(inputList)):
+            current_point = inputList[i]
+            prev_point = inputList[(i - 1) % len(inputList)]
+
+            intersecting_point = ComputeIntersection(prev_point, current_point, clipEdge)
 
 
 
 
+def clip_polygon(points, radius): # This clips all of the points and shit.
+    val_stuff = [is_outside(p) for p in points]
+
+    n_outside = sum(val_stuff)
+    assert n_outside < 2 # There should be no more than one point outside, because I don't know how to program the other cases. :D
+    if n_outside == 0:
+        # Just return the original point list, if all of the points are inside the box.
+        return points
+    # Now there should be the one point which is outside the stuff.
+    # identify which point is outside.
+    # Just implement this function: https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm#Pseudocode
+    sutherland_hodgman(points, radius)
+
+def test_is_outside():
+    radius = 10
+    point = tuple((15,0))
+    assert is_outside(point, radius)
+    point = tuple((9.99,0))
+    assert not is_outside(point, radius)
+    # Edge case
+    point = tuple((10.0,0.0))
+    assert not is_outside(point, radius)
+    print("test_is_outside passed!!!")
+    return
+
+def test_intersection():
+    # def ComputeIntersection(prev_point, current_point, clipEdge):
+    prev_point = (0,0)
+    cur_point = (1,0)
+    clipedge = (10,None)
+    res = ComputeIntersection(prev_point, cur_point, clipedge)
+    assert res == (10,0)
+    print("test_intersection passed!!!")
+    return
+    
+
+def run_tests():
+    test_is_outside()
+    test_intersection()
+    return
+
+def main(): # Just run the tests in the main function
+    # radius = 40
+    # [center+radius*np.array((-1, -1)), center+radius*np.array((+1, -1)), center+radius*np.array((+1, +1)), center+radius*np.array((-1, +1))]
+    run_tests()
+
+if __name__=="__main__":
+    exit(main())
+```
+
+and those test seem to pass, so we should be good.
+
+Then after implementing the sutherland hodgman stuff, I came up with this:
+
+```
+
+import turtle
+
+def is_outside(point, radius):
+    # This function checks if "point" is outside of the bounding box.
+    x = point[0]
+    y = point[1]
+    if x > radius or x < -1*radius or y > radius or y < -1*radius:
+        return True # The point is outside the bounding box.
+    return False # Not outside the box.
+
+def get_vec(prev_point, current_point): # Returns the vector from prev_point to current_point.
+    return tuple((-1*prev_point[0]+current_point[0], -1*prev_point[1]+current_point[1]))
 
 
 
+def ComputeIntersection(prev_point, current_point, clipEdge):
+    # This computes the intersection between clipEdge and the vector created by the line from prev_point to cur_point.
+    vec = get_vec(prev_point, current_point)
+    #print("clipEdge == "+str(clipEdge))
+    assert not (clipEdge[0] == None and clipEdge[1] == None)
+    if clipEdge[1] == None: # The line is x = something
+        x_coord = clipEdge[0]
+        # solve the equation prev_point[0] + k*vec[0] = x_coord => k = (x_coord - prev_point[0])/(vec[0])
+        if vec[0] != 0:
+
+            k =  (x_coord - prev_point[0])/(vec[0])
+        else:
+            k =  (x_coord - prev_point[0])
+        # Now add vec*k to the previous point to get intersection point.
+        intersec = tuple((prev_point[0]+k*vec[0], prev_point[1]+k*vec[1]))
+        return intersec
+    else:
+        # The line is y = something
+        # Just do the same, but with the y coordinate.
+        print("clipEdge[1] == "+str(clipEdge[1]))
+        y_coord = clipEdge[1]
+        # solve the equation prev_point[0] + k*vec[0] = x_coord => k = (x_coord - prev_point[0])/(vec[0])
+        if vec[1] != 0:
+
+            k =  (y_coord - prev_point[1])/(vec[1])
+        else:
+            k =  (y_coord - prev_point[1])
+        # Now add vec*k to the previous point to get intersection point.
+        intersec = tuple((prev_point[1]+k*vec[1], prev_point[1]+k*vec[1]))
+        return intersec
 
 
+def check_inside(point, edge): # Check if the point is inside the edge.
+    point_x = point[0]
+    point_y = point[1]
+    assert not (edge[0] == None and edge[1] == None)
+    if edge[1] == None: # Check for x coord.
+        #print("Checking x coordinate!!!")
+        x_coord = edge[0]
+        if x_coord <= 0:
+            return point_x >= x_coord
+        else: # check for below.
+            return point_x <= x_coord
+    else:
+        # Check for y coord.
+        y_coord = edge[1]
+        if y_coord <= 0:
+            return point_y >= y_coord
+        else: # check for below.
+            return point_y <= y_coord
+    # Should not happen.
+    assert False
 
 
+def sutherland_hodgman(points, radius):
+    # This clips the polygon described by points against the box which is of distance "radius" from (0,0) . This assumes that the points list is in order (aka the points are in the order where you would connect them).
+    '''
+    List outputList = subjectPolygon;  
 
+    for (Edge clipEdge in clipPolygon) do
+        List inputList = outputList;
+        outputList.clear();
+
+        for (int i = 0; i < inputList.count; i += 1) do
+            Point current_point = inputList[i];
+            Point prev_point = inputList[(i − 1) % inputList.count];
+
+            Point Intersecting_point = ComputeIntersection(prev_point, current_point, clipEdge)
+
+            if (current_point inside clipEdge) then
+                if (prev_point not inside clipEdge) then
+                    outputList.add(Intersecting_point);
+                end if
+                outputList.add(current_point);
+
+            else if (prev_point inside clipEdge) then
+                outputList.add(Intersecting_point);
+            end if
+
+        done
+    done
+    '''
+
+    out = points
+    for clipEdge in [(radius,None),(-radius,None),(None, radius), (None, -radius)]: # This is just a list of the bounding box lines.
+        inputList = out
+        out = []
+        for i in range(len(inputList)):
+            current_point = inputList[i]
+            prev_point = inputList[(i - 1) % len(inputList)]
+
+            intersecting_point = ComputeIntersection(prev_point, current_point, clipEdge)
+            
+            if check_inside(current_point, clipEdge):
+                if not check_inside(prev_point, clipEdge):
+                    out.append(intersecting_point)
+                out.append(current_point)
+            elif check_inside(prev_point, clipEdge):
+                out.append(intersecting_point)
+    return out # Output the polygon.
+
+
+def clip_polygon(points, radius): # This clips all of the points and shit.
+    val_stuff = [is_outside(p, radius) for p in points]
+
+    n_outside = sum(val_stuff)
+    assert n_outside < 2 # There should be no more than one point outside, because I don't know how to program the other cases. :D
+    if n_outside == 0:
+        # Just return the original point list, if all of the points are inside the box.
+        return points
+    # Now there should be the one point which is outside the stuff.
+    # identify which point is outside.
+    # Just implement this function: https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm#Pseudocode
+    poly = sutherland_hodgman(points, radius)
+
+    return poly
+
+def test_is_outside():
+    radius = 10
+    point = tuple((15,0))
+    assert is_outside(point, radius)
+    point = tuple((9.99,0))
+    assert not is_outside(point, radius)
+    # Edge case
+    point = tuple((10.0,0.0))
+    assert not is_outside(point, radius)
+    print("test_is_outside passed!!!")
+    return
+
+def test_intersection():
+    # def ComputeIntersection(prev_point, current_point, clipEdge):
+    prev_point = (0,0)
+    cur_point = (1,0)
+    clipedge = (10,None)
+    res = ComputeIntersection(prev_point, cur_point, clipedge)
+    assert res == (10,0)
+    print("test_intersection passed!!!")
+    return
+
+def test_inside_edge():
+    point = (0,0)
+    edge = (1,None)
+    assert check_inside(point, edge)
+    edge = (-1,None)
+    assert check_inside(point, edge)
+    point = (10,0)
+    edge = (1,None)
+    assert not check_inside(point, edge)
+    print("test_inside_edge passed!")
+    return
+
+def run_tests():
+    test_is_outside()
+    test_intersection()
+    test_inside_edge()
+    return
+
+SCALE_FACTOR = 5
+
+def scale_points(point_list: list) -> list: # This scales the points.
+    out = []
+    for p in point_list:
+        assert len(p) == 2 # sanity checking
+        p_x = p[0]
+        p_y = p[1]
+        out.append(tuple((p_x*SCALE_FACTOR, p_y*SCALE_FACTOR)))
+    return out
+
+
+def render_polygon(polygon, t, color="blue"):
+    # t is the turtle
+    # color is the... ya know... color
+    t.penup()
+    t.color(color)
+    t.goto(polygon[0])
+    t.pendown()
+    for pos in polygon[1:]:
+        t.goto(pos)
+    t.goto(polygon[0])
+    t.penup()
+    return
+
+
+def render_stuff(): # Renders some testcases.
+    t = turtle.Turtle()
+    t.speed(0)
+    
+    # Ok, so try clipping a polygon and then show the clipped stuff.
+    radius = 30
+    original_points = [(0,10),(0,-10),(60,10)] # A long triangle
+    render_polygon(scale_points(original_points), t)
+    box_poly = [(-radius, -radius), (-radius, radius), (radius, radius), (radius, -radius)]
+    render_polygon(scale_points(box_poly), t, color="purple")
+    # Clip the polygon.
+    clipped = clip_polygon(original_points, radius) # Clip.
+    render_polygon(scale_points(clipped), t, color="red") # Show the clipped polygon in red
+
+    return
+
+
+def main(): # Just run the tests in the main function
+    # radius = 40
+    # [center+radius*np.array((-1, -1)), center+radius*np.array((+1, -1)), center+radius*np.array((+1, +1)), center+radius*np.array((-1, +1))]
+    run_tests()
+    while True:
+        render_stuff()
+
+if __name__=="__main__":
+    exit(main())
+
+```
+
+when you run it, it should show a triangle which is being clipped (the original triangle is in blue and the clipped polygon is in red.)
+
+Ok, so now we have a way to clip a polygon! Great!
+
+Let's try a bit more complicated example: `original_points = [(0,10),(0,-10),(60,55)] # A long triangle with one point which goes to the top right` and it doesn't clip correctly.
+
+See, if i clip only with the left side of the box I get this:
+
+![Result](pictures/clipped.png)
+
+If I set `original_points = [(0,0), (30,0), (30,50), (0,50)]` , then one of the vertexes of the polygon just disappears.
+
+Let's add some debug statements.
+
+Ok, so after adding some debug statements it appears that this bug is caused by the addition of the zero division shit. FUCK!
+
+It is caused by this:
+
+```
+if vec[0] != 0:
+
+            k =  (x_coord - prev_point[0])/(vec[0])
+        else:
+            k =  (x_coord - prev_point[0])
+```
+
+Let's fix it.
+
+Here:
+
+```
+Checking y shit
+prev_point == (0, 50)
+current_point == (0, 0)
+clipEdge[1] == 30
+intersec == (30.0, 30.0)
+```
+
+is the problem. the 
+
+I think the bug is on this line: `intersec = tuple((prev_point[1]+k*vec[1], prev_point[1]+k*vec[1]))` I tuped this, because I was mindlessly replacing every "0" with a "1" and I accidentally replaced a couple which I shouldn't have. It should be this: `intersec = tuple((prev_point[0]+k*vec[0], prev_point[1]+k*vec[1]))` and now it works.
+
+## Actually using this clipping shit to calculate the area. (Roughly)
+
+Ok, now that we have a working triangle clipping algorithm, let's actually try to use it to calculate the area and therefore the centroid.
+
+Done.
+
+Now I think it is time to improve the calculation of the centroid shit:
+
+```
+  for (let poly of cells) {
+    let area = 0;
+    let centroid = createVector(0, 0);
+    for (let i = 0; i < poly.length; i++) {
+      let v0 = poly[i];
+      let v1 = poly[(i + 1) % poly.length];
+      let crossValue = v0[0] * v1[1] - v1[0] * v0[1];
+      area += crossValue;
+      centroid.x += (v0[0] + v1[0]) * crossValue;
+      centroid.y += (v0[1] + v1[1]) * crossValue;
+    }
+    area /= 2;
+    centroid.div(6 * area);
+    centroids.push(centroid);
+  }
+```
+
+Here is my current code to get the centroid:
+
+```
+    def get_centroid(self, region) -> tuple: # This computes the rough centroid. (Using the average of all of the points in the region)
+        # Ok so this assumes that the region is the value in the self.regions dictionary, so the region is a list of point indexes.
+        point_indexes = region
+        pts = [self.circumcenters[point_indexes[i]] for i in range(len(point_indexes))]
+        # pts is the stuff which enscribes one of the regions.
+        #pts = self.check_clipping(pts)
+        # self.circumcenters, self.regions
+
+        # Now at this point check for clipping using triangle_clipping.py: 
+        new_points = clip_polygon(copy.deepcopy(pts), self.radius)
+
+        # Draw the clipped shit.
+        # def render_polygon(polygon, t, color="blue"):
+        render_polygon(scale_points(new_points), turtle.Turtle(), color="green")
+        turtle.update()
+        time.sleep(0.2)
+        # Now calculate rough centroid. Clip first
+        #return (sum([p[0] for p in pts])/len(pts), sum([p[1] for p in pts])/len(pts)) # Return the average of the coordinates. This is not the actual centroid, but close enough.
+        # new_points
+        return (sum([p[0] for p in new_points])/len(new_points), sum([p[1] for p in new_points])/len(new_points))
+```
+
+let's implement the stuff!!
+
+Here is my current get_centroid function:
+
+```
+    def get_centroid(self, region) -> tuple: # This computes the rough centroid. (Using the average of all of the points in the region)
+        # Ok so this assumes that the region is the value in the self.regions dictionary, so the region is a list of point indexes.
+        point_indexes = region
+        pts = [self.circumcenters[point_indexes[i]] for i in range(len(point_indexes))]
+        # pts is the stuff which enscribes one of the regions.
+        #pts = self.check_clipping(pts)
+        # self.circumcenters, self.regions
+
+        # Now at this point check for clipping using triangle_clipping.py: 
+        new_points = clip_polygon(copy.deepcopy(pts), self.radius)
+
+        # Draw the clipped shit.
+        # def render_polygon(polygon, t, color="blue"):
+        render_polygon(scale_points(new_points), turtle.Turtle(), color="green")
+        turtle.update()
+        time.sleep(0.05) # Sleep to show the green stuff
+        # Now calculate rough centroid. Clip first
+        #return (sum([p[0] for p in pts])/len(pts), sum([p[1] for p in pts])/len(pts)) # Return the average of the coordinates. This is not the actual centroid, but close enough.
+        # new_points
+        #return (sum([p[0] for p in new_points])/len(new_points), sum([p[1] for p in new_points])/len(new_points))
+
+        # Ok, so at this point I have the clipped triangle in new_points. Let's apply the appropriate equations to it to get the centroid.
+
+        '''
+        for (let poly of cells) {
+    let area = 0;
+    let centroid = createVector(0, 0);
+    for (let i = 0; i < poly.length; i++) {
+      let v0 = poly[i];
+      let v1 = poly[(i + 1) % poly.length];
+      let crossValue = v0[0] * v1[1] - v1[0] * v0[1];
+      area += crossValue;
+      centroid.x += (v0[0] + v1[0]) * crossValue;
+      centroid.y += (v0[1] + v1[1]) * crossValue;
+    }
+    area /= 2;
+    centroid.div(6 * area);
+    centroids.push(centroid);
+  }
+        '''
+
+        area = 0
+        centroid = [0,0] # Convert to tuples later on.
+        for i in range(len(new_points)):
+            # (assumes that the points are in order.)
+            v0 = new_points[0]
+            v1 = new_points[(i + 1) % len(new_points)]
+            crossValue = v0[0] * v1[1] - v1[0] * v0[1]
+            area += crossValue
+            centroid[0] += (v0[0] + v1[0]) * crossValue
+            centroid[1] += (v0[1] + v1[1]) * crossValue
+        area /= 2
+        centroid = (centroid[0]/(6*area), centroid[1]/(6*area))
+        return centroid
+```
+
+I wondered why it didn't work. That is because there is this: `v0 = new_points[0]` when it should be: `v0 = new_points[0]`
 
 
 
