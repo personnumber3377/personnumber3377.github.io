@@ -2223,6 +2223,255 @@ def get_polygon_index(self, point): # Get's the index in the current polygons, w
 
 which extends the polygons to cover the entire bounding box, instead of just leaving areas unassigned. Or maybe we can just ignore these cases and return None and in the calling function we could add an if check to check for None and if it is None, then just go to the next point. I don't really know. Anyway, I am going to probably continue this tomorrow.
 
+Ok, so the coding train code just clips the polygons in a weird way where there aren't any places where the index isn't defined.
+
+Here is the code in d3 which is responsible for the clipping of polygons:
+
+```
+ _clipInfinite(i, points, vx0, vy0, vxn, vyn) {
+    let P = Array.from(points), p;
+    if (p = this._project(P[0], P[1], vx0, vy0)) P.unshift(p[0], p[1]);
+    if (p = this._project(P[P.length - 2], P[P.length - 1], vxn, vyn)) P.push(p[0], p[1]);
+    if (P = this._clipFinite(i, P)) {
+      for (let j = 0, n = P.length, c0, c1 = this._edgecode(P[n - 2], P[n - 1]); j < n; j += 2) {
+        c0 = c1, c1 = this._edgecode(P[j], P[j + 1]);
+        if (c0 && c1) j = this._edge(i, c0, c1, P, j), n = P.length;
+      }
+    } else if (this.contains(i, (this.xmin + this.xmax) / 2, (this.ymin + this.ymax) / 2)) {
+      P = [this.xmin, this.ymin, this.xmax, this.ymin, this.xmax, this.ymax, this.xmin, this.ymax];
+    }
+    return P;
+  }
+```
+
+Let's reverse engineer this function a bit.
+
+This is the interesting bit:
+
+```
+    } else if (this.contains(i, (this.xmin + this.xmax) / 2, (this.ymin + this.ymax) / 2)) {
+      P = [this.xmin, this.ymin, this.xmax, this.ymin, this.xmax, this.ymax, this.xmin, this.ymax];
+    }
+```
+
+So yeah, if the clipped stuff goes out of bounds, then I think we should default to such that that polygon encompasses the rest of the area too. This way there are no surprise stuff.
+
+Illustration time...
+
+Here is how my code currently cuts the polygons: (the clipped out part is in red, the bounding box is in black and the polygon which remains after clipping is in blue).
+
+Here is the actual way to find  the correct index in d3:
+
+```
+  find(x, y, i = 0) {
+    if ((x = +x, x !== x) || (y = +y, y !== y)) return -1;
+    const i0 = i;
+    let c;
+    while ((c = this._step(i, x, y)) >= 0 && c !== i && c !== i0) i = c;
+    return c;
+  }
+  _step(i, x, y) {
+    const {inedges, hull, _hullIndex, halfedges, triangles, points} = this;
+    if (inedges[i] === -1 || !points.length) return (i + 1) % (points.length >> 1);
+    let c = i;
+    let dc = pow(x - points[i * 2], 2) + pow(y - points[i * 2 + 1], 2);
+    const e0 = inedges[i];
+    let e = e0;
+    do {
+      let t = triangles[e];
+      const dt = pow(x - points[t * 2], 2) + pow(y - points[t * 2 + 1], 2);
+      if (dt < dc) dc = dt, c = t;
+      e = e % 3 === 2 ? e - 2 : e + 1;
+      if (triangles[e] !== i) break; // bad triangulation
+      e = halfedges[e];
+      if (e === -1) {
+        e = hull[(_hullIndex[i] + 1) % hull.length];
+        if (e !== t) {
+          if (pow(x - points[e * 2], 2) + pow(y - points[e * 2 + 1], 2) < dc) return e;
+        }
+        break;
+      }
+    } while (e !== e0);
+    return c;
+  }
+```
+
+It actually doesn't use the voronoi shit, but instead it uses the other shit.
+
+Well, ok so if we do not find a match, then just return the start index. There is quite a sneaky little optimization, where you start from the triangle in which you found the last point, because when iterating over the points in the image, most likely the next point will be in the same triangle. The guy actually mentioned this optimization in the video.
+
+Let's try to fix the shit. Actually, let's do a better debug function, which shows each triangle as a random color.
+
+Ok, so I added random colors to show the different polygons, and as it turns out, there are bugs. There are PLENTY.
+
+My debug function now looks like this:
+
+```
+    def debug_polygon_shit(self): # This should show us the points which do not get assigned to any polygon.
+        # First create a box of points.
+        # def gen_points(min_x, max_x, min_y, max_y, step_size):
+        points = gen_points(-self.radius, self.radius, -self.radius, self.radius, 0.5) # Box of points.
+        t = turtle.Turtle()
+        turtle.tracer(0,0)
+        turtle.speed(0)
+        render_points(t, points) # First show all of them 
+        # self.get_polygon_index(point)
+        # if that function returns "oof" , then we know that that said point is not assigned to any voronoi polygon.
+        unassigned_points = []
+        cur_index = None
+        index_shit = [[] for _ in range(len(self.regions)+1)] # +1 for the unassigned area
+        #cur_polygon_shit = []
+        for p in points:
+            # Check for new index
+            index = self.get_polygon_index(p)
+            if index == "oof":
+                index = len(index_shit)-1 # Just get the last index
+                # actually just skip this.
+                continue
+            index_shit[index].append(p)
+
+            #if self.get_polygon_index(p) !=:
+            #    unassigned_points.append(p)
+        assert len(index_shit[-1]) == 0
+        print("length of the index_shit: "+str(len(index_shit)-1))
+        for indexes in index_shit:
+            # indexes is a list of points, all of which are inside the exact same polygon. First generate a random color and then show the points.
+            ran_color = gen_random_color()
+            render_points(t, indexes, color=ran_color)
+
+        # Just render the other shit too.
+        #self.render()
+        turtle.update()
+        time.sleep(50)
+        return
+```
+
+and here is the result:
+
+![Result](pictures/notworking.png)
+
+The points which (supposedly) belong to the same polygon are the same color.
+
+Ok, so let's before drawing the points, let's render the polygons.
+
+Here is a debug function:
+
+```
+
+    def render_voronoi_debug(self, t):
+        turtle.tracer(0,0)
+        turtle.speed(0)
+        for i, poly in enumerate(self.regions):
+            #turtle.clearscreen()
+            polygon_points_indexes = self.regions[poly]
+            # pts = [self.circumcenters[point_indexes[i]] for i in range(len(point_indexes))]
+            points = [self.circumcenters[polygon_points_indexes[j]] for j in range(len(polygon_points_indexes))]
+            # render_polygon(scale_points(points), t, color="red")
+            print("points == "+str(points))
+            render_polygon(scale_points(points), turtle)
+            #t.update()
+            #turtle.clear()
+            turtle.update()
+            #turtle.clear()
+            input("Press any key to continue..-")
+            #turtle.clearscreen()
+            #turtle.clearscreen()
+            turtle.clear()
+        return
+
+```
+
+which shows the polygons one by one. Looking at the output, the polygons look correct, therefore the bug is in the function which checks if the point is inside the polygon or not. Debugging time! Let's program some more testcases and see what happens.
+
+Here is my current test:
+
+```
+def run_inside_test(): # A simple test which shows the points which are inside and which are outside of a certain polygon.
+    #example_polygon = [(-1,-1), (-1,1), (1,1), (1,-1)] # A simple box.
+    example_polygon = [(-2,0), (2,0), (0,2)]
+    min_x = -3
+    max_x = 3
+    min_y = -3
+    max_y = 3
+    step_size = 0.1 # How far away are the evenly put points.
+    
+    check_points = []
+    x = min_x
+    y = min_y
+    while y <= max_y:
+        x = min_x
+        while x <= max_x:
+            point = (x,y)
+            check_points.append(point)
+            x += step_size
+        y += step_size
+    #check_points = [(0,0)] # Just a debug point.
+    # Now we have a grid of points in check_points.
+    # Render all of them first
+    #while True:
+    t = turtle.Turtle()
+    turtle.tracer(0,0)
+    turtle.speed(0)
+    render_points(t, check_points) # First show all of them 
+
+    # Show the bounding polygon:
+
+    render_polygon(example_polygon, t, color="blue")
+
+    turtle.update()
+    # Now calculate the points which are inside the polygon.
+    red_points = []
+    for p in check_points:
+        if check_inside_poly(p, example_polygon): # check if inside
+            # add to list
+            red_points.append(p)
+    render_points(t, red_points, color="red")
+    turtle.update()
+    time.sleep(3)
+    return
+```
+
+Yeah, if I have this polygon as an example: `example_polygon = [(-51.666666666666664, 0.0), (0.0, -38.75), (0.0, 0.0), (-22.142857142857142, 22.142857142857142)]` , and try to run, I get the wrong answer in check_inside.py .
+
+Now that we have confirmed the bug to be in check_inside_poly , we can get to debugging. First of all, let's check just one point.
+
+Because my code always casts a ray to the right, there is something going wrong in the vertical line case.
+
+After adding a couple of debug statements, I have this:
+
+```
+[DEBUG] p0 == (0.0, 0.0)
+[DEBUG] p1 == (0.0, -38.75)
+[DEBUG] point == (-10, -10)
+Handled vertical line.
+res == False
+x_value == -38.333333333333336
+```
+
+ok, so the bug was on this line: `return point[0] >= p0[0]` this should be: `return point[0] <= p0[0]` , because we GO to the RIGHT, therefore we want to check if the start point is to the LEFT, then there is an intersection. I had it backwards.
+
+after that small change, now it seems to check the stuff correctly. Let's try running the main script... Ok, so now the polygons seem to be checked correctly.
+
+Next up I will implement the optimization, where we start the polygon search from the previous index.
+
+## Implementing the optimization.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
