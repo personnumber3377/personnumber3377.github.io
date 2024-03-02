@@ -2454,7 +2454,179 @@ after that small change, now it seems to check the stuff correctly. Let's try ru
 
 Next up I will implement the optimization, where we start the polygon search from the previous index.
 
-## Implementing the optimization.
+## Fixing another bug
+
+Ok, so if I try running with a lot of points, then I get this error:
+
+```
+    for i, neigh in enumerate(self.triangles[tri_op]):
+KeyError: (19, 17, 18)
+
+```
+
+and I have no idea why this happens. Let's try to figure out the cause of this. First of all, I want a minimal testscenario, so let's just print the points and then assign the points to that every time.
+
+Here is an array of points which triggers this bug:
+
+```
+
+[(31.935483870967744, 33.5), (16.451612903225808, -48.0), (-39.67741935483871, -16.5), (43.54838709677419, 45.5), (-17.741935483870968, -20.0), (35.80645161290322, 23.5), (-23.548387096774192, -41.5), (-22.258064516129032, -30.5), (26.77419354838709, 37.5), (-18.38709677419355, 12.5), (-5.483870967741936, 11.0), (43.54838709677419, -44.0), (-2.258064516129032, 32.0), (26.77419354838709, 25.0), (-0.32258064516128826, 20.5), (-41.61290322580645, 35.5), (-42.25806451612903, -14.0), (8.064516129032263, 48.5), (31.290322580645153, 49.5), (21.612903225806463, 14.0), (-40.96774193548387, 26.0), (35.16129032258064, 37.0), (-40.32258064516129, -46.5), (-46.12903225806451, 21.0), (-42.25806451612903, -2.5), (28.064516129032256, 24.5), (-6.1290322580645125, -35.0), (38.38709677419355, -48.0), (-48.70967741935484, 10.0), (-26.774193548387096, -49.0), (-8.064516129032256, 32.0), (8.064516129032263, -46.0), (-40.32258064516129, 41.5), (25.483870967741936, -36.0), (11.935483870967744, -8.0), (35.80645161290322, -34.5), (21.612903225806463, -43.5), (31.290322580645153, 44.5), (-37.74193548387097, -13.0), (46.12903225806451, -10.5), (-35.806451612903224, -37.5), (-42.25806451612903, -46.0), (31.935483870967744, -34.5), (-41.61290322580645, -3.5), (-36.45161290322581, -35.5), (-19.032258064516128, -31.5), (-39.67741935483871, -46.0), (25.483870967741936, -46.5), (-2.258064516129032, 17.5), (-41.61290322580645, -43.0), (41.61290322580645, -44.5), (-33.2258064516129, -38.5), (-22.258064516129032, 2.5), (15.806451612903231, -14.5), (41.61290322580645, 13.0), (-49.354838709677416, -34.5), (15.806451612903231, 20.5), (-46.774193548387096, -37.5), (46.12903225806451, -32.0), (-30.64516129032258, 33.5)]
+
+```
+
+Now, I actually need to minimize this bug. I think the best way to do is to just remove random points from the list and then see if the exception is there still. If yes, then remove that point, if now, then keep that point in the list.
+
+
+Here is the minimal list which reproduces the bug:
+
+```
+
+[(29.354838709677423, 44.5), (-35.806451612903224, 46.0), (-11.29032258064516, 0.0), (-10.0, 10.5), (-20.322580645161292, 6.999999999999993), (-27.41935483870968, -34.0), (49.35483870967742, -41.0), (-44.193548387096776, -38.5), (25.483870967741936, 36.0), (23.548387096774192, 23.5), (-10.0, 28.0), (14.516129032258064, -14.5)]
+
+```
+
+actually here is an even smaller of a testcase:
+
+```
+[(-35.806451612903224, 46.0), (-11.29032258064516, 0.0), (-10.0, 10.5), (-20.322580645161292, 6.999999999999993), (49.35483870967742, -41.0), (-44.193548387096776, -38.5), (25.483870967741936, 36.0), (23.548387096774192, 23.5), (-10.0, 28.0), (14.516129032258064, -14.5)]
+```
+
+and here is an even smaller testcase:
+
+```
+[(-11.29032258064516, 0.0), (-20.322580645161292, 6.999999999999993), (49.35483870967742, -41.0), (-44.193548387096776, -38.5), (25.483870967741936, 36.0), (23.548387096774192, 23.5), (-10.0, 28.0), (14.516129032258064, -14.5)]
+```
+
+that seems to be the smallest testcase which crashes.
+
+I am actually going to create a new file called util.py which contains just some utility functions to make my life easier.
+
+I actually suspect, that there are possibly some duplicate points in the list. I think that causes shit to go haywire.
+
+In util.py I added this:
+
+```
+def check_multiple(lst): # This checks if there are duplicate elements in a list. Returns True if there are duplicates. False otherwsie
+	set_shit = set(lst)
+	return len(set_shit) != len(lst) # If the lengths are the same then there are NOT any duplicates.
+
+```
+
+and then I added a check for duplicate points in stippling.py:
+
+```
+assert not check_multiple(all_points)
+```
+
+and that assert fails. This element here: `(0.9741935483870967, -0.26)` is the duplicate point. I think I should add a check to the init function of the Lloyd algorithm, which makes a list of UNIQUE points from a list of points (aka it removes the duplicate points.). An easy way to remove duplicates is to just do `points = list(set(points))` .
+
+After getting rid of the duplicate points, it seems that it works correctly.
+
+## Finally working?
+
+Ok, so now the program runs and doesn't crash, but is it any good? First of all it is quite slow, because I botched the polygon shit together quite quick.
+
+Also I found another bug.
+
+Here is another minimal testcase for the bug:
+
+```
+[(-0.06666666666666665, 0.19999999999999996), (0.2666666666666666, 0.0), (0.1333333333333333, 0.2666666666666666), (0.06666666666666665, -0.2666666666666667), (0.19999999999999996, 0.19999999999999996), (0.0, -0.4), (0.33333333333333326, 0.06666666666666665), (0.19999999999999996, 0.1333333333333333), (0.19999999999999996, -0.19999999999999996), (0.2666666666666666, 0.19999999999999996), (0.1333333333333333, 0.1333333333333333), (-0.2666666666666667, 0.33333333333333326), (-0.19999999999999996, 0.19999999999999996), (-0.06666666666666665, -0.33333333333333337), (-0.4, 0.46666666666666656), (-0.2666666666666667, 0.2666666666666666), (0.0, 0.46666666666666656), (-0.19999999999999996, 0.46666666666666656), (-0.6, 0.19999999999999996), (-0.5333333333333333, -0.06666666666666665), (-0.2666666666666667, 0.19999999999999996)]
+```
+
+it crashes on the same exact spot, therefore I think there is an insufficient fix, because I think that the unique points fix wasn't enough.
+
+Let's debug some more!!!
+
+Here is an even smaller testcase:
+```
+[(0.2666666666666666, 0.19999999999999996), (-0.2666666666666667, 0.2666666666666666), (0.1333333333333333, 0.1333333333333333), (0.0, 0.46666666666666656), (0.19999999999999996, 0.19999999999999996), (-0.19999999999999996, 0.46666666666666656), (-0.6, 0.19999999999999996), (-0.2666666666666667, 0.33333333333333326), (-0.06666666666666665, 0.19999999999999996), (0.2666666666666666, 0.0), (-0.19999999999999996, 0.19999999999999996), (0.1333333333333333, 0.2666666666666666), (-0.5333333333333333, -0.06666666666666665), (0.0, -0.4), (0.33333333333333326, 0.06666666666666665), (-0.06666666666666665, -0.33333333333333337), (-0.4, 0.46666666666666656), (0.06666666666666665, -0.2666666666666667), (-0.2666666666666667, 0.19999999999999996), (0.19999999999999996, 0.1333333333333333)]
+```
+
+I have absolutely no idea why it doesn't work. Let's try to move the problematic point a bit.
+
+`(-0.06666666666666665, -0.33333333333333337)` is the problematic point, where it crashes.
+
+Here is the crashing point in purple:
+
+![](pictures/crash.png)
+
+If we try to add it to the graph, then the program crashes.
+
+One idea which I have is that the points shouldn't lie on the lines between the points. That may fuck our algorithm up a bit.
+
+
+Actually, the problematic point may be this: `(-0.06666666666666665, 0.19999999999999996)`
+
+...
+
+After doing a couple of visualizations, I now get what the problem is.
+
+The problem is (I think) is in the way the program handles the bad triangles.
+
+Here is the bad triangles and the bad point, which we are trying to add:
+
+![](pictures/badtriangles.png)
+
+
+so something goes wrong in the handling of the bad points.
+
+Let's investigate.
+
+
+Here is some debug info:
+
+```
+poopoofuck!!!!
+p == [-0.06666667 -0.33333333]
+Here is the current value of polygon: [(6, 12, (15, 12, 6)), (12, 14, (14, 12, 11)), (14, 16, (16, 14, 5)), (16, 0, (16, 10, 0)), (0, 17, (17, 0, 1)), (17, 13, (17, 1, 13)), (13, 6, (13, 8, 6))]
+Here is the removed_shit: {(17, 6, 12), (17, 13, 6), (17, 12, 14), (17, 16, 0), (17, 14, 16)}
+```
+
+So the values in the polygon are first the start edge index, then the end edge index and then some random shit.
+
+Ok, so my code is very heavily based on this: https://github.com/jmespadero/pyDelaunay2D/blob/master/delaunay2D.py
+
+soo, let's just run that code with the buggy points and see if it fails???????
+
+One thing which interesting is that the code assumes that the polygons are made in counter clock wise order. (The points are in order and go in counter clockwise order.)
+
+One thing at a time, let's clone the repo and try to run it.
+
+Uh oh...
+
+```
+    for i, neigh in enumerate(self.triangles[tri_op]):
+KeyError: (13, 8, 6)
+
+```
+
+There is a bug in the code which I plag.... eerrrmm I mean imported. Fan-fucking-tastic!
+
+Ok, so as it turns out, you can find bugs in libraries on accident.
+
+Let's file an issue maybe????
+
+
+Ok, so I filed an issue here: https://github.com/jmespadero/pyDelaunay2D/issues/6 .
+
+Anyway, so the program somewhat works for atleast half the time, and I am happy with that. I am just going to finish this for now. Maybe I will come back to this later on and add some optimizations to this and stuff, but for now I am just going to leave it.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
