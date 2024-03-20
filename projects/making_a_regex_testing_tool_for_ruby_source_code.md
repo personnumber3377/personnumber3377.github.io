@@ -1263,6 +1263,44 @@ I am going to send a report to hackerone to the ruby team and see what happens (
 ... TO BE CONTINUED ...
 
 
+Ok, so it looks like this vulnerability was already reported to the team.
+
+However, we need to realize that the recheck tool can not only be used in ruby code, but it can also be used with other programming languages. The redos stuff also apply to python for example. Also you can follow my attempt to make this tool here: https://github.com/personnumber3377/regexchecking
+
+
+## Adding python code support.
+
+So let's add a way to detect regexes in python code too.
+
+Here is my current function to check if a line has a regex:
+
+```
+
+def find_regex_in_python_line(line: str):
+	# Returns false if there isn't a regex detected in line, otherwise returns the regex string.
+
+	# Check for re_compile
+	# _lazy_re_compile(r"^[-a-zA-Z0-9_]+\Z")
+	if "re" in line:
+		if "r\"" in line:
+			if "*" in line or "[" in line:
+
+				# Ok, so I think that there is a regex on this line. Get rid of the quote characters.
+				print(line)
+				stuff = line[line.index("r\"")+2:]
+				#stuff = stuff[:stuff.index("\")")]
+				if "\"" not in stuff:
+					return
+
+				stuff = stuff[:stuff.index("\"")]
+				print("Here is a suspected regex thing:"+str(stuff))
+
+				return stuff
+	return False
+
+```
+
+it works quite good, but it misses some cases, for example multiline stuff it misses completely, when the regex is defined on multiple lines.
 
 
 
