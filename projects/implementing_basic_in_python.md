@@ -51,6 +51,18 @@ class BasicProgram:
 
 ```
 
+Ok, so now it is `Fri Mar 22 04:10:09 AM EET 2024` (UTC+2) and let's continue.
+
+First optimization is to just convert the linenums thing into a set.
+
+I think that I will use the line number set to check if a line number where we jump with `GOTO` is actually valid, but that is in the future.
+
+
+
+
+
+
+
 
 
 
