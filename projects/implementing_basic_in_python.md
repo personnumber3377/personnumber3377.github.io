@@ -57,6 +57,21 @@ First optimization is to just convert the linenums thing into a set.
 
 I think that I will use the line number set to check if a line number where we jump with `GOTO` is actually valid, but that is in the future.
 
+I think the first step is to identify the keyword and then I think that having a dictionary where the key is the keyword and value is the handler.
+
+The smart way of going about these "keyword handlers" is to implement them in a separate file, but I would want these handlers to be methods of the BasicProgram class, because then we have access to all of the variables and stuff like that. Sooo, I think that I have to add methods dynamically maybe??? To stackoverflow we go! https://stackoverflow.com/questions/13079299/dynamically-adding-methods-to-a-class . Thanks to this: https://stackoverflow.com/a/65571141/14577985 .
+
+## Implementing keyword handlers.
+
+I am going to create a new file called keywords.py and then add all of the functions which handle all of the different keywords there.
+
+
+
+
+
+
+
+
 
 
 
