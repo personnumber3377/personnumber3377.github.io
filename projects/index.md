@@ -29,6 +29,8 @@ Here is a list of different kinds of projects which I have made.
 
 ## Hacking
 
+[Fuzzing onigmo regex engine (NEW!!!!)](/projects/fuzzing_onigmo.html)
+
 [Fuzzing apache httpd.](/projects/fuzzing_apache_httpd.html)
 
 [Fuzzing ruby regex parser.](/projects/fuzzing_ruby_regex.html)
