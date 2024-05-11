@@ -27,6 +27,24 @@ Here is a list of different kinds of projects which I have made.
 
 [Making a test testing tool](/projects/making_a_test_testing_tool.html)
 
+[Double pendulum in python](/projects/douple_pendulum.html)
+
+[Implementing zlib.decompress in python](/projects/implementing_zlib_decompress.html)
+
+[Programming the math behind the DVD logo](/projects/making_dvd_logo_thing.html)
+
+[Implementing BASIC in python](/projects/implementing_basic_in_python.html)
+
+[Solving the heat equation in python](/projects/solving_the_heat_equation_in_python.html)
+
+[Implementing a falling sand simulation in python](/projects/implementing_falling_sand.html)
+
+[Implemented weighted voronoi stippling in python](/projects/implementing_weighted_voronoi_stippling.html)
+
+[Implementing paper marbling in python](/projects/paper_marbling_in_python.html)
+
+
+
 ## Hacking
 
 [Fuzzing onigmo regex engine (NEW!!!!)](/projects/fuzzing_onigmo.html)
@@ -57,6 +75,16 @@ Here is a list of different kinds of projects which I have made.
 
 [Fuzzing lzma](/projects/fuzzing_lzma.html)
 
+[Fuzzing git command line arguments](/projects/fuzzing_git_command_line_arguments.html)
+
+[Fuzzing ping](/projects/fuzzing_ping.html)
+
+[Fuzzing HTML-tokenizer](/projects/fuzzing_html_tokenizer.html)
+
+[Fuzzing ruby numbers](/projects/fuzzing_ruby_numbers.html)
+
+[Fuzzing ruby command line arguments...](/projects/fuzzing_ruby_cmdline.html)
+
 ## Misc
 
 [How I studied for an exam in roughly two days.](/projects/studying_for_exam.html)
@@ -67,6 +95,36 @@ Here is a list of different kinds of projects which I have made.
 [Making a simple spice simulator in python](/projects/making_my_own_spice_simulator.html)
 
 [Soldering a radio (and trying to fix it after realizing that it is broken)](/projects/soldering_a_radio.html)
+
+## Reverse engineering
+
+[Reverse engineering "Crack the Key"](/projects/reversing_crack_the_key.html)
+
+[Reverse engineering "nano"](/projects/reversing_nano.html)
+
+[Reverse engineering "09"](/projects/reversing_09.html)
+
+## Project ideas...
+
+[Project ideas...](/projects/ideas.html)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
