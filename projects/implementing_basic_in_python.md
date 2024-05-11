@@ -371,9 +371,193 @@ Ok, so I think that is enough for this day. Tomorrow I think I am going to imple
 
 ## Implementing goto
 
+Ok, so how to implement goto? I guess something like this:
+
+```
+def GOTO(self, tokens):
+	if len(tokens) != 1:
+		fail("GOTO takes only one argument. The line number")
+	# Check that the argument is actually an integer.
+	line_num = tokens[0]
+	if not line_num.isnumeric():
+		fail("Line number passed to GOTO must actually be a number, not variable or something else.")
+	# Convert to an actual python integer
+	line_num = int(line_num)
+	# The line number must be in the program line numbers.
+	if line_num not in self.linenums:
+		fail("GOTO line number isn't a line number of the program.")
+	# Set line number and set the variable, which specifies if we have jumped
+	self.jumped = True
+	# This is quite a wonky way of doing things. Maybe we should refactor this to be a bit better
+	self.cur_line_num_index = self.line_num_to_index[line_num]
+	return
+```
+
+so I had to also modify the main program loop a bit to check for a jump:
+
+```
+
+	def run_program(self) -> None: # Run the program.
+		while True: # Main program loop.
+			# Check if we have reached the end.
+			if self.cur_line_num_index == len(self.linenums_as_list):
+				print("Executed program succesfully!")
+				break
+			# Get tokens from current line.
+			cur_line = self.lines[self.linenums_as_list[self.cur_line_num_index]]
+			# Split the current program line.
+			tokens = cur_line.split(" ")
+			possible_keyword = tokens[0]
+			# Now get the keyword.
+			# Lookup the handler. (There are a couple of special cases where the first character isn't a keyword).
+			if possible_keyword in self.keyword_handlers:
+				handler = self.keyword_handlers[possible_keyword]
+				# Now call that handler with the other tokens as argument
+				handler(self, tokens[1:])
+			# If we jumped, then do not increment.
+			if self.jumped:
+				self.jumped = False
+				continue
+			# Increment line counter
+			self.cur_line_num_index += 1
+		return
+
+```
+
+Yeah, that seems to work!
+
+I am going to just create a quick commit now... I am now in commit 9837362227058bc8a0984c1759543140aec0b203 .
+
+## Implementing the LET keyword.
+
+Ok, so to actually use variables in code, we need to use the LET keyword.
+
+I think I need to program a custom "evaluate" function, which as the name suggests evaluates an expression. This is because the stuff on the right side of a `LET` statement can be an expression.
+
+## Implementing "evaluate"
+
+I think I need to implement a tokenization function which tokenizes the expression.
+
+Something like this maybe:
+
+```
+
+def tokenize(self, expression): # Evaluate an expression.
+	tokens = []
+	token_start_index = None
+	# Split on " ", except when inside double quotes.
+	in_string = False
+	for i, char in enumerate(expression):
+		# Skip whitespace when not inside string.
+		if char == " " and not in_string:
+			if token_start_index != None:
+				# This character was the first space after a token, therefore this was token end.
+				tokens.append(expression[token_start_index:i])
+				token_start_index = None
+			continue
+		if char == "\"":
+			if in_string:
+				# Closed string
+				in_string = False
+				tokens.append(expression[token_start_index:i])
+				# There should atleast be one space after the double quote.
+				if expression[i+1] != " ":
+					fail("Invalid syntax!")
+				token_start_index = None # We havent found a token
+			else:
+				# We have encountered the start of a string.
+				assert token_start_index == None
+				in_string = True
+				token_start_index = i
+		# If we encounter non-whitespace and we are not currently evaluating a token, then we encountered a token.
+		if char != " " and token_start_index == None:
+			token_start_index = i
+	# Check if there is a token at the end of the expression string.
+	if token_start_index != None:
+		tokens.append(expression[token_start_index:])
+	return tokens
+
+```
+
+Maybe add a test for this function?
+
+```
+def test_tokenize() -> None:
+	example_string = "1 * 123"
+	res = tokenize(1, example_string)
+	assert res == ["1", "*", "123"]
+	return
+```
+
+Maybe also add a testcase to test strings?
+
+```
+	example_string = "\"STRING WITH SPACES\" + \"OTHER STRING\""
+	res = tokenize(1, example_string)
+	print("res == "+str(res))
+	return
+```
+
+Uh oh..
+
+```
+  File "/home/cyberhacker/Asioita/Ohjelmointi/Python/basicinpython/util.py", line 115, in tokenize
+    if expression[i+1] != " ":
+       ~~~~~~~~~~^^^^^
+IndexError: string index out of range
+
+```
+
+just add a check if we are at the end of the string? `if i != len(expression)-1 and expression[i+1] != " ":`
+
+Here is the result: ` res == ['"STRING WITH SPACES', '"', '+', '"OTHER STRING', '"'] ` . That doesn't seem correct.
+
+Here is the fixed version:
+
+```
+def tokenize(self, expression): # Evaluate an expression.
+	tokens = []
+	token_start_index = None
+	# Split on " ", except when inside double quotes.
+	in_string = False
+	for i, char in enumerate(expression):
+		# Skip whitespace when not inside string.
+		if char == " " and not in_string:
+			if token_start_index != None:
+				# This character was the first space after a token, therefore this was token end.
+				tokens.append(expression[token_start_index:i])
+				token_start_index = None
+			continue
+		if char == "\"":
+			if in_string:
+				# Closed string
+				in_string = False
+				tokens.append(expression[token_start_index:i+1])
+				# There should atleast be one space after the double quote.
+				if i != len(expression)-1 and expression[i+1] != " ":
+					fail("Invalid syntax!")
+				token_start_index = None # We havent found a token
+			else:
+				# We have encountered the start of a string.
+				assert token_start_index == None
+				in_string = True
+				token_start_index = i
+			continue # <-- This was missing.
+		# If we encounter non-whitespace and we are not currently evaluating a token, then we encountered a token.
+		if char != " " and token_start_index == None:
+			token_start_index = i
+	# Check if there is a token at the end of the expression string.
+	if token_start_index != None:
+		tokens.append(expression[token_start_index:])
+	return tokens
+```
 
 
+There was a missing `continue` so execution continued to the `if char != " " and token_start_index == None:` code block.
 
+Here is the result: `res == ['"STRING WITH SPACES"', '+', '"OTHER STRING"']` and it seems to make sense.
+
+Now I need to implement order of operations. *sigh* .
 
 
 

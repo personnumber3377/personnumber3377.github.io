@@ -181,9 +181,241 @@ Compile with afl-clang-fast ......
 
 source "$HOME/.cargo/env"
 
+## Actually fuzzing ruby dateformats.
+
+Ok, so after a long while of searching I finally found this: https://stackoverflow.com/questions/3222171/ruby-c-extension-using-singleton which tells how to call `DateTime` in ruby c api. Here is my current wrapper code:
+
+```
+
+
+#include "ruby.h"
+
+
+// These are needed to load symbols from date_core.so ...
+
+#include <stdio.h>
+#include <dlfcn.h>
+
+
+// static VALUE cDate, cDateTime;
+
+// extern VALUE cDate, cDateTime;
+
+
+/*
+
+VALUE dangerous_func(VALUE buffer) {
+	//rb_funcall(rb_mKernel, rb_intern("Rational"), 1, buffer);
+	
+	// rb_funcall(rb_mKernel, rb_intern("to_f"), 1, buffer); // Fuzz float parsing instead
+	VALUE parsed_date; // This is the datetime object. We are going to call "strftime" on this object later on...
+	VALUE formatted_date; // This is the result of parsed_date.strftime("someformat")
+	//rb_funcall(rb_mKernel, rb_intern("Complex"), 1, buffer);
+	// cDate,
+	printf("Trying to call parse...\n");
+
+	// parsed_date = rb_funcall(cDateTime, rb_intern("parse"), 1, rb_str_new_cstr("3rd Feb 2001 04:05:06+03:30")); // Just use some date.
+
+	//printf("Here is the address of cDateTime: %lx\n", cDateTime);
+
+	parsed_date = rb_funcall(cDateTime, rb_intern("now"), 0);
+
+	// strftime
+	printf("Calling strftime...\n");
+	rb_funcall(parsed_date, rb_intern("strftime"), 1, buffer); // Try to format the dateobject.
+
+
+	// Maybe print the result?????
+
+	printf("Calling puts...\n");
+
+	rb_funcallv(rb_mKernel, rb_intern("puts"), 1, &formatted_date);
+
+	return Qnil; // Just return Qnil
+}
+
+*/
 
 
 
+
+// This is needed for rb_rescue
+VALUE error_func(VALUE stuff) {
+	//printf("Called error_func...\n");
+	return Qnil;
+}
+
+
+// Main fuzzing wrapper.
+
+#define DATE_CORE_NAME "date_core.so"
+
+#define LOOP_COUNT 100000
+
+__AFL_FUZZ_INIT();
+
+int main(int argc, char **argv) {
+	printf("Hello world!\n");
+
+	int state;
+	//rb_protect(dangerous_func, dangerous_arg, &state);
+
+
+	VALUE hello_world_str;
+
+	VALUE date_module;
+
+
+	
+
+	//ruby_setup();
+
+	ruby_sysinit(&argc, &argv);
+	RUBY_INIT_STACK;
+	ruby_init();
+	ruby_init_loadpath();
+
+	date_module = rb_require("date");
+
+
+	// VALUE singletonmodule = rb_const_get(rb_cObject,rb_intern("Singleton"));
+
+	VALUE singletonmodule = rb_const_get(rb_cObject,rb_intern("DateTime"));
+
+
+	// Need to initialize the date library, which we are fuzzing.
+
+	// Init_date_core();
+
+	__AFL_INIT();
+
+	unsigned char *buf = __AFL_FUZZ_TESTCASE_BUF;
+
+	while (__AFL_LOOP(LOOP_COUNT)) {
+
+	//while (true) {
+
+		int len = __AFL_FUZZ_TESTCASE_LEN;
+
+		state = 0;
+
+		//hello_world_str = rb_str_new_cstr(buf);
+
+		hello_world_str = rb_str_new_cstr(buf);
+
+		/*
+	rb_rescue(VALUE (* b_proc)(VALUE), VALUE data1,
+          VALUE (* r_proc)(VALUE, VALUE), VALUE data2)
+		*/
+		//printf("Calling the function...\n");
+		printf("Calling Init_date_core();\n");
+
+		
+
+		// Now we need to load the shit from date_core.so
+
+		void     *handle  = NULL;
+		void*  func    = NULL;
+
+		handle = dlopen(DATE_CORE_NAME, RTLD_NOW | RTLD_GLOBAL);
+
+		// func = dlsym(handle, "library_function");
+
+		if (handle == NULL)
+	   {
+	       fprintf(stderr, "Unable to open lib: %s\n", dlerror());
+	       return -1;
+	   }
+
+	   printf("Here is the address of handle: %lx\n", handle);
+
+		/*
+		if (cDateTime == NULL) {
+       fprintf(stderr, "Unable to get symbol\n");
+      return -1;
+   }
+
+		*/
+
+
+		//printf("Here is the address of cDateTime: %lx\n", cDateTime);
+
+		//Init_date_core();
+		
+		//printf("Returned from Init_date_core();\n");
+
+		// Loading date_core.so ...
+		printf("Now calling rb_require...\n");
+
+		//rb_require("date"); // aka require 'date'
+
+		// Ok, so now the date object is date_module.
+
+		printf("Address of date_module: %lx\n", date_module);
+
+		//rb_funcall(date_module, rb_intern("now"), 0);
+
+
+		printf("Now calling rb_require...\n");
+
+		// rb_funcall(cDateTime, rb_intern("now"), 0);
+		printf("Now trying to call now...\n");
+
+
+		// rb_funcall(singletonmodule,rb_intern("included"),1,mouseclass);
+
+		printf("Now calling \"now\"...\n");
+
+		rb_funcall(singletonmodule,rb_intern("now"),0);
+		printf("Done!\n");
+
+		//printf("The address of cDateTime is this: %lx\n", cDateTime);
+
+
+		// rb_funcall(cDateTime, rb_intern("now"), 0); // Maybe this works???
+
+		printf("Fuck!\n");
+
+
+		// rb_rescue(dangerous_func, hello_world_str, error_func, Qnil);
+
+		//rb_funcall(rb_mKernel, rb_intern("Rational"), 1, hello_world_str);
+
+		//free(hello_world_str); // Try to free the allocated memory.
+
+		// rb_funcall(rb_mKernel, rb_intern("Rational"), 1, hello_world_str);
+
+	}
+
+	
+
+
+
+
+
+
+	ruby_finalize();
+
+	return 0;
+}
+
+
+```
+
+that actually calls `DateTime.now` instead of the parsing function, but whatever.
+
+Here is the actual parse function:
+
+```
+
+
+		VALUE date_string = rb_str_new_cstr("2001-02-03T04:05:06.123456789+07:00"); // input string.
+
+		// rb_funcall(singletonmodule,rb_intern("now"),1, date_string);
+
+		rb_funcall(singletonmodule,rb_intern("parse"), 1, date_string);
+
+```
 
 
 
