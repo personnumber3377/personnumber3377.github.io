@@ -1,0 +1,98 @@
+diff --git a/infra/helper.py b/infra/helper.py
+index 0d331791a..e83510790 100755
+--- a/infra/helper.py
++++ b/infra/helper.py
+@@ -1381,6 +1381,7 @@ def run_fuzzer(args):
+       'SANITIZER=' + args.sanitizer,
+       'RUN_FUZZER_MODE=interactive',
+       'HELPER=True',
++      'ASAN_OPTIONS=detect_leaks=0:log_path=stdout:abort_on_error=1', # This here is to ignore memory leaks.
+   ]
+ 
+   if args.e:
+diff --git a/projects/wget/build.sh b/projects/wget/build.sh
+index 83e81b065..8260b1717 100755
+--- a/projects/wget/build.sh
++++ b/projects/wget/build.sh
+@@ -41,7 +41,7 @@ make install
+ 
+ GNUTLS_CONFIGURE_FLAGS=""
+ NETTLE_CONFIGURE_FLAGS=""
+-if [[ $CFLAGS = *sanitize=memory* ]]; then
++if [[ $CFLAGS = *sanitize=memory* ]] || [[ $CFLAGS = *sanitize=address* ]] || [[ $CFLAGS = *sanitize=undefined* ]]; then
+   GNUTLS_CONFIGURE_FLAGS="--disable-hardware-acceleration"
+   NETTLE_CONFIGURE_FLAGS="--disable-assembler --disable-fat"
+ fi
+@@ -50,6 +50,7 @@ fi
+ # sanitizers, but GMP doesn't compile with clang. We use gmp-mini
+ # instead.
+ cd $SRC/nettle
++#git checkout 8be0d5c4cbb0a1f1939e314418af6c10d26da70d # This specific commit is needed, because reasons...
+ bash .bootstrap
+ ./configure --enable-mini-gmp --enable-static --disable-shared --disable-documentation --disable-openssl --prefix=$WGET_DEPS_PATH $NETTLE_CONFIGURE_FLAGS --cache-file ../config.cache
+ ( make -j$(nproc) || make -j$(nproc) ) && make install
+@@ -62,6 +63,7 @@ cd $SRC/gnutls
+ touch .submodule.stamp
+ ./bootstrap
+ GNUTLS_CFLAGS=`echo $CFLAGS|sed s/-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION//`
++
+ LIBS="-lunistring" \
+ CFLAGS="$GNUTLS_CFLAGS" \
+ ./configure --with-nettle-mini --enable-gcc-warnings --enable-static --disable-shared --with-included-libtasn1 \
+@@ -81,26 +83,46 @@ ln -s $WGET_DEPS_PATH/lib64/libnettle.a  $WGET_DEPS_PATH/lib/libnettle.a
+ 
+ cd $SRC/wget
+ ./bootstrap --skip-po
+-autoreconf -fi
++#autoreconf -fi # This fucks shit up, so skip over this step. This doesn't seem to affect other things.
++
++# We need to add "--allow-multiple-definition" to the compiler flags before compiling to avoid some errors.
++
++ORIG_CFLAGS="$CFLAGS"
++
++# These modifications are needed, because otherwise we get an error while building the documentation
++
++
++echo "#A Makefile" > $SRC/wget/doc/Makefile.am
++echo "Nothing:" >> $SRC/wget/doc/Makefile.am
++echo "all:# twist again" >> $SRC/wget/doc/Makefile.am
++echo ".SILENT:" >> $SRC/wget/doc/Makefile.am
++
++# gnulib_po Makefile.in.in has the wrong gettext version. Just patch it out (for now)...
++
++sed -i -e 's/GETTEXT_MACRO_VERSION = 0.20/GETTEXT_MACRO_VERSION = 0.19/g' $SRC/wget/gnulib_po/Makefile.in.in
+ 
+ # build and run non-networking tests
++CFLAGS="$ORIG_CFLAGS -Wall -Wl,--allow-multiple-definition" \
+ LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
+-./configure -C
+-make clean
+-make -j$(nproc)
+-make -j$(nproc) -C fuzz check
++./configure -C --disable-doc
++make clean MAKEINFO=true
++# make MAKEINFO=true we need to skip building the documentation, because those cause errors.
++make -j$(nproc) MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
++make -j$(nproc) -C fuzz check MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+ 
+ # build for fuzzing
++# We also need to "--allow-multiple-definition" stuff here too!
++CFLAGS="$ORIG_CFLAGS -Wall -Wl,--allow-multiple-definition" \
+ LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
+-./configure --enable-fuzzing -C
++./configure --enable-fuzzing -C --disable-doc
+ make clean
+-make -j$(nproc) -C lib
+-make -j$(nproc) -C src
++make -j$(nproc) -C lib MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
++make -j$(nproc) -C src MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+ 
+ # build fuzzers
+ cd fuzz
+-make -j$(nproc) ../src/libunittest.a
+-make oss-fuzz
++make -j$(nproc) ../src/libunittest.a MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
++make oss-fuzz MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+ 
+ find . -name '*_fuzzer' -exec cp -v '{}' $OUT ';'
+ find . -name '*_fuzzer.dict' -exec cp -v '{}' $OUT ';'

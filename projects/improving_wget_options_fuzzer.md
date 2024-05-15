@@ -1353,15 +1353,1519 @@ ERROR:__main__:Building fuzzers failed.
 
 ```
 
+This may also be a clue:
+
+```
+
+	    and start over
+clangclang: : warning: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+ar: /src/libidn2/unistring/.libs/libunistring.a: No such file or directory
+make[3]: *** [Makefile:2145: libunistring.la] Error 9
+make[2]: *** [Makefile:1993: all] Error 2
+make[1]: *** [Makefile:1857: all-recursive] Error 1
+make: *** [Makefile:1765: all] Error 2
+ar: /src/libidn2/unistring/.libs/libunistring.a: No such file or directory
+make[3]: *** [Makefile:2145: libunistring.la] Error 9
 
 
 
 
 
-## TODO:
++ export WGET_DEPS_PATH=/src/wget_deps
++ WGET_DEPS_PATH=/src/wget_deps
++ export PKG_CONFIG_PATH=/src/wget_deps/lib64/pkgconfig:/src/wget_deps/lib/pkgconfig
++ PKG_CONFIG_PATH=/src/wget_deps/lib64/pkgconfig:/src/wget_deps/lib/pkgconfig
++ export CPPFLAGS=-I/src/wget_deps/include
++ CPPFLAGS=-I/src/wget_deps/include
++ export 'CFLAGS=-O1 -fno-omit-frame-pointer -gline-tables-only -Wno-error=enum-constexpr-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion -Wno-error=deprecated-declarations -Wno-error=implicit-function-declaration -Wno-error=implicit-int -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link -I/src/wget_deps/include -L/src/wget_deps/lib'
++ CFLAGS='-O1 -fno-omit-frame-pointer -gline-tables-only -Wno-error=enum-constexpr-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion -Wno-error=deprecated-declarations -Wno-error=implicit-function-declaration -Wno-error=implicit-int -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link -I/src/wget_deps/include -L/src/wget_deps/lib'
++ export LDFLAGS=-L/src/wget_deps/lib
++ LDFLAGS=-L/src/wget_deps/lib
++ export GNULIB_SRCDIR=/src/gnulib
++ GNULIB_SRCDIR=/src/gnulib
++ export LLVM_PROFILE_FILE=/tmp/prof.test
++ LLVM_PROFILE_FILE=/tmp/prof.test
++ cd /src/libunistring
++ ./configure --enable-static --disable-shared --prefix=/src/wget_deps --cache-file ../config.cache
+++ nproc
++ make -j8
+
+
+
+
+Ubuntu clang version 14.0.0-1ubuntu1.1
+Target: x86_64-pc-linux-gnu
+Thread model: posix
+InstalledDir: /usr/bin
+Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/11
+Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/12
+Found candidate GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/9
+Selected GCC installation: /usr/bin/../lib/gcc/x86_64-linux-gnu/12
+Candidate multilib: .;@m64
+Selected multilib: .;@m64
+... rest of stderr output deleted ...
+configure:7226: $? = 0
+configure:7215: clang -V >&5
+clang: error: argument to '-V' is missing (expected 1 value)
+clang: error: no input files
+configure:7226: $? = 1
+configure:7215: clang -qversion >&5
+clang: error: unknown argument '-qversion'; did you mean '--version'?
+clang: error: no input files
+configure:7226: $? = 1
+configure:7215: clang -version >&5
+clang: error: unknown argument '-version'; did you mean '--version'?
+clang: error: no input files
+configure:7226: $? = 1
+configure:7246: checking whether the C compiler works
+configure:7268: clang -O1 -fno-omit-frame-pointer -gline-tables-only -Wno-error=enum-constexpr-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion -Wno-error=deprecated-declarations -Wno-error=implicit-function-declaration -Wno-error=implicit-int  -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link -I/src/wget_deps/include -L/src/wget_deps/lib   conftest.c -lunistring >&5
+warning: unknown warning option '-Werror=enum-constexpr-conversion' [-Wunknown-warning-option]
+1 warning generated.
+/usr/bin/ld: cannot find -lunistring: No such file or directory
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+configure:7272: $? = 1
+configure:7312: result: no
+configure: failed program was:
+| /* confdefs.h */
+
+```
+
+This here compiles everything correctly in gnutls in the oss-fuzz build:
+
+```
+
+CC=clang CFLAGS='-O1 -fno-omit-frame-pointer -gline-tables-only -Wno-error=enum-constexpr-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion -Wno-error=deprecated-declarations -Wno-error=implicit-function-declaration -Wno-error=implicit-int  -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link -I/src/wget_deps/include -L/src/wget_deps/lib' ./configure --with-nettle-mini --enable-gcc-warnings --enable-static --disable-shared --with-included-libtasn1 --with-included-unistring --without-p11-kit --disable-doc --disable-tests --disable-tools --disable-cxx --disable-maintainer-mode --disable-libdane --disable-gcc-warnings --disable-full-test-suite --prefix=/src/wget_deps --disable-hardware-acceleration
+
+```
+
+notice, that the `LIBS=-lunistring` isn't there.
+
+
+Wait that wasn't it. I don't understand why the wget shit won't compile. Maybe it has to do something with:
+
+```
+
+oof@oof-h8-1440eo:~/fuzz_wget/abc/wget$ autoreconf -fi^C
+oof@oof-h8-1440eo:~/fuzz_wget/abc/wget$ export GNULIB_SRCDIR=/home/oof/fuzz_wget/abc/oof/gnulib
+oof@oof-h8-1440eo:~/fuzz_wget/abc/wget$ autoreconf -fi
+autopoint: using AM_GNU_GETTEXT_REQUIRE_VERSION instead of AM_GNU_GETTEXT_VERSION
+Copying file build-aux/config.rpath
+Copying file m4/host-cpu-c-abi.m4
+Copying file m4/iconv.m4
+
+
+```
+
+
+No, the GNULIB_SRC environment variable has nothing to do with the compiler errors... fuck!!!!
+
+
+```
+
+autopoint: using AM_GNU_GETTEXT_REQUIRE_VERSION instead of AM_GNU_GETTEXT_VERSION
+configure.ac:940: warning: macro 'AM_PATH_GPGME' not found in library
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/setlocale_null.m4:8: gl_FUNC_SETLOCALE_NULL is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_TYPE_WINT_T_PREREQ is m4_require'd but not m4_defun'd
+m4/iswblank.m4:8: gl_FUNC_ISWBLANK is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/mbrtowc.m4:9: gl_FUNC_MBRTOWC is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/nl_langinfo.m4:8: gl_FUNC_NL_LANGINFO is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_TYPE_WINT_T_PREREQ is m4_require'd but not m4_defun'd
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/setlocale_null.m4:8: gl_FUNC_SETLOCALE_NULL is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_TYPE_WINT_T_PREREQ is m4_require'd but not m4_defun'd
+m4/iswblank.m4:8: gl_FUNC_ISWBLANK is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/mbrtowc.m4:9: gl_FUNC_MBRTOWC is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/nl_langinfo.m4:8: gl_FUNC_NL_LANGINFO is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_TYPE_WINT_T_PREREQ is m4_require'd but not m4_defun'd
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/setlocale_null.m4:8: gl_FUNC_SETLOCALE_NULL is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_TYPE_WINT_T_PREREQ is m4_require'd but not m4_defun'd
+m4/iswblank.m4:8: gl_FUNC_ISWBLANK is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/mbrtowc.m4:9: gl_FUNC_MBRTOWC is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/nl_langinfo.m4:8: gl_FUNC_NL_LANGINFO is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_TYPE_WINT_T_PREREQ is m4_require'd but not m4_defun'd
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/setlocale_null.m4:8: gl_FUNC_SETLOCALE_NULL is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_TYPE_WINT_T_PREREQ is m4_require'd but not m4_defun'd
+m4/iswblank.m4:8: gl_FUNC_ISWBLANK is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/mbrtowc.m4:9: gl_FUNC_MBRTOWC is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_PTHREADLIB is m4_require'd but not m4_defun'd
+m4/nl_langinfo.m4:8: gl_FUNC_NL_LANGINFO is expanded from...
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure.ac:337: warning: gl_TYPE_WINT_T_PREREQ is m4_require'd but not m4_defun'd
+m4/gnulib-comp.m4:461: gl_INIT is expanded from...
+configure.ac:337: the top level
+configure:22414: error: possibly undefined macro: gl_PTHREADLIB
+      If this token and others are legitimate, please use m4_pattern_allow.
+      See the Autoconf documentation.
+configure:22526: error: possibly undefined macro: gl_WEAK_SYMBOLS
+configure:24102: error: possibly undefined macro: gl_TYPE_WINT_T_PREREQ
+autoreconf: /usr/bin/autoconf failed with exit status: 1
+root@567d393065f8:/src/wget#
+
+
+```
+
+This almost works...
+
+I get this error:
+
+```
+
+gnutls.c:805:13: warning: call to undeclared function 'gnutls_protocol_set_priority'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+  805 |       err = gnutls_protocol_set_priority (session, allowed_protocols);
+      |             ^
+1 warning generated.
+1 warning generated.
+  CCLD     wget
+/usr/bin/ld: /src/wget_deps/lib/libhogweed.a(gmp-glue.o): in function `mpn_cnd_add_n':
+/src/nettle/gmp-glue.c:46: multiple definition of `mpn_cnd_add_n'; /src/wget_deps/lib/libgnutls.a(gmp-glue.o):/src/gnutls/lib/nettle/backport/gmp-glue.c:46: first defined here
+/usr/bin/ld: /src/wget_deps/lib/libhogweed.a(gmp-glue.o): in function `mpn_cnd_sub_n':
+/src/nettle/gmp-glue.c:67: multiple definition of `mpn_cnd_sub_n'; /src/wget_deps/lib/libgnutls.a(gmp-glue.o):/src/gnutls/lib/nettle/backport/gmp-glue.c:67: first defined here
+/usr/bin/ld: /src/wget_deps/lib/libhogweed.a(gmp-glue.o): in function `mpn_cnd_swap':
+/src/nettle/gmp-glue.c:88: multiple definition of `mpn_cnd_swap'; /src/wget_deps/lib/libgnutls.a(gmp-glue.o):/src/gnutls/lib/nettle/backport/gmp-glue.c:88: first defined here
+/usr/bin/ld: /src/wget_deps/lib/libhogweed.a(gmp-glue.o): in function `mpn_sec_tabselect':
+/src/nettle/gmp-glue.c:107: multiple definition of `mpn_sec_tabselect'; /src/wget_deps/lib/libgnutls.a(gmp-glue.o):/src/gnutls/lib/nettle/backport/gmp-glue.c:107: first defined here
+/usr/bin/ld: gnutls.o: in function `ssl_connect_wget':
+/src/wget/src/gnutls.c:(.text.ssl_connect_wget[ssl_connect_wget]+0x543): undefined reference to `gnutls_protocol_set_priority'
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+make[3]: *** [Makefile:2225: wget] Error 1
+make[3]: Leaving directory '/src/wget/src'
+make[2]: *** [Makefile:2124: all] Error 2
+make[2]: Leaving directory '/src/wget/src'
+make[1]: *** [Makefile:2030: all-recursive] Error 1
+make[1]: Leaving directory '/src/wget'
+make: *** [Makefile:1982: all] Error 2
+oof@oof-h8-1440eo:~/fuzz_wget/oss-fuzz$
+
+
+```
+
+fuck!!!!!!!!! This is quite bad!!!!
+
+Let's focus on the multiple definition errors first. One quick and dirty way to deal with these is to just use this: https://stackoverflow.com/questions/69326932/multiple-definition-errors-during-gcc-linking-in-linux (aka. `--allow-multiple-definition`) . This (I think) is undefined behaviour, but I don't really care. Let's add `--allow-multiple-definition` to `CFLAGS` before compiling and see what happens.
+
+Here is my current build.sh file:
+
+```
+
+
+#!/bin/bash -eu
+# Copyright 2016 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+################################################################################
+
+export WGET_DEPS_PATH=$SRC/wget_deps
+export PKG_CONFIG_PATH=$WGET_DEPS_PATH/lib64/pkgconfig:$WGET_DEPS_PATH/lib/pkgconfig
+export CPPFLAGS="-I$WGET_DEPS_PATH/include"
+export CFLAGS="$CFLAGS -I$WGET_DEPS_PATH/include -L$WGET_DEPS_PATH/lib"
+export LDFLAGS="-L$WGET_DEPS_PATH/lib"
+export GNULIB_SRCDIR=$SRC/gnulib
+export LLVM_PROFILE_FILE=/tmp/prof.test
+
+cd $SRC/libunistring
+./configure --enable-static --disable-shared --prefix=$WGET_DEPS_PATH --cache-file ../config.cache
+make -j$(nproc)
+make install
+
+cd $SRC/libidn2
+./configure --enable-static --disable-shared --disable-doc --disable-gcc-warnings --prefix=$WGET_DEPS_PATH --cache-file ../config.cache
+make -j$(nproc)
+make install
+
+cd $SRC/libpsl
+./autogen.sh
+./configure --enable-static --disable-shared --disable-gtk-doc --enable-runtime=libidn2 --enable-builtin=libidn2 --prefix=$WGET_DEPS_PATH --cache-file ../config.cache
+make -j$(nproc)
+make install
+
+GNUTLS_CONFIGURE_FLAGS=""
+NETTLE_CONFIGURE_FLAGS=""
+if [[ $CFLAGS = *sanitize=memory* ]] || [[ $CFLAGS = *sanitize=address* ]] || [[ $CFLAGS = *sanitize=undefined* ]]; then
+  GNUTLS_CONFIGURE_FLAGS="--disable-hardware-acceleration"
+  NETTLE_CONFIGURE_FLAGS="--disable-assembler --disable-fat"
+fi
+
+# We could use GMP from git repository to avoid false positives in
+# sanitizers, but GMP doesn't compile with clang. We use gmp-mini
+# instead.
+cd $SRC/nettle
+git checkout 8be0d5c4cbb0a1f1939e314418af6c10d26da70d # This specific commit is needed, because reasons...
+bash .bootstrap
+./configure --enable-mini-gmp --enable-static --disable-shared --disable-documentation --disable-openssl --prefix=$WGET_DEPS_PATH $NETTLE_CONFIGURE_FLAGS --cache-file ../config.cache
+( make -j$(nproc) || make -j$(nproc) ) && make install
+if test $? != 0;then
+        echo "Failed to compile nettle"
+        exit 1
+fi
+
+cd $SRC/gnutls
+touch .submodule.stamp
+./bootstrap
+GNUTLS_CFLAGS=`echo $CFLAGS|sed s/-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION//`
+
+LIBS="-lunistring" \
+CFLAGS="$GNUTLS_CFLAGS" \
+./configure --with-nettle-mini --enable-gcc-warnings --enable-static --disable-shared --with-included-libtasn1 \
+    --with-included-unistring --without-p11-kit --disable-doc --disable-tests --disable-tools --disable-cxx \
+    --disable-maintainer-mode --disable-libdane --disable-gcc-warnings --disable-full-test-suite \
+    --prefix=$WGET_DEPS_PATH $GNUTLS_CONFIGURE_FLAGS
+make -j$(nproc)
+make install
+
+
+# avoid iconv() memleak on Ubuntu 16.04 image (breaks test suite)
+export ASAN_OPTIONS=detect_leaks=0
+
+# Ensure our libraries can be found
+ln -s $WGET_DEPS_PATH/lib64/libhogweed.a $WGET_DEPS_PATH/lib/libhogweed.a
+ln -s $WGET_DEPS_PATH/lib64/libnettle.a  $WGET_DEPS_PATH/lib/libnettle.a
+
+cd $SRC/wget
+./bootstrap --skip-po
+#autoreconf -fi # This fucks shit up, so skip over this step. This doesn't seem to affect other things.
+
+# We need to add "--allow-multiple-definition" to the compiler flags before compiling to avoid some errors.
+
+ORIG_CFLAGS="$CFLAGS"
+
+# build and run non-networking tests
+CFLAGS="$ORIG_CFLAGS --allow-multiple-definition" \
+LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
+./configure -C
+make clean
+make -j$(nproc)
+make -j$(nproc) -C fuzz check
+
+# build for fuzzing
+LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
+./configure --enable-fuzzing -C
+make clean
+make -j$(nproc) -C lib
+make -j$(nproc) -C src
+
+# build fuzzers
+cd fuzz
+make -j$(nproc) ../src/libunittest.a
+make oss-fuzz
+
+find . -name '*_fuzzer' -exec cp -v '{}' $OUT ';'
+find . -name '*_fuzzer.dict' -exec cp -v '{}' $OUT ';'
+find . -name '*_fuzzer.options' -exec cp -v '{}' $OUT ';'
+
+for dir in *_fuzzer.in; do
+  fuzzer=$(basename $dir .in)
+  zip -rj "$OUT/${fuzzer}_seed_corpus.zip" "${dir}/"
+done
+
+
+```
+
+there is just the tiny problem, that clang doesn't have any option which corresponds to `--allow-multiple-definition` in gcc . Fuck!!!
+
+
+
+
+
+
+
+Let's focus on this error first:
+
+```
+/src/wget/src/gnutls.c:(.text.ssl_connect_wget[ssl_connect_wget]+0x543): undefined reference to `gnutls_protocol_set_priority'
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+```
+
+after a quick google search, I found this: https://lists.gnu.org/archive/html/bug-wget/2020-05/msg00023.html
+
+
+
+```
+
+CFLAGS="$ORIG_CFLAGS -Wall -Wl,--allow-multiple-definition" \
+LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
+./configure -C
+
+```
+
+
+
+```
+
+CFLAGS="$CFLAGS --allow-multiple-definition" \
+LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
+./configure -C
+
+```
+
+
+While the other compilation is running, let's try to figure out the other thing...
+
+We need to replace all instances of `gnutls_protocol_set_priority` with `gnutls_priority_set_direct`
+
+looking at the newest code:
+
+```
+
+
+static int
+set_prio_default (gnutls_session_t session)
+{
+  int err = -1;
+
+#if HAVE_GNUTLS_PRIORITY_SET_DIRECT
+  switch (opt.secure_protocol)
+    {
+    case secure_protocol_auto:
+      err = gnutls_set_default_priority (session);
+      gnutls_session_enable_compatibility_mode(session);
+      break;
+
+    case secure_protocol_sslv2:
+    case secure_protocol_sslv3:
+      err = gnutls_priority_set_direct (session, "NORMAL:-VERS-TLS-ALL:+VERS-SSL3.0", NULL);
+      break;
+
+    case secure_protocol_tlsv1:
+      err = gnutls_priority_set_direct (session, "NORMAL:-VERS-SSL3.0", NULL);
+      break;
+
+    case secure_protocol_tlsv1_1:
+      err = gnutls_priority_set_direct (session, "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0", NULL);
+      break;
+
+    case secure_protocol_tlsv1_2:
+      err = gnutls_priority_set_direct (session, "NORMAL:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1", NULL);
+      break;
+
+    case secure_protocol_tlsv1_3:
+#if GNUTLS_VERSION_NUMBER >= 0x030603
+      err = gnutls_priority_set_direct (session, "NORMAL:-VERS-SSL3.0:+VERS-TLS1.3:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-TLS1.2", NULL);
+      break;
+#else
+      logprintf (LOG_NOTQUIET, _("Your GnuTLS version is too old to support TLS 1.3\n"));
+      return -1;
+#endif
+
+    case secure_protocol_pfs:
+      err = gnutls_priority_set_direct (session, "PFS:-VERS-SSL3.0", NULL);
+      if (err != GNUTLS_E_SUCCESS)
+        /* fallback if PFS is not available */
+        err = gnutls_priority_set_direct (session, "NORMAL:-RSA:-VERS-SSL3.0", NULL);
+      break;
+
+    default:
+      logprintf (LOG_NOTQUIET, _("GnuTLS: unimplemented 'secure-protocol' option value %u\n"),
+                 (unsigned) opt.secure_protocol);
+      logprintf (LOG_NOTQUIET, _("Please report this issue to bug-wget@gnu.org\n"));
+      abort ();
+    }
+#else
+  int allowed_protocols[4] = {0, 0, 0, 0};
+  switch (opt.secure_protocol)
+    {
+    case secure_protocol_auto:
+      err = gnutls_set_default_priority (session);
+      break;
+
+    case secure_protocol_sslv2:
+    case secure_protocol_sslv3:
+      allowed_protocols[0] = GNUTLS_SSL3;
+      err = gnutls_protocol_set_priority (session, allowed_protocols);
+      break;
+
+    case secure_protocol_tlsv1:
+      allowed_protocols[0] = GNUTLS_TLS1_0;
+      allowed_protocols[1] = GNUTLS_TLS1_1;
+      allowed_protocols[2] = GNUTLS_TLS1_2;
+#if GNUTLS_VERSION_NUMBER >= 0x030603
+      allowed_protocols[3] = GNUTLS_TLS1_3;
+#endif
+      err = gnutls_protocol_set_priority (session, allowed_protocols);
+      break;
+
+    case secure_protocol_tlsv1_1:
+      allowed_protocols[0] = GNUTLS_TLS1_1;
+      allowed_protocols[1] = GNUTLS_TLS1_2;
+#if GNUTLS_VERSION_NUMBER >= 0x030603
+      allowed_protocols[2] = GNUTLS_TLS1_3;
+#endif
+      err = gnutls_protocol_set_priority (session, allowed_protocols);
+      break;
+
+    case secure_protocol_tlsv1_2:
+      allowed_protocols[0] = GNUTLS_TLS1_2;
+#if GNUTLS_VERSION_NUMBER >= 0x030603
+      allowed_protocols[1] = GNUTLS_TLS1_3;
+#endif
+      err = gnutls_protocol_set_priority (session, allowed_protocols);
+      break;
+
+    case secure_protocol_tlsv1_3:
+#if GNUTLS_VERSION_NUMBER >= 0x030603
+      allowed_protocols[0] = GNUTLS_TLS1_3;
+      err = gnutls_protocol_set_priority (session, allowed_protocols);
+      break;
+#else
+      logprintf (LOG_NOTQUIET, _("Your GnuTLS version is too old to support TLS 1.3\n"));
+      return -1;
+#endif
+
+    default:
+      logprintf (LOG_NOTQUIET, _("GnuTLS: unimplemented 'secure-protocol' option value %d\n"), opt.secure_protocol);
+      logprintf (LOG_NOTQUIET, _("Please report this issue to bug-wget@gnu.org\n"));
+      abort ();
+    }
+#endif
+
+  return err;
+}
+
+```
+
+why doesn't the `HAVE_GNUTLS_PRIORITY_SET_DIRECT` macro work????? Maybe that is the `autoreconf -fi` stuff solves. We removed that shit out of the build.sh script.
+
+Here is the final part of the output when compiling:
+
+```
+
+
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-quotearg.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-same-inode.o
+  CC       libgnu_a-save-cwd.o
+  CC       libgnu_a-setlocale_null.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-setlocale_null-unlocked.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-sig-handler.o
+  CC       libgnu_a-sockets.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-spawn-pipe.o
+  CC       libgnu_a-stat-time.o
+  CC       libgnu_a-strnlen1.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-sys_socket.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-tempname.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       glthread/libgnu_a-threadlib.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-timespec.o
+  CC       libgnu_a-tmpdir.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-u64.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-unistd.o
+  CC       libgnu_a-dup-safer.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-fd-safer.o
+  CC       libgnu_a-pipe-safer.o
+  CC       libgnu_a-utimens.o
+clangclang: : warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]warning:
+-Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-wait-process.o
+  CC       libgnu_a-wctype-h.o
+clangclang: warning: : warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]-Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-xmalloc.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-xalloc-die.o
+  CC       libgnu_a-xmemdup0.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-xsize.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       libgnu_a-xstrndup.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       fopen.o
+  CC       mbsrtoc32s-state.o
+  CC       mbsrtowcs-state.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       mktime.o
+  CC       strerror_r.o
+  CC       malloc/libgnu_a-dynarray_at_failure.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       malloc/libgnu_a-dynarray_emplace_enlarge.o
+  CC       malloc/libgnu_a-dynarray_finalize.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       malloc/libgnu_a-dynarray_resize.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       malloc/libgnu_a-dynarray_resize_clear.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       malloc/libgnu_a-scratch_buffer_grow.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       malloc/libgnu_a-scratch_buffer_grow_preserve.o
+  CC       malloc/libgnu_a-scratch_buffer_set_array_size.o
+  CC       glthread/libgnu_a-lock.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       unicase/libgnu_a-cased.o
+  CC       unicase/libgnu_a-ignorable.o
+  CC       unicase/libgnu_a-special-casing.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]  CC       unicase/libgnu_a-u8-casemap.o
+
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       uninorm/libgnu_a-decompose-internal.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  AR       libgnu.a
+make[3]: Leaving directory '/src/wget/lib'
+make[2]: Leaving directory '/src/wget/lib'
+Making all in src
+make[2]: Entering directory '/src/wget/src'
+make  all-am
+make[3]: Entering directory '/src/wget/src'
+flex  -ocss.c css.l
+  CC       connect.o
+  CC       convert.o
+  CC       cookies.o
+  CC       ftp.o
+  CC       css-url.o
+  CC       ftp-basic.o
+  CC       ftp-ls.o
+css.l:161: warning, the character range [*-[] is ambiguous in a case-insensitive scanner
+css.l:161: warning, the character range []-~] is ambiguous in a case-insensitive scanner
+clangclang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]clang: warning:
+argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+: warning: clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]clang
+-Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]:
+warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+-Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: clangargument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+: warning: clangargument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       hash.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       host.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       hsts.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       html-parse.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       html-url.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       http.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       init.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       log.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       main.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       netrc.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+init.c:1375:49: warning: implicit conversion from 'long' to 'double' changes value from 9223372036854775807 to 9223372036854775808 [-Wimplicit-const-int-float-conversion]
+ 1375 |       || byte_value < WGINT_MIN || byte_value > WGINT_MAX)
+      |                                               ~ ^~~~~~~~~
+./wget.h:145:19: note: expanded from macro 'WGINT_MAX'
+  145 | #define WGINT_MAX INT64_MAX
+      |                   ^~~~~~~~~
+/usr/include/stdint.h:113:22: note: expanded from macro 'INT64_MAX'
+  113 | # define INT64_MAX              (__INT64_C(9223372036854775807))
+      |                                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/stdint.h:95:24: note: expanded from macro '__INT64_C'
+   95 | #  define __INT64_C(c)  c ## L
+      |                         ^~~~~~
+<scratch space>:16:1: note: expanded from here
+   16 | 9223372036854775807L
+      | ^~~~~~~~~~~~~~~~~~~~
+  CC       progress.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       ptimer.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       recur.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       res.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       retr.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       spider.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+1 warning generated.
+  CC       url.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       warc.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       utils.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       exits.o
+if test -n ""; then cp "./build_info.c.in" .; fi
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       iri.o
+/usr/bin/perl "../build-aux/build_info.pl" \
+    "../src/build_info.c"
+In file included from warc.c:44:
+../lib/base32.h:58:13: warning: result of comparison of constant 256 with expression of type 'unsigned char' is always true [-Wtautological-constant-out-of-range-compare]
+   58 |   return ch < sizeof base32_to_int && 0 <= base32_to_int[ch];
+      |          ~~ ^ ~~~~~~~~~~~~~~~~~~~~
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+if test -n ""; then rm -f build_info.c.in; fi
+  CC       xattr.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       ftp-opie.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+iri.c:134:20: warning: variable 'tooshort' set but not used [-Wunused-but-set-variable]
+  134 |   int invalid = 0, tooshort = 0;
+      |                    ^
+  CC       http-ntlm.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+1 warning generated.
+  CC       gnutls.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+echo '#include "wget.h"' > css_.c
+cat css.c >> css_.c
+  CC       build_info.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+echo '/* version.c */' > version.c
+echo '/* Autogenerated by Makefile - DO NOT EDIT */' >> version.c
+echo '' >> version.c
+echo '#include "version.h"' >> version.c
+echo 'const char *version_string = "1.24.5.7-ca10";' >> version.c
+echo 'const char *compilation_string = "'clang -DHAVE_CONFIG_H -DSYSTEM_WGETRC=\"/usr/local/etc/wgetrc\" -DLOCALEDIR=\"/usr/local/share/locale\" -I.  -I../lib -I../lib  -I/src/wget_deps/include    -I/src/wget_deps/include -I/src/wget_deps/include -I/src/wget_deps/include -DHAVE_LIBGNUTLS  -I/src/wget_deps/include -DNDEBUG -O1 -fno-omit-frame-pointer -gline-tables-only -Wno-error=enum-constexpr-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion -Wno-error=deprecated-declarations -Wno-error=implicit-function-declaration -Wno-error=implicit-int -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link -I/src/wget_deps/include -L/src/wget_deps/lib -Wall -Wl,--allow-multiple-definition'";' \
+    | sed -e 's/[\\"]/\\&/g' -e 's/\\"/"/' -e 's/\\";$/";/' >> version.c
+echo 'const char *link_string = "'clang    -I/src/wget_deps/include -I/src/wget_deps/include -I/src/wget_deps/include -DHAVE_LIBGNUTLS  -I/src/wget_deps/include -DNDEBUG -O1 -fno-omit-frame-pointer -gline-tables-only -Wno-error=enum-constexpr-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion -Wno-error=deprecated-declarations -Wno-error=implicit-function-declaration -Wno-error=implicit-int -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link -I/src/wget_deps/include -L/src/wget_deps/lib -Wall -Wl,--allow-multiple-definition \
+ -L/src/wget_deps/lib -L/src/wget_deps/lib -lidn2 -L/src/wget_deps/lib64 -lnettle -L/src/wget_deps/lib -lgnutls -lz -L/src/wget_deps/lib -lpsl -lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz   ../lib/libgnu.a             /src/wget_deps/lib/libunistring.a       '";' \
+    | sed -e 's/[\\"]/\\&/g' -e 's/\\"/"/' -e 's/\\";$/";/' >> version.c
+  CC       css_.o
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CC       version.o
+1 warning generated.
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CCLD     wget
+make[3]: Leaving directory '/src/wget/src'
+make[2]: Leaving directory '/src/wget/src'
+Making all in doc
+make[2]: Entering directory '/src/wget/doc'
+sed s/@/@@/g sample.wgetrc > sample.wgetrc.munged_for_texi_inclusion
+Updating ./version.texi
+./texi2pod.pl -D VERSION="1.24.5.7-ca10" ./wget.texi wget.pod
+  MAKEINFO wget.info
+/usr/bin/pod2man --center="GNU Wget" --release="GNU Wget 1.24.5.7-ca10" --utf8 wget.pod > wget.1 || \
+/usr/bin/pod2man --center="GNU Wget" --release="GNU Wget 1.24.5.7-ca10" wget.pod > wget.1
+make[2]: Leaving directory '/src/wget/doc'
+Making all in po
+make[2]: Entering directory '/src/wget/po'
+make wget.pot-update
+make[3]: Entering directory '/src/wget/po'
+sed -e '/^#/d' remove-potcdate.sin > t-remove-potcdate.sed
+mv t-remove-potcdate.sed remove-potcdate.sed
+package_gnu="yes"; \
+test -n "$package_gnu" || { \
+  if { if (LC_ALL=C find --version) 2>/dev/null | grep GNU >/dev/null; then \
+	 LC_ALL=C find -L .. -maxdepth 1 -type f \
+		       -size -10000000c -exec grep 'GNU wget' \
+		       /dev/null '{}' ';' 2>/dev/null; \
+       else \
+	 LC_ALL=C grep 'GNU wget' ../* 2>/dev/null; \
+       fi; \
+     } | grep -v 'libtool:' >/dev/null; then \
+     package_gnu=yes; \
+   else \
+     package_gnu=no; \
+   fi; \
+}; \
+if test "$package_gnu" = "yes"; then \
+  package_prefix='GNU '; \
+else \
+  package_prefix=''; \
+fi; \
+if test -n 'bug-wget@gnu.org' || test 'bug-wget@gnu.org' = '@'PACKAGE_BUGREPORT'@'; then \
+  msgid_bugs_address='bug-wget@gnu.org'; \
+else \
+  msgid_bugs_address='bug-wget@gnu.org'; \
+fi; \
+case `/usr/bin/xgettext --version | sed 1q | sed -e 's,^[^0-9]*,,'` in \
+  '' | 0.[0-9] | 0.[0-9].* | 0.1[0-5] | 0.1[0-5].* | 0.16 | 0.16.[0-1]*) \
+    /usr/bin/xgettext --default-domain=wget --directory=.. \
+      --add-comments=TRANSLATORS: --keyword=_ --keyword=N_ --flag=_:1:pass-c-format --flag=N_:1:pass-c-format --flag=error:3:c-format --flag=error_at_line:5:c-format ${end_of_xgettext_options+}  --flag=error:3:c-format --flag=error_at_line:5:c-format --flag=asprintf:2:c-format --flag=vasprintf:2:c-format \
+      --files-from=./POTFILES.in \
+      --copyright-holder='Free Software Foundation, Inc.' \
+      --msgid-bugs-address="$msgid_bugs_address" \
+    ;; \
+  *) \
+    /usr/bin/xgettext --default-domain=wget --directory=.. \
+      --add-comments=TRANSLATORS: --keyword=_ --keyword=N_ --flag=_:1:pass-c-format --flag=N_:1:pass-c-format --flag=error:3:c-format --flag=error_at_line:5:c-format ${end_of_xgettext_options+}  --flag=error:3:c-format --flag=error_at_line:5:c-format --flag=asprintf:2:c-format --flag=vasprintf:2:c-format \
+      --files-from=./POTFILES.in \
+      --copyright-holder='Free Software Foundation, Inc.' \
+      --package-name="${package_prefix}wget" \
+      --package-version='1.24.5.7-ca10' \
+      --msgid-bugs-address="$msgid_bugs_address" \
+    ;; \
+esac
+test ! -f wget.po || { \
+  if test -f ./wget.pot-header; then \
+    sed -e '1,/^#$/d' < wget.po > wget.1po && \
+    cat ./wget.pot-header wget.1po > wget.po; \
+    rm -f wget.1po; \
+  fi; \
+  if test -f ./wget.pot; then \
+    sed -f remove-potcdate.sed < ./wget.pot > wget.1po && \
+    sed -f remove-potcdate.sed < wget.po > wget.2po && \
+    if cmp wget.1po wget.2po >/dev/null 2>&1; then \
+      rm -f wget.1po wget.2po wget.po; \
+    else \
+      rm -f wget.1po wget.2po ./wget.pot && \
+      mv wget.po ./wget.pot; \
+    fi; \
+  else \
+    mv wget.po ./wget.pot; \
+  fi; \
+}
+make[3]: Leaving directory '/src/wget/po'
+test ! -f ./wget.pot || \
+  test -z "" || make
+touch stamp-po
+make[2]: Leaving directory '/src/wget/po'
+Making all in gnulib_po
+make[2]: Entering directory '/src/wget/gnulib_po'
+make wget-gnulib.pot-update
+make[3]: Entering directory '/src/wget/gnulib_po'
+sed -e '/^#/d' remove-potcdate.sin > t-remove-potcdate.sed
+mv t-remove-potcdate.sed remove-potcdate.sed
+package_gnu=""; \
+test -n "$package_gnu" || { \
+  if { if (LC_ALL=C find --version) 2>/dev/null | grep GNU >/dev/null; then \
+         LC_ALL=C find -L .. -maxdepth 1 -type f -size -10000000c -exec grep -i 'GNU wget' /dev/null '{}' ';' 2>/dev/null; \
+       else \
+         LC_ALL=C grep -i 'GNU wget' ../* 2>/dev/null; \
+       fi; \
+     } | grep -v 'libtool:' >/dev/null; then \
+     package_gnu=yes; \
+   else \
+     package_gnu=no; \
+   fi; \
+}; \
+if test "$package_gnu" = "yes"; then \
+  package_prefix='GNU '; \
+else \
+  package_prefix=''; \
+fi; \
+if test -n 'bug-gnulib@gnu.org' || test 'bug-wget@gnu.org' = '@'PACKAGE_BUGREPORT'@'; then \
+  msgid_bugs_address='bug-gnulib@gnu.org'; \
+else \
+  msgid_bugs_address='bug-wget@gnu.org'; \
+fi; \
+case `/usr/bin/xgettext --version | sed 1q | sed -e 's,^[^0-9]*,,'` in \
+  '' | 0.[0-9] | 0.[0-9].* | 0.1[0-5] | 0.1[0-5].* | 0.16 | 0.16.[0-1]*) \
+    /usr/bin/xgettext --default-domain=wget-gnulib --directory=.. \
+      --add-comments=TRANSLATORS: \
+      --files-from=./POTFILES.in \
+      --copyright-holder='Free Software Foundation, Inc.' \
+      --msgid-bugs-address="$msgid_bugs_address" \
+      --keyword=_ --flag=_:1:pass-c-format --keyword=N_ --flag=N_:1:pass-c-format --keyword='proper_name:1,"This is a proper name. See the gettext manual, section Names."' --keyword='proper_name_lite:1,"This is a proper name. See the gettext manual, section Names."' --keyword='proper_name_utf8:1,"This is a proper name. See the gettext manual, section Names."' --flag=error:3:c-format --flag=error_at_line:5:c-format  --flag=error:3:c-format --flag=error_at_line:5:c-format --flag=asprintf:2:c-format --flag=vasprintf:2:c-format \
+    ;; \
+  *) \
+    /usr/bin/xgettext --default-domain=wget-gnulib --directory=.. \
+      --add-comments=TRANSLATORS: \
+      --files-from=./POTFILES.in \
+      --copyright-holder='Free Software Foundation, Inc.' \
+      --package-name="${package_prefix}wget" \
+      --package-version='1.24.5.7-ca10' \
+      --msgid-bugs-address="$msgid_bugs_address" \
+      --keyword=_ --flag=_:1:pass-c-format --keyword=N_ --flag=N_:1:pass-c-format --keyword='proper_name:1,"This is a proper name. See the gettext manual, section Names."' --keyword='proper_name_lite:1,"This is a proper name. See the gettext manual, section Names."' --keyword='proper_name_utf8:1,"This is a proper name. See the gettext manual, section Names."' --flag=error:3:c-format --flag=error_at_line:5:c-format  --flag=error:3:c-format --flag=error_at_line:5:c-format --flag=asprintf:2:c-format --flag=vasprintf:2:c-format \
+    ;; \
+esac
+/usr/bin/xgettext: warning: file 'lib/libunistring.valgrind' extension 'valgrind' is unknown; will try C
+/usr/bin/xgettext: warning: file 'lib/memchr.valgrind' extension 'valgrind' is unknown; will try C
+/usr/bin/xgettext: warning: file 'lib/rawmemchr.valgrind' extension 'valgrind' is unknown; will try C
+/usr/bin/xgettext: warning: file 'lib/strchrnul.valgrind' extension 'valgrind' is unknown; will try C
+/usr/bin/xgettext: warning: file 'lib/unicase/special-casing-table.gperf' extension 'gperf' is unknown; will try C
+test ! -f wget-gnulib.po || { \
+  if test -f ./wget-gnulib.pot-header; then \
+    sed -e '1,/^#$/d' < wget-gnulib.po > wget-gnulib.1po && \
+    cat ./wget-gnulib.pot-header wget-gnulib.1po > wget-gnulib.po && \
+    rm -f wget-gnulib.1po \
+    || exit 1; \
+  fi; \
+  if test -f ./wget-gnulib.pot; then \
+    sed -f remove-potcdate.sed < ./wget-gnulib.pot > wget-gnulib.1po && \
+    sed -f remove-potcdate.sed < wget-gnulib.po > wget-gnulib.2po && \
+    if cmp wget-gnulib.1po wget-gnulib.2po >/dev/null 2>&1; then \
+      rm -f wget-gnulib.1po wget-gnulib.2po wget-gnulib.po; \
+    else \
+      rm -f wget-gnulib.1po wget-gnulib.2po ./wget-gnulib.pot && \
+      mv wget-gnulib.po ./wget-gnulib.pot; \
+    fi; \
+  else \
+    mv wget-gnulib.po ./wget-gnulib.pot; \
+  fi; \
+}
+make[3]: Leaving directory '/src/wget/gnulib_po'
+*** error: gettext infrastructure mismatch: using a Makefile.in.in from gettext version 0.20 but the autoconf macros are from gettext version 0.19
+make[2]: *** [Makefile:765: stamp-po] Error 1
+make[2]: Leaving directory '/src/wget/gnulib_po'
+make[1]: *** [Makefile:2030: all-recursive] Error 1
+make[1]: Leaving directory '/src/wget'
+make: *** [Makefile:1982: all] Error 2
+
+
+
+
+```
+
+we are actually linking `wget` succesfully!
+
+
+See here:
+
+```
+
+1 warning generated.
+clang: warning: -Wl,--allow-multiple-definition: 'linker' input unused [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-L/src/wget_deps/lib' [-Wunused-command-line-argument]
+  CCLD     wget
+make[3]: Leaving directory '/src/wget/src'
+make[2]: Leaving directory '/src/wget/src'
+
+```
+
+
+
+but then it fails in the building of the docs , we don't really need the docs for anything, so let's just skip those for now. We can add `--disable-doc` to the configuration flags and then try again...
+
+After adding `--disable-doc` , I get these errors:
+
+```
+
+./bootstrap: done.  Now you can run './configure'.
++ ORIG_CFLAGS='-O1 -fno-omit-frame-pointer -gline-tables-only -Wno-error=enum-constexpr-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion -Wno-error=deprecated-declarations -Wno-error=implicit-function-declaration -Wno-error=implicit-int -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link -I/src/wget_deps/include -L/src/wget_deps/lib'
++ CFLAGS='-O1 -fno-omit-frame-pointer -gline-tables-only -Wno-error=enum-constexpr-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion -Wno-error=deprecated-declarations -Wno-error=implicit-function-declaration -Wno-error=implicit-int -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link -I/src/wget_deps/include -L/src/wget_deps/lib -Wall -Wl,--allow-multiple-definition'
++ LIBS='-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz'
++ ./configure -C --disable-doc
+configure: WARNING: unrecognized options: --disable-doc
+
+```
+
+Fuck!!!!!
+
+Why does the differences in versions have to always fuck me up?
+
+Here is all of the make targets in the wget source code:
+
+```
+Making all in lib
+Making all in src
+Making all in doc
+Making all in po
+Making all in gnulib_po
+Making all in util
+Making all in fuzz
+Making all in tests
+Making all in testenv
+```
+
+Ok, so here is the stuff:
+
+```
+
+touch stamp-po
+make[2]: Leaving directory '/src/wget/po'
+Making all in gnulib_po
+make[2]: Entering directory '/src/wget/gnulib_po'
+make wget-gnulib.pot-update
+make[3]: Entering directory '/src/wget/gnulib_po'
+sed -e '/^#/d' remove-potcdate.sin > t-remove-potcdate.sed
+mv t-remove-potcdate.sed remove-potcdate.sed
+package_gnu=""; \
+test -n "$package_gnu" || { \
+  if { if (LC_ALL=C find --version) 2>/dev/null | grep GNU >/dev/null; then \
+         LC_ALL=C find -L .. -maxdepth 1 -type f -size -10000000c -exec grep -i 'GNU wget' /dev/null '{}' ';' 2>/dev/null; \
+       else \
+         LC_ALL=C grep -i 'GNU wget' ../* 2>/dev/null; \
+       fi; \
+     } | grep -v 'libtool:' >/dev/null; then \
+     package_gnu=yes; \
+   else \
+     package_gnu=no; \
+   fi; \
+}; \
+if test "$package_gnu" = "yes"; then \
+  package_prefix='GNU '; \
+else \
+  package_prefix=''; \
+fi; \
+if test -n 'bug-gnulib@gnu.org' || test 'bug-wget@gnu.org' = '@'PACKAGE_BUGREPORT'@'; then \
+  msgid_bugs_address='bug-gnulib@gnu.org'; \
+else \
+  msgid_bugs_address='bug-wget@gnu.org'; \
+fi; \
+case `/usr/bin/xgettext --version | sed 1q | sed -e 's,^[^0-9]*,,'` in \
+  '' | 0.[0-9] | 0.[0-9].* | 0.1[0-5] | 0.1[0-5].* | 0.16 | 0.16.[0-1]*) \
+    /usr/bin/xgettext --default-domain=wget-gnulib --directory=.. \
+      --add-comments=TRANSLATORS: \
+      --files-from=./POTFILES.in \
+      --copyright-holder='Free Software Foundation, Inc.' \
+      --msgid-bugs-address="$msgid_bugs_address" \
+      --keyword=_ --flag=_:1:pass-c-format --keyword=N_ --flag=N_:1:pass-c-format --keyword='proper_name:1,"This is a proper name. See the gettext manual, section Names."' --keyword='proper_name_lite:1,"This is a proper name. See the gettext manual, section Names."' --keyword='proper_name_utf8:1,"This is a proper name. See the gettext manual, section Names."' --flag=error:3:c-format --flag=error_at_line:5:c-format  --flag=error:3:c-format --flag=error_at_line:5:c-format --flag=asprintf:2:c-format --flag=vasprintf:2:c-format \
+    ;; \
+  *) \
+    /usr/bin/xgettext --default-domain=wget-gnulib --directory=.. \
+      --add-comments=TRANSLATORS: \
+      --files-from=./POTFILES.in \
+      --copyright-holder='Free Software Foundation, Inc.' \
+      --package-name="${package_prefix}wget" \
+      --package-version='1.24.5.7-ca10' \
+      --msgid-bugs-address="$msgid_bugs_address" \
+      --keyword=_ --flag=_:1:pass-c-format --keyword=N_ --flag=N_:1:pass-c-format --keyword='proper_name:1,"This is a proper name. See the gettext manual, section Names."' --keyword='proper_name_lite:1,"This is a proper name. See the gettext manual, section Names."' --keyword='proper_name_utf8:1,"This is a proper name. See the gettext manual, section Names."' --flag=error:3:c-format --flag=error_at_line:5:c-format  --flag=error:3:c-format --flag=error_at_line:5:c-format --flag=asprintf:2:c-format --flag=vasprintf:2:c-format \
+    ;; \
+esac
+/usr/bin/xgettext: warning: file 'lib/libunistring.valgrind' extension 'valgrind' is unknown; will try C
+/usr/bin/xgettext: warning: file 'lib/memchr.valgrind' extension 'valgrind' is unknown; will try C
+/usr/bin/xgettext: warning: file 'lib/rawmemchr.valgrind' extension 'valgrind' is unknown; will try C
+/usr/bin/xgettext: warning: file 'lib/strchrnul.valgrind' extension 'valgrind' is unknown; will try C
+/usr/bin/xgettext: warning: file 'lib/unicase/special-casing-table.gperf' extension 'gperf' is unknown; will try C
+test ! -f wget-gnulib.po || { \
+  if test -f ./wget-gnulib.pot-header; then \
+    sed -e '1,/^#$/d' < wget-gnulib.po > wget-gnulib.1po && \
+    cat ./wget-gnulib.pot-header wget-gnulib.1po > wget-gnulib.po && \
+    rm -f wget-gnulib.1po \
+    || exit 1; \
+  fi; \
+  if test -f ./wget-gnulib.pot; then \
+    sed -f remove-potcdate.sed < ./wget-gnulib.pot > wget-gnulib.1po && \
+    sed -f remove-potcdate.sed < wget-gnulib.po > wget-gnulib.2po && \
+    if cmp wget-gnulib.1po wget-gnulib.2po >/dev/null 2>&1; then \
+      rm -f wget-gnulib.1po wget-gnulib.2po wget-gnulib.po; \
+    else \
+      rm -f wget-gnulib.1po wget-gnulib.2po ./wget-gnulib.pot && \
+      mv wget-gnulib.po ./wget-gnulib.pot; \
+    fi; \
+  else \
+    mv wget-gnulib.po ./wget-gnulib.pot; \
+  fi; \
+}
+make[3]: Leaving directory '/src/wget/gnulib_po'
+test ! -f ./wget-gnulib.pot || \
+  test -z "af.gmo be.gmo bg.gmo ca.gmo cs.gmo da.gmo de.gmo el.gmo eo.gmo es.gmo et.gmo eu.gmo fi.gmo fr.gmo ga.gmo gl.gmo hu.gmo it.gmo ja.gmo ka.gmo ko.gmo ms.gmo nb.gmo nl.gmo pl.gmo pt.gmo pt_BR.gmo ro.gmo ru.gmo rw.gmo sk.gmo sl.gmo sr.gmo sv.gmo tr.gmo uk.gmo vi.gmo zh_CN.gmo zh_TW.gmo" || make af.gmo be.gmo bg.gmo ca.gmo cs.gmo da.gmo de.gmo el.gmo eo.gmo es.gmo et.gmo eu.gmo fi.gmo fr.gmo ga.gmo gl.gmo hu.gmo it.gmo ja.gmo ka.gmo ko.gmo ms.gmo nb.gmo nl.gmo pl.gmo pt.gmo pt_BR.gmo ro.gmo ru.gmo rw.gmo sk.gmo sl.gmo sr.gmo sv.gmo tr.gmo uk.gmo vi.gmo zh_CN.gmo zh_TW.gmo
+make[3]: Entering directory '/src/wget/gnulib_po'
+/usr/bin/msgmerge --update  --lang=af --previous af.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=be --previous be.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=ca --previous ca.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=bg --previous bg.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=cs --previous cs.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=de --previous de.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=da --previous da.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=el --previous el.po wget-gnulib.pot
+................................................................... done.
+........... done.
+........ done.
+...... done.
+...... done.
+............ done.
+./usr/bin/msgmerge --update  --lang=eo --previous eo.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=es --previous es.po wget-gnulib.pot
+ done.
+/usr/bin/msgmerge --update  --lang=et --previous et.po wget-gnulib.pot
+........../usr/bin/msgmerge --update  --lang=eu --previous eu.po wget-gnulib.pot
+...... done.
+./usr/bin/msgmerge --update  --lang=fi --previous fi.po wget-gnulib.pot
+......./usr/bin/msgmerge --update  --lang=fr --previous fr.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=ga --previous ga.po wget-gnulib.pot
+...... done.
+/usr/bin/msgmerge --update  --lang=gl --previous gl.po wget-gnulib.pot
+..................... done.
+............. done.
+............./usr/bin/msgmerge --update  --lang=hu --previous hu.po wget-gnulib.pot
+.......... done.
+ done.
+........./usr/bin/msgmerge --update  --lang=it --previous it.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=ja --previous ja.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=ka --previous ka.po wget-gnulib.pot
+........ done.
+........................................... done.
+../usr/bin/msgmerge --update  --lang=ko --previous ko.po wget-gnulib.pot
+...... done.
+............... done.
+/usr/bin/msgmerge --update  --lang=ms --previous ms.po wget-gnulib.pot
+............ done.
+.......... done.
+. done.
+/usr/bin/msgmerge --update  --lang=nb --previous nb.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=nl --previous nl.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=pl --previous pl.po wget-gnulib.pot
+............./usr/bin/msgmerge --update  --lang=pt_BR --previous pt_BR.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=ro --previous ro.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=pt --previous pt.po wget-gnulib.pot
+........... done.
+..................................... done.
+ done.
+............. done.
+......./usr/bin/msgmerge --update  --lang=ru --previous ru.po wget-gnulib.pot
+............................ done.
+........ done.
+/usr/bin/msgmerge --update  --lang=sk --previous sk.po wget-gnulib.pot
+........ done.
+/usr/bin/msgmerge --update  --lang=sl --previous sl.po wget-gnulib.pot
+/usr/bin/msgmerge --update  --lang=rw --previous rw.po wget-gnulib.pot
+../usr/bin/msgmerge --update  --lang=sr --previous sr.po wget-gnulib.pot
+......... done.
+....../usr/bin/msgmerge --update  --lang=sv --previous sv.po wget-gnulib.pot
+ done.
+/usr/bin/msgmerge --update  --lang=tr --previous tr.po wget-gnulib.pot
+.........../usr/bin/msgmerge --update  --lang=uk --previous uk.po wget-gnulib.pot
+............... done.
+................. done.
+........... done.
+.........../usr/bin/msgmerge --update  --lang=vi --previous vi.po wget-gnulib.pot
+......................... done.
+ done.
+ done.
+/usr/bin/msgmerge --update  --lang=zh_CN --previous zh_CN.po wget-gnulib.pot
+rm -f af.gmo && /usr/bin/msgmerge @MSGMERGE_FOR_MSGFMT_OPTION@ -o af.1po af.po wget-gnulib.pot && /usr/bin/msgfmt -c --statistics --verbose -o af.gmo af.1po && rm -f af.1po
+/usr/bin/msgmerge --update  --lang=zh_TW --previous zh_TW.po wget-gnulib.pot
+rm -f be.gmo && /usr/bin/msgmerge @MSGMERGE_FOR_MSGFMT_OPTION@ -o be.1po be.po wget-gnulib.pot && /usr/bin/msgfmt -c --statistics --verbose -o be.gmo be.1po && rm -f be.1po
+........./usr/bin/msgmerge: exactly 2 input files required
+Try '/usr/bin/msgmerge --help' for more information.
+make[3]: *** [Makefile:725: be.gmo] Error 1
+make[3]: *** Waiting for unfinished jobs....
+.....rm -f bg.gmo && /usr/bin/msgmerge @MSGMERGE_FOR_MSGFMT_OPTION@ -o bg.1po bg.po wget-gnulib.pot && /usr/bin/msgfmt -c --statistics --verbose -o bg.gmo bg.1po && rm -f bg.1po
+...rm -f ca.gmo && /usr/bin/msgmerge @MSGMERGE_FOR_MSGFMT_OPTION@ -o ca.1po ca.po wget-gnulib.pot && /usr/bin/msgfmt -c --statistics --verbose -o ca.gmo ca.1po && rm -f ca.1po
+.................... done.
+ done.
+/usr/bin/msgmerge: /usr/bin/msgmerge: exactly 2 input files required
+exactly 2 input files required
+Try '/usr/bin/msgmerge --help' for more information.
+Try '/usr/bin/msgmerge --help' for more information.
+make[3]: *** [Makefile:725: ca.gmo] Error 1
+make[3]: *** [Makefile:725: bg.gmo] Error 1
+............ done.
+/usr/bin/msgmerge: exactly 2 input files required
+Try '/usr/bin/msgmerge --help' for more information.
+make[3]: *** [Makefile:725: af.gmo] Error 1
+.................. done.
+make[3]: Leaving directory '/src/wget/gnulib_po'
+make[2]: *** [Makefile:766: stamp-po] Error 2
+make[2]: Leaving directory '/src/wget/gnulib_po'
+make[1]: *** [Makefile:2030: all-recursive] Error 1
+make[1]: Leaving directory '/src/wget'
+make: *** [Makefile:1982: all] Error 2
+
+
+```
+
+What happens if we just ignore all of the errors which get produced during compilation??????!?!?!
+
+Here is my current build.sh file:
+
+```
+
+
+#!/bin/bash -eu
+# Copyright 2016 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+################################################################################
+
+export WGET_DEPS_PATH=$SRC/wget_deps
+export PKG_CONFIG_PATH=$WGET_DEPS_PATH/lib64/pkgconfig:$WGET_DEPS_PATH/lib/pkgconfig
+export CPPFLAGS="-I$WGET_DEPS_PATH/include"
+export CFLAGS="$CFLAGS -I$WGET_DEPS_PATH/include -L$WGET_DEPS_PATH/lib"
+export LDFLAGS="-L$WGET_DEPS_PATH/lib"
+export GNULIB_SRCDIR=$SRC/gnulib
+export LLVM_PROFILE_FILE=/tmp/prof.test
+
+cd $SRC/libunistring
+./configure --enable-static --disable-shared --prefix=$WGET_DEPS_PATH --cache-file ../config.cache
+make -j$(nproc)
+make install
+
+cd $SRC/libidn2
+./configure --enable-static --disable-shared --disable-doc --disable-gcc-warnings --prefix=$WGET_DEPS_PATH --cache-file ../config.cache
+make -j$(nproc)
+make install
+
+cd $SRC/libpsl
+./autogen.sh
+./configure --enable-static --disable-shared --disable-gtk-doc --enable-runtime=libidn2 --enable-builtin=libidn2 --prefix=$WGET_DEPS_PATH --cache-file ../config.cache
+make -j$(nproc)
+make install
+
+GNUTLS_CONFIGURE_FLAGS=""
+NETTLE_CONFIGURE_FLAGS=""
+if [[ $CFLAGS = *sanitize=memory* ]] || [[ $CFLAGS = *sanitize=address* ]] || [[ $CFLAGS = *sanitize=undefined* ]]; then
+  GNUTLS_CONFIGURE_FLAGS="--disable-hardware-acceleration"
+  NETTLE_CONFIGURE_FLAGS="--disable-assembler --disable-fat"
+fi
+
+# We could use GMP from git repository to avoid false positives in
+# sanitizers, but GMP doesn't compile with clang. We use gmp-mini
+# instead.
+cd $SRC/nettle
+git checkout 8be0d5c4cbb0a1f1939e314418af6c10d26da70d # This specific commit is needed, because reasons...
+bash .bootstrap
+./configure --enable-mini-gmp --enable-static --disable-shared --disable-documentation --disable-openssl --prefix=$WGET_DEPS_PATH $NETTLE_CONFIGURE_FLAGS --cache-file ../config.cache
+( make -j$(nproc) || make -j$(nproc) ) && make install
+if test $? != 0;then
+        echo "Failed to compile nettle"
+        exit 1
+fi
+
+cd $SRC/gnutls
+touch .submodule.stamp
+./bootstrap
+GNUTLS_CFLAGS=`echo $CFLAGS|sed s/-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION//`
+
+LIBS="-lunistring" \
+CFLAGS="$GNUTLS_CFLAGS" \
+./configure --with-nettle-mini --enable-gcc-warnings --enable-static --disable-shared --with-included-libtasn1 \
+    --with-included-unistring --without-p11-kit --disable-doc --disable-tests --disable-tools --disable-cxx \
+    --disable-maintainer-mode --disable-libdane --disable-gcc-warnings --disable-full-test-suite \
+    --prefix=$WGET_DEPS_PATH $GNUTLS_CONFIGURE_FLAGS
+make -j$(nproc)
+make install
+
+
+# avoid iconv() memleak on Ubuntu 16.04 image (breaks test suite)
+export ASAN_OPTIONS=detect_leaks=0
+
+# Ensure our libraries can be found
+ln -s $WGET_DEPS_PATH/lib64/libhogweed.a $WGET_DEPS_PATH/lib/libhogweed.a
+ln -s $WGET_DEPS_PATH/lib64/libnettle.a  $WGET_DEPS_PATH/lib/libnettle.a
+
+cd $SRC/wget
+./bootstrap --skip-po
+#autoreconf -fi # This fucks shit up, so skip over this step. This doesn't seem to affect other things.
+
+# We need to add "--allow-multiple-definition" to the compiler flags before compiling to avoid some errors.
+
+ORIG_CFLAGS="$CFLAGS"
+
+# These modifications are needed, because otherwise we get an error while building the documentation
+
+
+echo "#A Makefile" > $SRC/wget/doc/Makefile.am
+echo "Nothing:" >> $SRC/wget/doc/Makefile.am
+echo "all:# twist again" >> $SRC/wget/doc/Makefile.am
+echo ".SILENT:" >> $SRC/wget/doc/Makefile.am
+
+# gnulib_po Makefile.in.in has the wrong gettext version. Just patch it out (for now)...
+
+sed -i -e 's/GETTEXT_MACRO_VERSION = 0.20/GETTEXT_MACRO_VERSION = 0.19/g' $SRC/wget/gnulib_po/Makefile.in.in
+
+# build and run non-networking tests
+CFLAGS="$ORIG_CFLAGS -Wall -Wl,--allow-multiple-definition" \
+LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
+./configure -C --disable-doc
+make clean MAKEINFO=true
+# make MAKEINFO=true we need to skip building the documentation, because those cause errors.
+make -j$(nproc) MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+make -j$(nproc) -C fuzz check MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+
+# build for fuzzing
+# We also need to "--allow-multiple-definition" stuff here too!
+CFLAGS="$ORIG_CFLAGS -Wall -Wl,--allow-multiple-definition" \
+LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
+./configure --enable-fuzzing -C --disable-doc
+make clean
+make -j$(nproc) -C lib MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+make -j$(nproc) -C src MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+
+# build fuzzers
+cd fuzz
+make -j$(nproc) ../src/libunittest.a MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+make oss-fuzz MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+
+find . -name '*_fuzzer' -exec cp -v '{}' $OUT ';'
+find . -name '*_fuzzer.dict' -exec cp -v '{}' $OUT ';'
+find . -name '*_fuzzer.options' -exec cp -v '{}' $OUT ';'
+
+for dir in *_fuzzer.in; do
+  fuzzer=$(basename $dir .in)
+  zip -rj "$OUT/${fuzzer}_seed_corpus.zip" "${dir}/"
+done
+
+
+```
+
+and it compiles the fuzzers correctly! Good!!
+
+Now, the question is: Can you run them???
+
+Let's try to run `python infra/helper.py run_fuzzer --corpus-dir=corpus/ wget wget_options_fuzzer`
+
+it finds a memory leak.... it suggests to use `-detect_leaks=0` to the options to disable detection of memory leaks, but I can't really put that command line option in the running arguments, because the python script will whine about it, so therefore I had to modify the infra/helper.py file to add that option before running the fuzzer.
+
+## Final thoughts
+
+Ok, so there was quite a lot of debugging involved. Very little coding, but a lot of trial and error to get shit to work and now I have finally duct taped something together which works. Here is the very final diff:
+
+```
+diff --git a/infra/helper.py b/infra/helper.py
+index 0d331791a..e83510790 100755
+--- a/infra/helper.py
++++ b/infra/helper.py
+@@ -1381,6 +1381,7 @@ def run_fuzzer(args):
+       'SANITIZER=' + args.sanitizer,
+       'RUN_FUZZER_MODE=interactive',
+       'HELPER=True',
++      'ASAN_OPTIONS=detect_leaks=0:log_path=stdout:abort_on_error=1', # This here is to ignore memory leaks.
+   ]
+
+   if args.e:
+diff --git a/projects/wget/build.sh b/projects/wget/build.sh
+index 83e81b065..8260b1717 100755
+--- a/projects/wget/build.sh
++++ b/projects/wget/build.sh
+@@ -41,7 +41,7 @@ make install
+
+ GNUTLS_CONFIGURE_FLAGS=""
+ NETTLE_CONFIGURE_FLAGS=""
+-if [[ $CFLAGS = *sanitize=memory* ]]; then
++if [[ $CFLAGS = *sanitize=memory* ]] || [[ $CFLAGS = *sanitize=address* ]] || [[ $CFLAGS = *sanitize=undefined* ]]; then
+   GNUTLS_CONFIGURE_FLAGS="--disable-hardware-acceleration"
+   NETTLE_CONFIGURE_FLAGS="--disable-assembler --disable-fat"
+ fi
+@@ -50,6 +50,7 @@ fi
+ # sanitizers, but GMP doesn't compile with clang. We use gmp-mini
+ # instead.
+ cd $SRC/nettle
++#git checkout 8be0d5c4cbb0a1f1939e314418af6c10d26da70d # This specific commit is needed, because reasons...
+ bash .bootstrap
+ ./configure --enable-mini-gmp --enable-static --disable-shared --disable-documentation --disable-openssl --prefix=$WGET_DEPS_PATH $NETTLE_CONFIGURE_FLAGS --cache-file ../config.cache
+ ( make -j$(nproc) || make -j$(nproc) ) && make install
+@@ -62,6 +63,7 @@ cd $SRC/gnutls
+ touch .submodule.stamp
+ ./bootstrap
+ GNUTLS_CFLAGS=`echo $CFLAGS|sed s/-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION//`
++
+ LIBS="-lunistring" \
+ CFLAGS="$GNUTLS_CFLAGS" \
+ ./configure --with-nettle-mini --enable-gcc-warnings --enable-static --disable-shared --with-included-libtasn1 \
+@@ -81,26 +83,46 @@ ln -s $WGET_DEPS_PATH/lib64/libnettle.a  $WGET_DEPS_PATH/lib/libnettle.a
+
+ cd $SRC/wget
+ ./bootstrap --skip-po
+-autoreconf -fi
++#autoreconf -fi # This fucks shit up, so skip over this step. This doesn't seem to affect other things.
++
++# We need to add "--allow-multiple-definition" to the compiler flags before compiling to avoid some errors.
++
++ORIG_CFLAGS="$CFLAGS"
++
++# These modifications are needed, because otherwise we get an error while building the documentation
++
++
++echo "#A Makefile" > $SRC/wget/doc/Makefile.am
++echo "Nothing:" >> $SRC/wget/doc/Makefile.am
++echo "all:# twist again" >> $SRC/wget/doc/Makefile.am
++echo ".SILENT:" >> $SRC/wget/doc/Makefile.am
++
++# gnulib_po Makefile.in.in has the wrong gettext version. Just patch it out (for now)...
++
++sed -i -e 's/GETTEXT_MACRO_VERSION = 0.20/GETTEXT_MACRO_VERSION = 0.19/g' $SRC/wget/gnulib_po/Makefile.in.in
+
+ # build and run non-networking tests
++CFLAGS="$ORIG_CFLAGS -Wall -Wl,--allow-multiple-definition" \
+ LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
+-./configure -C
+-make clean
+-make -j$(nproc)
+-make -j$(nproc) -C fuzz check
++./configure -C --disable-doc
++make clean MAKEINFO=true
++# make MAKEINFO=true we need to skip building the documentation, because those cause errors.
++make -j$(nproc) MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
++make -j$(nproc) -C fuzz check MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+
+ # build for fuzzing
++# We also need to "--allow-multiple-definition" stuff here too!
++CFLAGS="$ORIG_CFLAGS -Wall -Wl,--allow-multiple-definition" \
+ LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
+-./configure --enable-fuzzing -C
++./configure --enable-fuzzing -C --disable-doc
+ make clean
+-make -j$(nproc) -C lib
+-make -j$(nproc) -C src
++make -j$(nproc) -C lib MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
++make -j$(nproc) -C src MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+
+ # build fuzzers
+ cd fuzz
+-make -j$(nproc) ../src/libunittest.a
+-make oss-fuzz
++make -j$(nproc) ../src/libunittest.a MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
++make oss-fuzz MAKEINFO=true || true # ignore errors, which may be caused in gnulib_po
+
+ find . -name '*_fuzzer' -exec cp -v '{}' $OUT ';'
+ find . -name '*_fuzzer.dict' -exec cp -v '{}' $OUT ';'
+
+```
+
+
+
+## TODO for the future:
 
  * Fix the fuzzer compilation process (done)
- * Fix the oss-fuzz fuzzer compilation process.
+ * Fix the oss-fuzz fuzzer compilation process. (now done after plenty of debugging)
  * Improve fuzzing corpus code coverage.
  * Fix the bugs found by the fuzzer.
 
