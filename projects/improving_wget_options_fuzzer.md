@@ -2860,13 +2860,957 @@ index 83e81b065..8260b1717 100755
 
 ```
 
+## Why doesn't the fuzzer crash on a crashing input?
+
+Ok, so now after a bit of trial and error, the fuzzer doesn't seem to crash on a crashing input. I can not reveal which input crashes the program, because that bug hasn't yet been fixed.
+
+I solved this problem
+
+## Solving the coverage issue
+
+Ok, so it is time to improve coverage.
+
+Let's take a look at the dictionary file and see what we have.
+
+Here is the current dictionary file:
+
+```
+"--"
+"no-"
+"on"
+"off"
+"="
+"PEM"
+"DER"
+"ASN1"
+"INF"
+"INFINITY"
+"1"
+"1k"
+"1m"
+"1g"
+"1t"
+"1s"
+"1m"
+"1h"
+"1d"
+"hard"
+"soft"
+"none"
+"ipv4"
+"ipv6"
+"bar"
+"posix"
+"pcre"
+"bytes"
+"bits"
+"human"
+"csv"
+"json"
+"accept="
+"accept-regex="
+"adjust-extension="
+"append-output="
+"ask-password="
+"auth-no-challenge="
+"backup-converted="
+"backups="
+"base="
+"bind-address="
+"ca-certificate="
+"cache="
+"ca-directory="
+"certificate="
+"certificate-type="
+"check-certificate="
+"check-hostname="
+"chunk-size="
+"clobber="
+"config="
+"connect-timeout="
+"content-disposition="
+"content-on-error="
+"continue="
+"convert-links="
+"cookies="
+"cookie-suffixes="
+"crl-file="
+"cut-dirs="
+"cut-file-get-vars="
+"cut-url-get-vars="
+"debug="
+"default-page="
+"delete-after="
+"directories="
+"directory-prefix="
+"dns-caching="
+"dns-timeout="
+"domains="
+"egd-file="
+"exclude-domains="
+"execute="
+"filter-mime-type="
+"filter-urls="
+"follow-tags="
+"force-atom="
+"force-css="
+"force-directories="
+"force-html="
+"force-metalink="
+"force-progress="
+"force-rss="
+"force-sitemap="
+"fsync-policy="
+"gnupg-homedir="
+"gnutls-options="
+"header="
+"help="
+"host-directories="
+"hpkp="
+"hpkp-file="
+"hsts="
+"hsts-file="
+"html-extension="
+"http2="
+"http2-request-window="
+"http-keep-alive="
+"http-password="
+"http-proxy="
+"http-proxy-password="
+"http-proxy-user="
+"https-enforce="
+"https-only="
+"https-proxy="
+"http-user="
+"ignore-case="
+"ignore-tags="
+"inet4-only="
+"inet6-only="
+"input-encoding="
+"input-file="
+"iri="
+"keep-session-cookies="
+"level="
+"list-plugins="
+"load-cookies="
+"local-db="
+"local-encoding="
+"local-plugin="
+"max-redirect="
+"max-threads="
+"metalink="
+"mirror="
+"netrc="
+"netrc-file="
+"no-quiet="
+"ocsp="
+"ocsp-file="
+"ocsp-stapling="
+"output-document="
+"output-file="
+"page-requisites="
+"parent="
+"password="
+"plugin="
+"plugin-dirs="
+"plugin-help="
+"plugin-opt="
+"post-data="
+"post-file="
+"prefer-family="
+"private-key="
+"private-key-type="
+"progress="
+"protocol-directories="
+"proxy="
+"quiet="
+"quota="
+"random-file="
+"random-wait="
+"read-timeout="
+"recursive="
+"referer="
+"regex-type="
+"reject="
+"reject-regex="
+"remote-encoding="
+"report-speed="
+"restrict-file-names="
+"robots="
+"save-cookies="
+"save-headers="
+"secure-protocol="
+"server-response="
+"signature-extension="
+"span-hosts="
+"spider="
+"stats-all="
+"stats-dns="
+"stats-ocsp="
+"stats-server="
+"stats-site="
+"stats-tls="
+"strict-comments="
+"tcp-fastopen="
+"timeout="
+"timestamping="
+"tls-false-start="
+"tls-resume="
+"tls-session-file="
+"tries="
+"trust-server-names="
+"use-askpass="
+"user="
+"user-agent="
+"use-server-timestamps="
+"verbose="
+"verify-save-failed="
+"verify-sig="
+"version="
+"wait="
+"waitretry="
+"xattr="
+```
+
+looks quite good on first glance, but it is actually missing some options.
+
+Here is the help message from the newest version of wget:
+
+```
+
+Now trying to open: /home/oof/.wgetrc
+GNU Wget 1.24.5, a non-interactive network retriever.
+
+Mandatory arguments to long options are mandatory for short options too.
+
+Startup:
+  -V,  --version                   display the version of Wget and exit
+  -h,  --help                      print this help
+  -b,  --background                go to background after startup
+  -e,  --execute=COMMAND           execute a `.wgetrc'-style command
+
+Logging and input file:
+  -o,  --output-file=FILE          log messages to FILE
+  -a,  --append-output=FILE        append messages to FILE
+  -d,  --debug                     print lots of debugging information
+  -q,  --quiet                     quiet (no output)
+  -v,  --verbose                   be verbose (this is the default)
+  -nv, --no-verbose                turn off verboseness, without being quiet
+       --report-speed=TYPE         output bandwidth as TYPE.  TYPE can be bits
+  -i,  --input-file=FILE           download URLs found in local or external FILE
+  -F,  --force-html                treat input file as HTML
+  -B,  --base=URL                  resolves HTML input-file links (-i -F)
+                                     relative to URL
+       --config=FILE               specify config file to use
+       --no-config                 do not read any config file
+       --rejected-log=FILE         log reasons for URL rejection to FILE
+
+Download:
+  -t,  --tries=NUMBER              set number of retries to NUMBER (0 unlimits)
+       --retry-connrefused         retry even if connection is refused
+       --retry-on-host-error       consider host errors as non-fatal, transient errors
+       --retry-on-http-error=ERRORS    comma-separated list of HTTP errors to retry
+  -O,  --output-document=FILE      write documents to FILE
+  -nc, --no-clobber                skip downloads that would download to
+                                     existing files (overwriting them)
+       --no-netrc                  don't try to obtain credentials from .netrc
+  -c,  --continue                  resume getting a partially-downloaded file
+       --start-pos=OFFSET          start downloading from zero-based position OFFSET
+       --progress=TYPE             select progress gauge type
+       --show-progress             display the progress bar in any verbosity mode
+  -N,  --timestamping              don't re-retrieve files unless newer than
+                                     local
+       --no-if-modified-since      don't use conditional if-modified-since get
+                                     requests in timestamping mode
+       --no-use-server-timestamps  don't set the local file's timestamp by
+                                     the one on the server
+  -S,  --server-response           print server response
+       --spider                    don't download anything
+  -T,  --timeout=SECONDS           set all timeout values to SECONDS
+       --dns-timeout=SECS          set the DNS lookup timeout to SECS
+       --connect-timeout=SECS      set the connect timeout to SECS
+       --read-timeout=SECS         set the read timeout to SECS
+  -w,  --wait=SECONDS              wait SECONDS between retrievals
+                                     (applies if more then 1 URL is to be retrieved)
+       --waitretry=SECONDS         wait 1..SECONDS between retries of a retrieval
+                                     (applies if more then 1 URL is to be retrieved)
+       --random-wait               wait from 0.5*WAIT...1.5*WAIT secs between retrievals
+                                     (applies if more then 1 URL is to be retrieved)
+       --no-proxy                  explicitly turn off proxy
+  -Q,  --quota=NUMBER              set retrieval quota to NUMBER
+       --bind-address=ADDRESS      bind to ADDRESS (hostname or IP) on local host
+       --limit-rate=RATE           limit download rate to RATE
+       --no-dns-cache              disable caching DNS lookups
+       --restrict-file-names=OS    restrict chars in file names to ones OS allows
+       --ignore-case               ignore case when matching files/directories
+  -4,  --inet4-only                connect only to IPv4 addresses
+  -6,  --inet6-only                connect only to IPv6 addresses
+       --prefer-family=FAMILY      connect first to addresses of specified family,
+                                     one of IPv6, IPv4, or none
+       --user=USER                 set both ftp and http user to USER
+       --password=PASS             set both ftp and http password to PASS
+       --ask-password              prompt for passwords
+       --use-askpass=COMMAND       specify credential handler for requesting
+                                     username and password.  If no COMMAND is
+                                     specified the WGET_ASKPASS or the SSH_ASKPASS
+                                     environment variable is used.
+       --no-iri                    turn off IRI support
+       --local-encoding=ENC        use ENC as the local encoding for IRIs
+       --remote-encoding=ENC       use ENC as the default remote encoding
+       --unlink                    remove file before clobber
+       --xattr                     turn on storage of metadata in extended file attributes
+
+Directories:
+  -nd, --no-directories            don't create directories
+  -x,  --force-directories         force creation of directories
+  -nH, --no-host-directories       don't create host directories
+       --protocol-directories      use protocol name in directories
+  -P,  --directory-prefix=PREFIX   save files to PREFIX/..
+       --cut-dirs=NUMBER           ignore NUMBER remote directory components
+
+HTTP options:
+       --http-user=USER            set http user to USER
+       --http-password=PASS        set http password to PASS
+       --no-cache                  disallow server-cached data
+       --default-page=NAME         change the default page name (normally
+                                     this is 'index.html'.)
+  -E,  --adjust-extension          save HTML/CSS documents with proper extensions
+       --ignore-length             ignore 'Content-Length' header field
+       --header=STRING             insert STRING among the headers
+       --compression=TYPE          choose compression, one of auto, gzip and none. (default: none)
+       --max-redirect              maximum redirections allowed per page
+       --proxy-user=USER           set USER as proxy username
+       --proxy-password=PASS       set PASS as proxy password
+       --referer=URL               include 'Referer: URL' header in HTTP request
+       --save-headers              save the HTTP headers to file
+  -U,  --user-agent=AGENT          identify as AGENT instead of Wget/VERSION
+       --no-http-keep-alive        disable HTTP keep-alive (persistent connections)
+       --no-cookies                don't use cookies
+       --load-cookies=FILE         load cookies from FILE before session
+       --save-cookies=FILE         save cookies to FILE after session
+       --keep-session-cookies      load and save session (non-permanent) cookies
+       --post-data=STRING          use the POST method; send STRING as the data
+       --post-file=FILE            use the POST method; send contents of FILE
+       --method=HTTPMethod         use method "HTTPMethod" in the request
+       --body-data=STRING          send STRING as data. --method MUST be set
+       --body-file=FILE            send contents of FILE. --method MUST be set
+       --content-disposition       honor the Content-Disposition header when
+                                     choosing local file names (EXPERIMENTAL)
+       --content-on-error          output the received content on server errors
+       --auth-no-challenge         send Basic HTTP authentication information
+                                     without first waiting for the server's
+                                     challenge
+
+HTTPS (SSL/TLS) options:
+       --secure-protocol=PR        choose secure protocol, one of auto, SSLv2,
+                                     SSLv3, TLSv1, TLSv1_1, TLSv1_2, TLSv1_3 and PFS
+       --https-only                only follow secure HTTPS links
+       --no-check-certificate      don't validate the server's certificate
+       --certificate=FILE          client certificate file
+       --certificate-type=TYPE     client certificate type, PEM or DER
+       --private-key=FILE          private key file
+       --private-key-type=TYPE     private key type, PEM or DER
+       --ca-certificate=FILE       file with the bundle of CAs
+       --ca-directory=DIR          directory where hash list of CAs is stored
+       --crl-file=FILE             file with bundle of CRLs
+       --pinnedpubkey=FILE/HASHES  Public key (PEM/DER) file, or any number
+                                   of base64 encoded sha256 hashes preceded by
+                                   'sha256//' and separated by ';', to verify
+                                   peer against
+
+       --ciphers=STR           Set the priority string (GnuTLS) or cipher list string (OpenSSL) directly.
+                                   Use with care. This option overrides --secure-protocol.
+                                   The format and syntax of this string depend on the specific SSL/TLS engine.
+HSTS options:
+       --no-hsts                   disable HSTS
+       --hsts-file                 path of HSTS database (will override default)
+
+FTP options:
+       --ftp-user=USER             set ftp user to USER
+       --ftp-password=PASS         set ftp password to PASS
+       --no-remove-listing         don't remove '.listing' files
+       --no-glob                   turn off FTP file name globbing
+       --no-passive-ftp            disable the "passive" transfer mode
+       --preserve-permissions      preserve remote file permissions
+       --retr-symlinks             when recursing, get linked-to files (not dir)
+
+FTPS options:
+       --ftps-implicit                 use implicit FTPS (default port is 990)
+       --ftps-resume-ssl               resume the SSL/TLS session started in the control connection when
+                                         opening a data connection
+       --ftps-clear-data-connection    cipher the control channel only; all the data will be in plaintext
+       --ftps-fallback-to-ftp          fall back to FTP if FTPS is not supported in the target server
+WARC options:
+       --warc-file=FILENAME        save request/response data to a .warc.gz file
+       --warc-header=STRING        insert STRING into the warcinfo record
+       --warc-max-size=NUMBER      set maximum size of WARC files to NUMBER
+       --warc-cdx                  write CDX index files
+       --warc-dedup=FILENAME       do not store records listed in this CDX file
+       --no-warc-compression       do not compress WARC files with GZIP
+       --no-warc-digests           do not calculate SHA1 digests
+       --no-warc-keep-log          do not store the log file in a WARC record
+       --warc-tempdir=DIRECTORY    location for temporary files created by the
+                                     WARC writer
+
+Recursive download:
+  -r,  --recursive                 specify recursive download
+  -l,  --level=NUMBER              maximum recursion depth (inf or 0 for infinite)
+       --delete-after              delete files locally after downloading them
+  -k,  --convert-links             make links in downloaded HTML or CSS point to
+                                     local files
+       --convert-file-only         convert the file part of the URLs only (usually known as the basename)
+       --backups=N                 before writing file X, rotate up to N backup files
+  -K,  --backup-converted          before converting file X, back up as X.orig
+  -m,  --mirror                    shortcut for -N -r -l inf --no-remove-listing
+  -p,  --page-requisites           get all images, etc. needed to display HTML page
+       --strict-comments           turn on strict (SGML) handling of HTML comments
+
+Recursive accept/reject:
+  -A,  --accept=LIST               comma-separated list of accepted extensions
+  -R,  --reject=LIST               comma-separated list of rejected extensions
+       --accept-regex=REGEX        regex matching accepted URLs
+       --reject-regex=REGEX        regex matching rejected URLs
+       --regex-type=TYPE           regex type (posix|pcre)
+  -D,  --domains=LIST              comma-separated list of accepted domains
+       --exclude-domains=LIST      comma-separated list of rejected domains
+       --follow-ftp                follow FTP links from HTML documents
+       --follow-tags=LIST          comma-separated list of followed HTML tags
+       --ignore-tags=LIST          comma-separated list of ignored HTML tags
+  -H,  --span-hosts                go to foreign hosts when recursive
+  -L,  --relative                  follow relative links only
+  -I,  --include-directories=LIST  list of allowed directories
+       --trust-server-names        use the name specified by the redirection
+                                     URL's last component
+  -X,  --exclude-directories=LIST  list of excluded directories
+  -np, --no-parent                 don't ascend to the parent directory
+
+Email bug reports, questions, discussions to <bug-wget@gnu.org>
+and/or open issues at https://savannah.gnu.org/bugs/?func=additem&group=wget.
+
+
+```
+
+Let's create a quick script to get the new options for wget and then add them to the dictionary if they aren't present.
+
+Here is my quick implementation:
+
+```
+
+#!/bin/python3
+
+
+
+
+
+
+
+fh = open("opts.txt", "r")
+
+lines = fh.readlines()
+
+
+fh.close()
+
+
+# Read the already existing options stuff.
+
+fh = open("wget_options_fuzzer.dict", "r")
+
+options = fh.readlines()
+
+fh.close()
+
+help_opts = []
+
+for line in lines:
+	#print(line[1:-1])
+	# Skip to the "--" part
+
+	line = line[line.index("--"):]
+
+	# Cut off at the next space character
+	if " " in line:
+		line = line[:line.index(" ")]
+
+	# print(line)
+
+	if line == "" or line =="\n": # Empty???
+		continue
+
+	# Skip the stuff after the "=" character.
+	if "=" in line:
+		line = line[:line.index("=")+1]
+
+	# strip the two dashes from the start
+
+	line = line[2:]
+
+	#print(line)
+
+	if line[-1] == "\n":
+		line = line[:-1]
+		if line[-1] == ".":
+			line = line[:-1]
+			#print("POOOPOO: "+str(line))
+
+	help_opts.append(line)
+
+
+
+new_opts = []
+
+# Check if the option is already in the options file. If yes, then don't bother adding it to the list
+
+for line in help_opts:
+
+	if not any(line in x for x in options) and len(line) > 2: # It isn't in the list.
+		print(line) # The option wasn't previously in the dictionary.
+
+
+
+```
+
+In addition to adding the other options to the dictionary, we should also add the stuff from here: https://www.gnu.org/software/wget/manual/html_node/Wgetrc-Commands.html to the dictionary and see what happens.
+
+This script here seems sufficient:
+
+```
+
+fh = open("wget_rc_stuff.txt", "r")
+
+lines = fh.readlines()
+
+fh.close()
+
+for line in lines:
+	if line.startswith("<dt>"): # We have found a thing.
+		if line[-1] == "\n": # Get rid of newline at end.
+			line = line[:-1]
+
+		#print(line)
+		# Search for " = "
+		line = line[:line.index(" = ")+len(" = ")]
+		#print(line)
+		line = line[len("<dt>"):]
+		print("\""+line+"\"") # print the string wrapped in double quotes.
+
+
+```
+
+(for the wget_rc_stuff.txt file I just ran `wget https://www.gnu.org/software/wget/manual/html_node/Wgetrc-Commands.html` and then `cat Wgetrc-Commands.html | grep " = " > wget_rc_stuff.txt`)
+
+Let's test out this new dictionary on the fuzzer! With the old dictionary we got 5355 corpus files.
+
+With the new dictionary file, we went past 5355 in less than five minutes of fuzzing! Fantastic!!!!
+
+Here is our new and improved dictionary file:
+
+```
+
+# These next options are taken from here: https://www.gnu.org/software/wget/manual/html_node/Wgetrc-Commands.html
+
+"accept/reject = "
+"add_hostdir = "
+"ask_password = "
+"auth_no_challenge = "
+"background = "
+"backup_converted = "
+"backups = "
+"base = "
+"bind_address = "
+"ca_certificate = "
+"ca_directory = "
+"cache = "
+"certificate = "
+"certificate_type = "
+"check_certificate = "
+"connect_timeout = "
+"content_disposition = "
+"trust_server_names = "
+"continue = "
+"convert_links = "
+"cookies = "
+"cut_dirs = "
+"debug = "
+"default_page = "
+"delete_after = "
+"dir_prefix = "
+"dirstruct = "
+"dns_cache = "
+"dns_timeout = "
+"domains = "
+"dot_bytes = "
+"dot_spacing = "
+"dots_in_line = "
+"egd_file = "
+"exclude_directories = "
+"exclude_domains = "
+"follow_ftp = "
+"follow_tags = "
+"force_html = "
+"ftp_password = "
+"ftp_proxy = "
+"ftp_user = "
+"glob = "
+"header = "
+"compression = "
+"adjust_extension = "
+"http_keep_alive = "
+"http_password = "
+"http_proxy = "
+"http_user = "
+"https_only = "
+"https_proxy = "
+"ignore_case = "
+"ignore_length = "
+"ignore_tags = "
+"include_directories = "
+"iri = "
+"inet4_only = "
+"inet6_only = "
+"input = "
+"keep_session_cookies = "
+"limit_rate = "
+"load_cookies = "
+"local_encoding = "
+"logfile = "
+"max_redirect = "
+"mirror = "
+"netrc = "
+"no_clobber = "
+"no_parent = "
+"no_proxy = "
+"output_document = "
+"page_requisites = "
+"passive_ftp = "
+"password = "
+"post_data = "
+"post_file = "
+"prefer_family = "
+"private_key = "
+"private_key_type = "
+"progress = "
+"protocol_directories = "
+"proxy_password = "
+"proxy_user = "
+"quiet = "
+"quota = "
+"random_file = "
+"random_wait = "
+"read_timeout = "
+"reclevel = "
+"recursive = "
+"referer = "
+"relative_only = "
+"remote_encoding = "
+"remove_listing = "
+"restrict_file_names = "
+"retr_symlinks = "
+"retry_connrefused = "
+"robots = "
+"save_cookies = "
+"save_headers = "
+"secure_protocol = "
+"server_response = "
+"show_all_dns_entries = "
+"span_hosts = "
+"spider = "
+"strict_comments = "
+"timeout = "
+"timestamping = "
+"use_server_timestamps = "
+"tries = "
+"use_proxy = "
+"user = "
+"user_agent = "
+"verbose = "
+"wait = "
+"wait_retry = "
+
+# These were the new options taken from the latest version of wget (1.24.5)
+
+"background"
+"no-verbose"
+"no-config"
+"rejected-log="
+"retry-connrefused"
+"retry-on-host-error"
+"retry-on-http-error="
+"no-clobber"
+"no-netrc"
+"start-pos="
+"show-progress"
+"no-if-modified-since"
+"no-use-server-timestamps"
+"no-proxy"
+"limit-rate="
+"no-dns-cache"
+"no-iri"
+"unlink"
+"no-directories"
+"no-host-directories"
+"no-cache"
+"ignore-length"
+"compression="
+"no-http-keep-alive"
+"no-cookies"
+"method="
+"body-data="
+"body-file="
+"no-check-certificate"
+"pinnedpubkey="
+"ciphers="
+"no-hsts"
+"ftp-user="
+"ftp-password="
+"no-remove-listing"
+"no-glob"
+"no-passive-ftp"
+"preserve-permissions"
+"retr-symlinks"
+"ftps-implicit"
+"ftps-resume-ssl"
+"ftps-clear-data-connection"
+"ftps-fallback-to-ftp"
+"warc-file="
+"warc-header="
+"warc-max-size="
+"warc-cdx"
+"warc-dedup="
+"no-warc-compression"
+"no-warc-digests"
+"no-warc-keep-log"
+"warc-tempdir="
+"convert-file-only"
+"follow-ftp"
+"relative"
+"include-directories="
+"exclude-directories="
+"no-parent"
+
+# And these were the original strings from the old wget_fuzz_options.dict file...
+
+"--"
+"no-"
+"on"
+"off"
+"="
+"PEM"
+"DER"
+"ASN1"
+"INF"
+"INFINITY"
+"1"
+"1k"
+"1m"
+"1g"
+"1t"
+"1s"
+"1m"
+"1h"
+"1d"
+"hard"
+"soft"
+"none"
+"ipv4"
+"ipv6"
+"bar"
+"posix"
+"pcre"
+"bytes"
+"bits"
+"human"
+"csv"
+"json"
+"accept="
+"accept-regex="
+"adjust-extension="
+"append-output="
+"ask-password="
+"auth-no-challenge="
+"backup-converted="
+"backups="
+"base="
+"bind-address="
+"ca-certificate="
+"cache="
+"ca-directory="
+"certificate="
+"certificate-type="
+"check-certificate="
+"check-hostname="
+"chunk-size="
+"clobber="
+"config="
+"connect-timeout="
+"content-disposition="
+"content-on-error="
+"continue="
+"convert-links="
+"cookies="
+"cookie-suffixes="
+"crl-file="
+"cut-dirs="
+"cut-file-get-vars="
+"cut-url-get-vars="
+"debug="
+"default-page="
+"delete-after="
+"directories="
+"directory-prefix="
+"dns-caching="
+"dns-timeout="
+"domains="
+"egd-file="
+"exclude-domains="
+"execute="
+"filter-mime-type="
+"filter-urls="
+"follow-tags="
+"force-atom="
+"force-css="
+"force-directories="
+"force-html="
+"force-metalink="
+"force-progress="
+"force-rss="
+"force-sitemap="
+"fsync-policy="
+"gnupg-homedir="
+"gnutls-options="
+"header="
+"help="
+"host-directories="
+"hpkp="
+"hpkp-file="
+"hsts="
+"hsts-file="
+"html-extension="
+"http2="
+"http2-request-window="
+"http-keep-alive="
+"http-password="
+"http-proxy="
+"http-proxy-password="
+"http-proxy-user="
+"https-enforce="
+"https-only="
+"https-proxy="
+"http-user="
+"ignore-case="
+"ignore-tags="
+"inet4-only="
+"inet6-only="
+"input-encoding="
+"input-file="
+"iri="
+"keep-session-cookies="
+"level="
+"list-plugins="
+"load-cookies="
+"local-db="
+"local-encoding="
+"local-plugin="
+"max-redirect="
+"max-threads="
+"metalink="
+"mirror="
+"netrc="
+"netrc-file="
+"no-quiet="
+"ocsp="
+"ocsp-file="
+"ocsp-stapling="
+"output-document="
+"output-file="
+"page-requisites="
+"parent="
+"password="
+"plugin="
+"plugin-dirs="
+"plugin-help="
+"plugin-opt="
+"post-data="
+"post-file="
+"prefer-family="
+"private-key="
+"private-key-type="
+"progress="
+"protocol-directories="
+"proxy="
+"quiet="
+"quota="
+"random-file="
+"random-wait="
+"read-timeout="
+"recursive="
+"referer="
+"regex-type="
+"reject="
+"reject-regex="
+"remote-encoding="
+"report-speed="
+"restrict-file-names="
+"robots="
+"save-cookies="
+"save-headers="
+"secure-protocol="
+"server-response="
+"signature-extension="
+"span-hosts="
+"spider="
+"stats-all="
+"stats-dns="
+"stats-ocsp="
+"stats-server="
+"stats-site="
+"stats-tls="
+"strict-comments="
+"tcp-fastopen="
+"timeout="
+"timestamping="
+"tls-false-start="
+"tls-resume="
+"tls-session-file="
+"tries="
+"trust-server-names="
+"use-askpass="
+"user="
+"user-agent="
+"use-server-timestamps="
+"verbose="
+"verify-save-failed="
+"verify-sig="
+"version="
+"wait="
+"waitretry="
+"xattr="
+
+
+
+
+
+```
+
+After roughly half an hour of fuzzing, we have 9671 corpus files. That is quite decent.
+
+
+## Any new crashes?????
+
+I actually ran the fuzzer with the `-ignore_crashes=1` command line parameter, so to deduplicate the crashes, we need to write a quick python script which run's the crashes and stores every asan report in a file which we can then comb through with grep to get the individual crashes and throw out the duplicates.
+
+
+
+
+
 
 
 ## TODO for the future:
 
  * Fix the fuzzer compilation process (done)
  * Fix the oss-fuzz fuzzer compilation process. (now done after plenty of debugging)
- * Improve fuzzing corpus code coverage.
+ * Improve option fuzzing corpus code coverage.
+ * Improve option fuzzing dictionary.
  * Fix the bugs found by the fuzzer.
 
 
