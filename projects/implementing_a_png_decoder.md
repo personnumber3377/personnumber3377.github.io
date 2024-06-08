@@ -954,6 +954,224 @@ def PaethPredictor(a,b,c): # This is just a spec defined function
 
 ```
 
+and it seems to work fine.
+
+Now when I run my program on the PNG picture, it works! Good!
+
+## Adding support for other image formats (let's start with "colort == 2" first)
+
+Ok, so now we have a working PNG decoder. The problem is that it only works for RGBA images with color depth of 8 bits. Let's try to implement other picture types too.
+
+Let's implement the `colort == 2` case (the `Truecolor	2	8, 16	Each pixel is a R,G,B triple.` image type) .
+
+I think the easiest way to do this is to just improve the read_png function and then when showing the image, check if it has the alpha channel or not and then render it based on that.
+
+Here is my current code:
+
+```
+
+
+
+def read_png(data: bytes) -> None: # Just show as an image (for now).
+	if data[:len(PNG_HEADER)] != PNG_HEADER: # Not a PNG file!
+		print("File isn't a PNG file!")
+		exit(1)
+
+	global BYTES_PER_PIXEL # We may modify this when we read "colort" (the image type) . Up until then, this is assumed to be 4
+
+	data = data[len(PNG_HEADER):] # Skip the PNG header for reading the chunks
+	chunks = read_chunks(data)
+	# Get the chunk types as a list.
+	chunk_types = [chunk[1] for chunk in chunks]
+	# The very first chunk should be a b'IHDR' chunk.
+	#if chunk_types[0] != b'IHDR':
+	#	print("Very first chunk should be a b'IHDR' chunk!")
+	#	exit(1)
+	assert chunk_types[0] == IHDR_CHUNK_IDENTIFIER # First chunk should be "IHDR"
+	assert chunk_types[-1] == IEND_CHUNK_IDENTIFIER # Final chunk should be "IEND"
+	assert IDAT_CHUNK_IDENTIFIER in chunk_types # There should be atleast one data chunk.
+
+	# Now process the IHDR chunk:
+
+	'''
+
+	Field name	Field size	Description
+	Width	4 bytes	4-byte unsigned integer. Gives the image dimensions in pixels. Zero is an invalid value.
+	Height	4 bytes
+	Bit depth	1 byte	A single-byte integer giving the number of bits per sample or per palette index (not per pixel). Only certain values are valid (see below).
+	Color type	1 byte	A single-byte integer that defines the PNG image type. Valid values are 0 (grayscale), 2 (truecolor), 3 (indexed-color), 4 (greyscale with alpha) and 6 (truecolor with alpha).
+	Compression method	1 byte	A single-byte integer that indicates the method used to compress the image data. Only compression method 0 (deflate/inflate compression with a sliding window of at most 32768 bytes) is defined in the spec.
+	Filter method	1 byte	A single-byte integer that indicates the preprocessing method applied to the image data before compression. Only filter method 0 (adaptive filtering with five basic filter types) is defined in the spec.
+	Interlace method	1 byte	A single-byte integer that indicates whether there is interlacing. Two values are defined in the spec: 0 (no interlace) or 1 (Adam7 interlace).
+
+	'''
+
+	ihdr_chunk, _ = chunks[0] # Get the IHDR chunk.
+
+	# Unpack the values from that chunk...
+
+	width, height, bitd, colort, compm, filterm, interlacem = struct.unpack('>IIBBBBB', ihdr_chunk)
+
+	# Check for the image type. The usual case is the colort == 6 case (truecolor with alpha)
+
+	# Let's check for the stuff.
+
+	assert colort == 6 or colort == 2 # We only support truecolor with alpha (6) or truecolor (2).
+
+	if colort == 2: # Truecolor without alpha channel, therefore set BYTES_PER_PIXEL to three instead of four.
+		BYTES_PER_PIXEL = 3
+
+	# Check for the bitdepth. (Must be 8 for now).
+
+	assert bitd == 8
+
+	if compm != 0:
+		print('invalid compression method')
+		exit(1)
+	if filterm != 0:
+		print('invalid filter method')
+		exit(1)
+
+	chunks = chunks[1:] # Get rid of the IHDR chunk.
+
+	# Now go over each IDAT chunk...
+
+	idat_data = b''.join(chunk[0] for chunk in chunks if chunk[1] == IDAT_CHUNK_IDENTIFIER)
+
+	print("Here is the IDAT data concatenated: "+str(idat_data))
+
+	# Now use our own version of zlib.decompress to decompress it...
+
+	decompressed_data = our_decompress(idat_data)
+	print("Here is the decompressed data: "+str(decompressed_data))
+	#decompressed_data = zlib.decompress(idat_data)
+	print("Here is the length of the data: "+str(len(decompressed_data)))
+
+
+	'''
+	# Thanks to https://www.geeksforgeeks.org/break-list-chunks-size-n-python/ !!!
+
+	    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+	'''
+
+	# Just assume picture is 8 bit RGBA for now.
+
+	scanline_size = 1 + width * 4 # Four bytes per pixel times the amount of pixels plus one, because the very first byte is the filter type.
+
+	scanlines = [decompressed_data[i:i + scanline_size] for i in range(0, len(decompressed_data), scanline_size)]
+
+	out = [[0 for _ in range(len(scanlines[0]) - 1)] for _ in range(len(scanlines))] # Final RGBA image. Zero out first, such that we do not need to do shit with this later on. " - 1" , because the first byte of the scanline is the filter type.
+
+
+
+	# Just print the filter types for each scanline...
+
+	filter_types = [scanline[0] for scanline in scanlines] # Just show the filter types for now.
+
+	# Go over each scanline and add the data to the output list.
+	tot_values = 0
+	for r, scanline in enumerate(scanlines):
+		# Main loop
+
+		filt_type = scanline[0]
+
+		scanline = scanline[1:] # Cut out the filter type byte.
+		print("scanline == "+str(scanline))
+		print("len(scanline) == "+str(len(scanline)))
+		print("BYTES_PER_PIXEL == "+str(BYTES_PER_PIXEL))
+		print("colort == "+str(colort))
+		assert len(scanline) == width * BYTES_PER_PIXEL
+		for c, byte in enumerate(scanline): # Loop over each byte in the
+
+
+			tot_values += 1
+
+			match filt_type: # Switch case basically. (This is only in python3.10 and upwards)
+				case 0: # "None"
+					reconstructed = byte
+				case 1:
+					reconstructed = byte + Reconstruct_a(r, c, out, scanlines)
+				case 2:
+					reconstructed = byte + Reconstruct_b(r, c, out, scanlines)
+				case 3:
+					reconstructed = byte + (Reconstruct_a(r, c, out, scanlines) + Reconstruct_b(r, c, out, scanlines)) // 2
+				case 4:
+					reconstructed = byte + PaethPredictor(Reconstruct_a(r, c, out, scanlines), Reconstruct_b(r, c, out, scanlines), Reconstruct_c(r, c, out, scanlines)) # Paeth stuff.
+				case _: # Undefined filter type.
+					print("Invalid filter type: "+str(filt_type))
+					exit(1)
+
+			out[r][c] = reconstructed & 0xff # Place the reconstructed byte into the output.
+
+	#print(filter_types)
+
+	print("tot_values == "+str(tot_values))
+
+	# Now we have a reconstructed image in out.
+
+
+	image_bytes = []
+
+	for line in out:
+		#image_bytes += line
+		image_bytes.extend(line)
+	#print("Here are the final bytes: "+str(image_bytes))
+
+
+	# Now show the final output:
+
+	import matplotlib.pyplot as plt
+	import numpy as np
+	plt.imshow(np.array(image_bytes).reshape((height, width, BYTES_PER_PIXEL)))
+	plt.show()
+
+	print("[+] Done!")
+	return 0 # Return success
+
+```
+
+except it results in this error:
+
+```
+
+len(scanline) == 2560
+BYTES_PER_PIXEL == 3
+colort == 2
+Traceback (most recent call last):
+  File "/home/oof/programming/python_png_decoder/main.py", line 250, in <module>
+    exit(main())
+  File "/home/oof/programming/python_png_decoder/main.py", line 245, in main
+    read_png(data)
+  File "/home/oof/programming/python_png_decoder/main.py", line 186, in read_png
+    assert len(scanline) == width * BYTES_PER_PIXEL
+AssertionError
+
+
+```
+
+the image which I am using is 640 pixels wide, so therefore what if we divide 2560 by that?
+
+```
+>>> 2560 / 640
+4.0
+```
+
+What? That doesn't seem good. OOOooohhh, the bug is here: `scanline_size = 1 + width * 4 # Four bytes per pixel times the amount of pixels plus one, because the very first byte is the filter type.` . Let's replace that "4" with "BYTES_PER_PIXEL" and see what happens. After fixing this quick little bug. Now the thing works for both the `colort == 6` case and the `colort == 2` cases.
+
+Supporting other bit depths other than 8 bits is quite difficult, because then the values aren't byte aligned, but let's worry about that later on.
+
+
+
+
+
+
+
+
+
+
+
 
 
 
