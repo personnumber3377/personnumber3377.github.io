@@ -6,6 +6,7 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Basic interpreter in python (WIP)
 - Write a time based fuzzer in python, which tries to find inputs, which timeout. (This could be useful for fuzzing different kinds of python applications for DOS vulns, like django etc).
 - HTTP request fuzzer (stateful with grammar), for example make a tool which could be used to find this bug:
+- Fuzz apache httpd with libfuzzer (use the oss-fuzz stuff to fuzz instead of doing something janky). (This is under progress.)
 
 ## Some interesting looking stuff..
 
