@@ -5,6 +5,8 @@ Here is a list of different kinds of projects which I have made.
 
 ## Programming
 
+[PNG decoder in python](/projects/implementing_a_png_decoder.html)
+
 [How I automated my geometry homework.](/projects/homework.html)
 
 [Making a QR code generator from scratch.](/projects/making_a_qr_code_generator.html)
@@ -43,9 +45,9 @@ Here is a list of different kinds of projects which I have made.
 
 [Implementing paper marbling in python](/projects/paper_marbling_in_python.html)
 
-
-
 ## Hacking
+
+[Making a DOS finder custom mutator and finding bugs with it!](/projects/making_a_hang_finder.html)
 
 [Fuzzing onigmo regex engine (NEW!!!!)](/projects/fuzzing_onigmo.html)
 
@@ -85,6 +87,16 @@ Here is a list of different kinds of projects which I have made.
 
 [Fuzzing ruby command line arguments...](/projects/fuzzing_ruby_cmdline.html)
 
+[Fuzzing apache (again...)](/projects/fuzzing_apache_httpd_part_2.html)
+
+[Improving the wget fuzzer](/projects/improving_wget_options_fuzzer.html)
+
+[Fuzzing nginx](/projects/fuzzing_nginx.html)
+
+[Finding a bug in exiftool (or atleast trying to)](/projects/finding_bug_in_exiftool.html)
+
+[Finding a bug in golang (or atleast trying to)](/projects/finding_a_bug_in_golang.html)
+
 ## Misc
 
 [How I studied for an exam in roughly two days.](/projects/studying_for_exam.html)
@@ -104,10 +116,9 @@ Here is a list of different kinds of projects which I have made.
 
 [Reverse engineering "09"](/projects/reversing_09.html)
 
-## Project ideas...
+## Project ideas... (feel free to suggest anything you want!)
 
 [Project ideas...](/projects/ideas.html)
-
 
 
 

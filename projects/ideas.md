@@ -7,6 +7,7 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Write a time based fuzzer in python, which tries to find inputs, which timeout. (This could be useful for fuzzing different kinds of python applications for DOS vulns, like django etc).
 - HTTP request fuzzer (stateful with grammar), for example make a tool which could be used to find this bug:
 - Fuzz apache httpd with libfuzzer (use the oss-fuzz stuff to fuzz instead of doing something janky). (This is under progress.)
+- Try ruzzy (https://blog.trailofbits.com/2024/03/29/introducing-ruzzy-a-coverage-guided-ruby-fuzzer/) with the custom mutator which I made????
 
 ## Some interesting looking stuff..
 

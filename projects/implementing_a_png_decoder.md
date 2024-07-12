@@ -1160,7 +1160,9 @@ the image which I am using is 640 pixels wide, so therefore what if we divide 25
 
 What? That doesn't seem good. OOOooohhh, the bug is here: `scanline_size = 1 + width * 4 # Four bytes per pixel times the amount of pixels plus one, because the very first byte is the filter type.` . Let's replace that "4" with "BYTES_PER_PIXEL" and see what happens. After fixing this quick little bug. Now the thing works for both the `colort == 6` case and the `colort == 2` cases.
 
-Supporting other bit depths other than 8 bits is quite difficult, because then the values aren't byte aligned, but let's worry about that later on.
+Supporting other bit depths other than 8 bits is quite difficult, because then the values aren't byte aligned, but let's worry about that later on. Actually, we do not need to worry about such cases, because if we look at the allowed bitdepths, we can see that the allowed bitdepths are all multiples of two, therefore we do not even need to try other cases, because we can just use some bit logic when reading.
+
+
 
 
 
