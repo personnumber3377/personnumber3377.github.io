@@ -359,6 +359,71 @@ Uh oh. I think I actually found a bug... as of writing this on July 12th 2024, t
 Thank you for your patience!
 
 
+In the meantime, let's try our fuzzer on some other stuff. Let's try fuzzing the ruby library called `rack` maybe? There may be some bugs hiding in that code. Now, I think a good tool for fuzzing ruby code is ruzzy (https://blog.trailofbits.com/2024/03/29/introducing-ruzzy-a-coverage-guided-ruby-fuzzer/) , but it doesn't support python custom mutators because reasons. This sucks. I think I need to mod ruzzy, such that I can use python mutators with it.
+
+## Adding python custom mutator support for libfuzzer
+
+Ok, so I think here is some stuff which may help us: https://github.com/MozillaSecurity/libfuzzer-python-bridge (possibly). It is some minimal code, which adds support for python custom mutators in libfuzzer. Let's add some of the python fuzzer bridge code to the ruzzy fuzzer.
+
+I actually modified the python bridge with this diff:
+
+```
+diff --git a/python_bridge.cpp b/python_bridge.cpp
+index 1c3cb84..e44176b 100644
+--- a/python_bridge.cpp
++++ b/python_bridge.cpp
+@@ -134,9 +134,8 @@ static void LLVMFuzzerInitPythonModule() {
+       py_fatal_error();
+     }
+   } else {
+-    fprintf(stderr, "Warning: No Python module specified, please set the "
+-                    "LIBFUZZER_PYTHON_MODULE environment variable.\n");
+-    py_fatal_error();
++    fprintf(stderr, "Warning: No Python module specified, using the default libfuzzer mutator (for now).\n");
++    // py_fatal_error();
+   }
+
+
+@@ -154,6 +153,10 @@ static void LLVMFuzzerFinalizePythonModule() {
+
+ extern "C" size_t LLVMFuzzerCustomMutator(uint8_t *Data, size_t Size,
+                                           size_t MaxSize, unsigned int Seed) {
++  // First check if the custom python mutator is specified:
++  if (!py_module) { // No custom python mutator, so therefore just mutate regularly. (LLVMFuzzerMutate is the default mutator.)
++    return LLVMFuzzerMutate(Data, size, MaxSize);
++  }
+   PyObject* py_args = PyTuple_New(4);
+
+   // Convert Data and Size to a ByteArray
+@@ -206,7 +209,14 @@ extern "C" size_t LLVMFuzzerCustomMutator(uint8_t *Data, size_t Size,
+     }
+     memcpy(Data, PyByteArray_AsString(py_value), ReturnedSize);
+     Py_DECREF(py_value);
+-    return ReturnedSize;
++    // return ReturnedSize; // Instead of returning the python custom mutator, we should also try to use the original custom mutator too (maybe).
++    if (getenv("FUZZ_ONLY_CUSTOM")) { // Only fuzz with the custom mutator
++      return ReturnedSize;
++    }
++
++
++    return LLVMFuzzerMutate(Data, ReturnedSize, MaxSize);
++
+   } else {
+     if (PyErr_Occurred())
+       PyErr_Print();
+
+```
+
+now, we need to add this code to the ruzzy ruby fuzzer.
+
+
+
+
+
+
+
+
+
 
 
 

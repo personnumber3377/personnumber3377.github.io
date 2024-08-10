@@ -8,6 +8,16 @@ This is a compilation of some of my ideas, which I could do sometime.
 - HTTP request fuzzer (stateful with grammar), for example make a tool which could be used to find this bug:
 - Fuzz apache httpd with libfuzzer (use the oss-fuzz stuff to fuzz instead of doing something janky). (This is under progress.)
 - Try ruzzy (https://blog.trailofbits.com/2024/03/29/introducing-ruzzy-a-coverage-guided-ruby-fuzzer/) with the custom mutator which I made????
+- Make a program which takes a C-code struct and then outputs a python program which reads said struct. (Probably exists already) (this is for the source engine mdl decompilation thing).
+- Optimize my own graphics library.
+- Try to make a perl exiftool fuzzer, potentially try to find interesting bugs in exiftool like DOS style bugs, because those are eligible for a big gitlab bounty.
+- Try to fuzz nokogiri for DOS style bugs, because those too are eligible for gitlab bounty.
+- Fuzz python markdown module.
+- Fuzz python tomli module.
+- Fuzz librsvg with my new custom mutator.
+- Make an autodictionary tool, which creates a fuzzing dictionary out of the source code without even having to look at the code ourselves. I think clang already has this, but I think this should be used on other programming languages as well.
+
+
 
 ## Some interesting looking stuff..
 
@@ -43,7 +53,7 @@ https://sourceware.org/bugzilla/show_bug.cgi?id=17062 (already fixed).
 
 https://sourceware.org/glibc/wiki/FuzzingLibc
 
-
+Also maybe say about the thing about the regex.match(string, position) method which is undocumented.
 
 
 
