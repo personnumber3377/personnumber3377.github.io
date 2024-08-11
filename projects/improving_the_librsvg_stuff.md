@@ -914,8 +914,546 @@ export AFL_PYTHON_MODULE="mutator"
 AFL_PYTHON_MODULE="mutator" PYTHONPATH="." cargo afl fuzz -x final_dict.dict -i minimized/ -t 300 -m 0 -o output2 -M master01 target/release/rsvg-afl-fuzz
 ```
 
+## Results
+
+Ok, so has our efforts paid off? It kinda seems like it.
+
+I found an integer overflow in librsvg here: https://gitlab.gnome.org/GNOME/librsvg/-/issues/1115
 
 
+I also idvartentantly found an integer overflow in zune_image. Here is an issue which I filed: https://github.com/etemesi254/zune-image/issues/224
+
+## Going further
+
+Ok, so the guy actually responded: https://gitlab.gnome.org/GNOME/librsvg/-/issues/1114#note_2192807
+
+The original dictionary was this:
+
+```
+
+# Keywords taken from
+#  - https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Introduction
+#  - https://css-tricks.com/svg-properties-and-css/
+
+"<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+"standalone="
+"version="
+"encoding="
+"<?xml"
+"?>"
+"/>"
+"<![CDATA["
+
+# tags
+"<svg"
+"xmlns=\"http://www.w3.org/2000/svg\""
+"<a"
+"<animate"
+"<animateMotion"
+"<animateTransform"
+"<circle"
+"<clipPath"
+"<color-profile"
+"<defs"
+"<desc"
+"<discard"
+"<ellipse"
+"<feBlend"
+"<feColorMatrix"
+"<feComponentTransfer"
+"<feComposite"
+"<feConvolveMatrix"
+"<feDiffuseLighting"
+"<feDisplacementMap"
+"<feDistantLight"
+"<feDropShadow"
+"<feFlood"
+"<feFuncA"
+"<feFuncB"
+"<feFuncG"
+"<feFuncR"
+"<feGaussianBlur"
+"<feImage"
+"<feMerge"
+"<feMergeNode"
+"<feMorphology"
+"<feOffset"
+"<fePointLight"
+"<feSpecularLighting"
+"<feSpotLight"
+"<feTile"
+"<feTurbulence"
+"<filter"
+"<foreignObject"
+"<g"
+"<hatch"
+"<hatchpath"
+"<image"
+"<line"
+"<linearGradient"
+"<marker"
+"<mask"
+"<mesh"
+"<meshgradient"
+"<meshpatch"
+"<meshrow"
+"<metadata"
+"<mpath"
+"<path"
+"<pattern"
+"<polygon"
+"<polyline"
+"<radialGradient"
+"<rect"
+"<rect"
+"<script"
+"<script>"
+"<set"
+"<solidcolor"
+"<stop"
+"<style"
+"<svg"
+"<switch"
+"<symbol"
+"<text"
+"<textArea"
+"<textPath"
+"<title"
+"<title>"
+"<tspan"
+"<unknown"
+"<use"
+"<view"
+
+
+# attributes
+"alignment-baseline"
+"baseline-shift"
+"class"
+"color"
+"cursor"
+"cx"
+"cy"
+"direction"
+"display"
+"dominant-baseline"
+"editable"
+"fill"
+"fill-opacity"
+"font-family"
+"font-size"
+"font-size-adjust"
+"font-stretch"
+"font-style"
+"font-variant"
+"font-weight"
+"glyph-orientation-horizontal"
+"glyph-orientation-vertical"
+"gradientUnits"
+"height"
+"kerning""
+"letter-spacing"
+"offset"
+"overflow"
+"patternContentUnits"
+"pointer-events"
+"points"
+"rotate"
+"rx"
+"ry"
+"spreadMethod"
+"stop-color"
+"stop-opacity"
+"stroke"
+"stroke-dasharray"
+"stroke-linecap"
+"stroke-linejoin"
+"stroke-opacity"
+"stroke-width"
+"style"
+"text-anchor"
+"text-decoration"
+"textlength"
+"transform"
+"unicode-bidi"
+"visibility"
+"width"
+"word-spacing"
+"writing-mode"
+"x1"
+"x2"
+"y1"
+"y2"
+
+# attributes' values
+"bounding-Box"
+"repeat"
+"display"
+"transparent"
+"orange"
+"round"
+"butt"
+"userSpaceOnUse"
+"objectBoundingBox"
+"square"
+"miter"
+"bevel"
+"translate("
+"rotate("
+"matrix("
+
+```
+
+let's figure out which entries aren't in that list.
+
+Let's modify our script. I also noticed a bug with the escaped double quote characters. My script didn't handle those, so I am going to use rindex instead...
+
+Here is a quick little script which I cooked up to figure out the missing entries (aka the entries which we found which weren't in the svg dictionary in the first place!)
+
+```
+
+
+
+
+
+
+
+
+
+
+if __name__=="__main__":
+
+	# First get the existing dictionary terms...
+
+	fh = open("svg_dict.dict", "r")
+	existing_terms = fh.readlines()
+	fh.close()
+	# Now just do the thing...
+	fh = open("output.txt", "r")
+	lines = fh.readlines()
+	fh.close()
+
+	# Sanity checks.
+
+	assert isinstance(lines, list)
+	assert isinstance(existing_terms, list)
+
+	assert all([isinstance(x, str) for x in lines])
+	assert all([isinstance(x, str) for x in existing_terms])
+
+	#assert all(["\n" not in x for x in lines])
+	#assert all(["\n" not in x for x in existing_terms])
+
+	# Join the existing dictionary terms and the new terms taken from source code. This is done to avoid adding entries to the dictionary that were already there aka duplicates.
+
+	#lines = lines + existing_terms
+
+	lines = lines
+
+	dict_terms = set() # Create a set, such that there are no duplicates.
+
+
+	for line in existing_terms:
+
+		if "\"" not in line:
+			continue
+		line = line[line.index("\"")+1:] # Start at the character after the double quote.
+		assert "\"" in line # There should be a second double quote character.
+		#assert line[line.rindex("\"")-1] != "\\" # There shouldn't be an escaped double quote. The last double quote should be unescaped.
+		if line[line.rindex("\"")-1] == "\\": # We shouldn't add this.
+			continue
+		#print("line == "+str(line))
+		line = line[:line.rindex("\"")]
+		#print(line)
+		assert "\n" not in line
+		if line not in dict_terms:
+
+			dict_terms.add(line)
+
+
+
+	# Now that we have the ones, which we already have, we need to check the ones which weren't in that to get the missing entries.
+
+	for line in lines:
+		if "\"" not in line:
+			continue
+		line = line[line.index("\"")+1:] # Start at the character after the double quote.
+		assert "\"" in line # There should be a second double quote character.
+		#assert line[line.rindex("\"")-1] != "\\" # There shouldn't be an escaped double quote. The last double quote should be unescaped.
+		if line[line.rindex("\"")-1] == "\\": # We shouldn't add this.
+			continue
+		#print("line == "+str(line))
+		line = line[:line.rindex("\"")]
+		#print(line)
+		assert "\n" not in line
+		if line not in dict_terms:
+			print("\"" + line + "\" wasn't in the existing dictionary!!!")
+			#dict_terms.add(line)
+		else:
+			print("\"" + line + "\" was in the existing dictionary...")
+
+	#dict_terms = list(dict_terms)
+	#for term in dict_terms:
+	#	print("\""+term+"\"") # Wrap the string in quotes, because we are making an afl dictionary...
+
+
+```
+
+the only existing entries (which were already in the dictionary) (`python3 compare.py | grep "\.\.\."`) were:
+
+```
+"miter" was in the existing dictionary...
+"round" was in the existing dictionary...
+"bevel" was in the existing dictionary...
+"height" was in the existing dictionary...
+"repeat" was in the existing dictionary...
+"color" was in the existing dictionary...
+"butt" was in the existing dictionary...
+"round" was in the existing dictionary...
+"square" was in the existing dictionary...
+"miter" was in the existing dictionary...
+"round" was in the existing dictionary...
+"bevel" was in the existing dictionary...
+"rotate" was in the existing dictionary...
+"rotate" was in the existing dictionary...
+"userSpaceOnUse" was in the existing dictionary...
+"userSpaceOnUse" was in the existing dictionary...
+"objectBoundingBox" was in the existing dictionary...
+"color" was in the existing dictionary...
+```
+
+the new added entries were:
+
+```
+"color-interpolation-filters"
+"pad"
+"reflect"
+"true"
+"false"
+"baseline"
+"sub"
+"super"
+"nonzero"
+"evenodd"
+"auto"
+"linearRGB"
+"sRGB"
+"ltr"
+"rtl"
+"inline"
+"block"
+"list-item"
+"run-in"
+"compact"
+"marker"
+"table"
+"inline-table"
+"table-row-group"
+"table-header-group"
+"table-footer-group"
+"table-row"
+"table-column-group"
+"table-column"
+"table-cell"
+"table-caption"
+"none"
+"nonzero"
+"evenodd"
+"normal"
+"wider"
+"narrower"
+"ultra-condensed"
+"extra-condensed"
+"condensed"
+"semi-condensed"
+"semi-expanded"
+"expanded"
+"extra-expanded"
+"ultra-expanded"
+"normal"
+"italic"
+"oblique"
+"normal"
+"small-caps"
+"auto"
+"smooth"
+"optimizeQuality"
+"high-quality"
+"crisp-edges"
+"optimizeSpeed"
+"pixelated"
+"auto"
+"isolate"
+"luminance"
+"alpha"
+"normal"
+"multiply"
+"screen"
+"overlay"
+"darken"
+"lighten"
+"color-dodge"
+"color-burn"
+"hard-light"
+"soft-light"
+"difference"
+"exclusion"
+"hue"
+"saturation"
+"luminosity"
+"visible"
+"hidden"
+"scroll"
+"auto"
+"auto"
+"optimizeSpeed"
+"geometricPrecision"
+"crispEdges"
+"start"
+"middle"
+"end"
+"mixed"
+"upright"
+"sideways"
+"auto"
+"optimizeSpeed"
+"optimizeLegibility"
+"geometricPrecision"
+"normal"
+"embed"
+"isolate"
+"bidi-override"
+"isolate-override"
+"plaintext"
+"none"
+"non-scaling-stroke"
+"visible"
+"hidden"
+"collapse"
+"horizontal-tb"
+"vertical-rl"
+"vertical-lr"
+"lr"
+"lr-tb"
+"rl"
+"rl-tb"
+"tb"
+"tb-rl"
+"default"
+"preserve"
+"small-caption"
+"xx-small"
+"xx-large"
+"normal"
+"bold"
+"bolder"
+"lighter"
+"normal"
+"matrix"
+"translate"
+"translateX"
+"translateY"
+"scale"
+"scaleX"
+"scaleY"
+"skew"
+"skewX"
+"skewY"
+"matrix"
+"translate"
+"scale"
+"skewX"
+"skewY"
+"image/png"
+"image/jpeg"
+"image/gif"
+"image/webp"
+"image/avif"
+"none"
+"xMinYMin"
+"xMidYMin"
+"xMaxYMin"
+"xMinYMid"
+"xMidYMid"
+"xMaxYMid"
+"xMinYMax"
+"xMidYMax"
+"xMaxYMax"
+"meet"
+"slice"
+"strokeWidth"
+"alternate"
+"type"
+"href"
+"px"
+"em"
+"ex"
+"in"
+"cm"
+"mm"
+"pt"
+"pc"
+"ch"
+"matrix"
+"saturate"
+"hueRotate"
+"luminanceToAlpha"
+"stitch"
+"noStitch"
+"fractalNoise"
+"turbulence"
+"erode"
+"dilate"
+"SourceGraphic"
+"SourceAlpha"
+"BackgroundImage"
+"BackgroundAlpha"
+"FillPaint"
+"StrokePaint"
+"duplicate"
+"wrap"
+"none"
+"R"
+"G"
+"B"
+"A"
+"over"
+"in"
+"out"
+"atop"
+"xor"
+"arithmetic"
+"identity"
+"table"
+"discrete"
+"linear"
+"gamma"
+"false"
+"true"
+"normal"
+"multiply"
+"screen"
+"darken"
+"lighten"
+"overlay"
+"color-dodge"
+"color-burn"
+"hard-light"
+"soft-light"
+"difference"
+"exclusion"
+"hue"
+"saturation"
+"luminosity"
+"link"
+"visited"
+"lang"
+"import"
+"deg"
+"grad"
+"rad"
+"turn"
+```
 
 
 
