@@ -1455,8 +1455,203 @@ the new added entries were:
 "turn"
 ```
 
+Ok, so apparently, the added entries must be in alphabetical order, and we need to separate them into sections. There is no way I am going to spend like 30 min to sort them to individual categories. Fuck that.
+
+## Making a custom mutator
+
+Here I promised to create a custom mutator for svg's: https://gitlab.gnome.org/GNOME/librsvg/-/issues/1114#note_2192886 so let's do it.
+
+First which xml parser should I use????
+
+This seems nice: https://docs.python.org/3/library/xml.etree.elementtree.html
+
+I only know python fluently, so I am going to use python to program the custom mutator. This will basically make it impossible to use with libfuzzer, but I don't really give a shit, because you can mod libfuzzer to use a python bridge like I did earlier in some other blog posts.
+
+## The beginnings
+
+(You can follow my progress here: https://github.com/personnumber3377/svg_custom_mutator )
+
+This seems like a good start:
+
+```
 
 
+import sys
+import xml.etree.ElementTree as ET # For parsing XML
+
+
+def mutate_tree(tree): # Mutate tree.
+	# Stub.
+	return tree
+
+def mutate(data: str) -> str: # Main mutation function.
+
+	# First try to parse as xml (SVG is basically XML)
+	root = ET.fromstring(data)
+	mutate_tree(root) # Modify in-place
+	mutated_contents = ET.tostring(root, encoding="utf-8") # Convert back to string representation.
+	return mutated_contents
+
+if __name__=="__main__":
+	# Just take a file from sys.argv[1] and then open it, then mutate it once, then save it in sys.argv[2]
+
+	if len(sys.argv) != 3:
+		print("Usage: "+str(sys.argv[0])+" INPUT_SVG_FILE OUTPUT_SVG_FILE")
+
+	infile = open(sys.argv[1], "rb")
+	contents = infile.read()
+	infile.close()
+
+	contents = contents.decode("utf-8") # Convert to normal string.
+
+	contents = mutate(contents) # Mutate.
+
+	contents = contents.encode("utf-8") # Convert back to bytes
+
+	outfile = open(sys.argv[2], "wb")
+	outfile.write(contents)
+	outfile.close()
+
+	print("[+] Done!")
+
+	exit(0) # Exit
+
+
+
+```
+
+my plan is to basically mutate each node in the tree with equal probability. See: https://www.geeksforgeeks.org/select-random-node-tree-equal-probability/ . After that we are going to select a mutation strategy. The three most basic ones are basically: adding a child node, removing that node entirely and modifying the node (modifying the attributes, aka changing the values or adding new attributes or removing attributes or doing the same to the actual content).
+
+Fuck! This page: https://www.geeksforgeeks.org/select-random-node-tree-equal-probability/ only works for a binary tree, not for a tree with arbitrary amount of children.
+
+## How to select a random node with equal probability?
+
+Ok, so let's create a file called `select_random_node.py` where we implement this.
+
+Something like this:
+
+```
+
+def get_all_paths_recursive(cur_node, current_path):
+	out = [current_path]
+	for i, child in enumerate(cur_node): # Loop over all child nodes...
+		# print("current_path + [i] == "+str(current_path + [i]))
+		# out.append(get_all_paths_recursive(child, current_path + [i]))
+		out += get_all_paths_recursive(child, current_path + [i])
+	return out
+
+
+def get_all_paths(tree):
+	return get_all_paths_recursive(tree, [])
+
+```
+
+then we can select a random node with this:
+
+```
+def get_all_paths(tree):
+	return get_all_paths_recursive(tree, [])
+
+def select_random_node(tree): # Select a random node with equal probability.
+	all_paths = get_all_paths(tree)
+	ran_path = random.choice(all_paths)
+	out = tree
+	for ind in ran_path:
+		out = out[ind] # Traverse the tree according to the randomly chosen path.
+	return out
+```
+
+seems nice.
+
+Fuck!
+
+We need the parent node too, because otherwise we can't fucking remove the node when mutating!
+
+Ok, so after quite a bit of fiddling around, I am now in the commit number: 2921c1ec45975faac59f26b2c8ea18db161fe472
+
+
+## Testing out our new tool
+
+Let's see what happens, when we run it against librsvg.
+
+... debugging time...
+
+This was quite an interesting bug. My program seemed to generate invalid xml for some odd reason, even though I specifically designed the mutator to always create valid xml (aka SVG). This is because I didn't actually return the data which I mutated. My fuzz function looked something like this:
+
+```
+
+def fuzz(buf, add_buf, max_size): # Main mutation function.
+
+	#fh = open("fuck.svg", "wb")
+	#fh.write(buf)
+	#fh.close()
+
+	try:
+
+		# First decode to ascii
+
+		data = buf.decode("utf-8")
+		assert isinstance(data, str)
+		contents = mutate_func(data) # Mutate.
+		#print("type(contents) == "+str(type(contents)))
+		#contents = contents.encode("utf-8") # Convert back to bytes
+
+		# The xml library adds "ns0:" strings everywhere for god knows what reason. I couldn't find anything in the docs about it so just replace all instances of that string with an empty string.
+
+
+		#contents = contents.replace(b"</ns0:", b"</")
+		#contents = contents.replace(b"<ns0:", b"<")
+		#contents = contents.replace(b":ns0", b"")
+		#print(("returning this type: "+str(type(contents))) * 100)
+		contents = bytearray(contents)
+	except UnicodeDecodeError:
+		print("Warning! Tried to pass invalid data to the mutation function!")
+		return buf # Just return the original shit.
+
+```
+
+after adding the `return contents` line like so:
+
+```
+
+def fuzz(buf, add_buf, max_size): # Main mutation function.
+
+	#fh = open("fuck.svg", "wb")
+	#fh.write(buf)
+	#fh.close()
+
+	try:
+
+		# First decode to ascii
+
+		data = buf.decode("utf-8")
+		assert isinstance(data, str)
+		contents = mutate_func(data) # Mutate.
+		#print("type(contents) == "+str(type(contents)))
+		#contents = contents.encode("utf-8") # Convert back to bytes
+
+		# The xml library adds "ns0:" strings everywhere for god knows what reason. I couldn't find anything in the docs about it so just replace all instances of that string with an empty string.
+
+
+		#contents = contents.replace(b"</ns0:", b"</")
+		#contents = contents.replace(b"<ns0:", b"<")
+		#contents = contents.replace(b":ns0", b"")
+		#print(("returning this type: "+str(type(contents))) * 100)
+		contents = bytearray(contents)
+		return contents
+	except UnicodeDecodeError:
+		print("Warning! Tried to pass invalid data to the mutation function!")
+		return buf # Just return the original shit.
+
+```
+
+and it now seems to work perfectly fine... also it took a bit of effort to figure out that the type returned must be `bytearray` . Now I am in the commit number: `8d2805942e771572af607fd8cf1ee76e29c7a35e` .
+
+## TODO:
+
+- Add a way to process attributes such as "patternUnits" which only has a very specific set of valid input strings (see https://www.geeksforgeeks.org/svg-patternunits-attribute/) I think this can be done by just having a list of acceptable values for each of these types of attributes and then just randomly choosing one.
+- Add some attribute handlers for the "filter" attribute.
+- Add some support for the "url" type stuff like here: https://www.geeksforgeeks.org/svg-patternunits-attribute/ (see the `url(#geek1)`) . I think this could be quite a nice addition.
 
 
 
