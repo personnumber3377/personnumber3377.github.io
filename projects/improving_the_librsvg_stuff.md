@@ -2002,10 +2002,10 @@ def mutate_generic(string: str) -> str: # Mutate a string.
 
 ## TODO:
 
-- Add a way to process attributes such as "patternUnits" which only has a very specific set of valid input strings (see https://www.geeksforgeeks.org/svg-patternunits-attribute/) I think this can be done by just having a list of acceptable values for each of these types of attributes and then just randomly choosing one.
+- (Complete) Add a way to process attributes such as "patternUnits" which only has a very specific set of valid input strings (see https://www.geeksforgeeks.org/svg-patternunits-attribute/) I think this can be done by just having a list of acceptable values for each of these types of attributes and then just randomly choosing one.
 - Add some attribute handlers for the "filter" attribute.
 - Add some support for the "url" type stuff like here: https://www.geeksforgeeks.org/svg-patternunits-attribute/ (see the `url(#geek1)`) . I think this could be quite a nice addition.
-- Add a generic string mutator. (This could be useful to mutate just normally maybe?)
+- (Complete) Add a generic string mutator. (This could be useful to mutate just normally maybe?)
 - Add a content mutator (a mutator which changes the contents of a tag instead of attributes).
 - Generate different kinds of numbers. Now the numbers we are generating are almost always obscenely large. I think we should add probabilities to generate just floats between zero and one etc etc etc..
 
