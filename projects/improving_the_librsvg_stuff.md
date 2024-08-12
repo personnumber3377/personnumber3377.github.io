@@ -1647,12 +1647,367 @@ def fuzz(buf, add_buf, max_size): # Main mutation function.
 
 and it now seems to work perfectly fine... also it took a bit of effort to figure out that the type returned must be `bytearray` . Now I am in the commit number: `8d2805942e771572af607fd8cf1ee76e29c7a35e` .
 
+## Improving a little further
+
+Ok, so I think the first task on the todo list is the easiest to implement. We basically just need a list of valid values for each attribute and we should be good.
+
+I am going to add a new file called `strict_values.py` which has a list of attributes which only have a certain amount of acceptable values (like https://www.geeksforgeeks.org/svg-patternunits-attribute/ ).
+
+Here is a complete reference for all attributes: https://www.geeksforgeeks.org/svg-attribute-complete-reference/ . I could go through them manually, but instead I am just going to fucking scrape all of those.
+
+Just first run a curl and then grep for the links (grep for `<td><a href="https://www.geeksforgeeks.org/`) and here are all of the attribute links:
+
+```
+<td><a href="https://www.geeksforgeeks.org/svg-by-attribute/" target="_blank">by</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-cx-attribute/" target="_blank">cx</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-cy-asttribute/" target="_blank">cy</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-fill-attribute/" target="_blank">fill</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-fill-opacity-attribute/" target="_blank">fill-opacity</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-filter-attribute/" target="_blank">filter</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-flood-color-attribute/" target="_blank">flood-color</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-flood-opacity-attribute/" target="_blank">flood-opacity</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-font-size-attribute/" target="_blank">font-size</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-font-size-adjust-attribute/" target="_blank">font-size-adjust</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-font-style-attribute/" target="_blank">font-style</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-visibility-attribute/" target="_blank">visibility</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-from-attribute/" target="_blank">from</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-fr-attribute/" target="_blank">fr</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-height-attribute/" target="_blank">height</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-keypoints-attribute/" target="_blank">keyPoints</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-keytimes-attribute/" target="_blank">keyTimes</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-lengthadjust-attribute/" target="_blank">lengthAdjust</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-letter-spacing-attribute/" target="_blank">letter-spacing</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-lighting-color-attribute/" target="_blank">lighting-color</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-markerheight-attribute/" target="_blank">markerHeight</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-markerwidth-attribute/" target="_blank">markerWidth</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-mask-attribute/" target="_blank">mask</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-media-attribute/" target="_blank">media</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-numoctaves-attribute/" target="_blank">numOctaves</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-opacity-attribute/" target="_blank">opacity</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-operator-attribute/" target="_blank">operator</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-orient-attribute/" target="_blank">orient</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-path-attribute/" target="_blank">path</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-pathlength-attribute/" target="_blank">pathLength</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-patterncontentunits-attribute/" target="_blank">patternContentUnits</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-patterntransform-attribute/" target="_blank">patternTransform</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-patternunits-attribute/" target="_blank">patternUnits</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-pointer-events-attribute/" target="_blank">pointer-events</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-points-attribute/" target="_blank">points</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-pointsatx-attribute/" target="_blank">pointsAtX</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-pointsaty-attribute/" target="_blank">pointsAtY</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-pointsatz-attribute/" target="_blank">pointsAtZ</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-r-attribute/" target="_blank">r</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-radius-attribute/" target="_blank">radius</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-repeatcount-attribute/" target="_blank">repeatCount</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-repeatdur-attribute/" target="_blank">repeatDur</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-restart-attribute/" target="_blank">restart</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-rotate-attribute/" target="_blank">rotate</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-rx-attribute/" target="_blank">rx</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-ry-attribute/" target="_blank">ry</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-scale-attribute/" target="_blank">scale</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-seed-attribute/" target="_blank">seed</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-shape-rendering-attribute/" target="_blank">shape-rendering</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-startoffset-attribute/" target="_blank">startoffset</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-stddeviation-attribute/" target="_blank">stdDeviation</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-stitchtiles-attribute/" target="_blank">stitchTiles</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-stop-color-attribute/" target="_blank">stop-color</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-stop-opacity-attribute/" target="_blank">stop-opacity</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-stroke-attribute/" target="_blank">stroke</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-stroke-dasharray-attribute/" target="_blank">stroke-dasharray</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-stroke-linecap-attribute/" target="_blank">stroke-linecap</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-stroke-opacity-attribute/" target="_blank">stroke-opacity</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-stroke-width-attribute/" target="_blank">stroke-width</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-style-attribute/" target="_blank">style</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-surfacescale-attribute/" target="_blank">surfaceScale</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-systemlanguage-attribute/" target="_blank">systemLanguage</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-tabindex-attribute/" target="_blank">tabindex</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-tablevalues-attribute/" target="_blank">tableValues</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-text-anchor-attribute/" target="_blank">text-anchor</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-text-decoration-attribute/" target="_blank">text-decoration</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-text-rendering-attribute/" target="_blank">text-rendering</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-textlength-attribute/" target="_blank">textLength</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-to-attribute/" target="_blank">to</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-transform-attribute/" target="_blank">transform</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-type-attribute/" target="_blank">type</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-vector-effect-attribute/" target="_blank">vector-effect</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-visibility-attribute/" target="_blank">visibility</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-width-attribute/" target="_blank">width</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-word-spacing-attribute/" target="_blank">word-spacing</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-x-attribute/" target="_blank">x</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-x1-attribute/?ref=rp" target="_blank">x1</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-x2-attribute/" target="_blank">x2</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-xchannelselector-attribute/" target="_blank">xChannelSelector</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-xmllang-attribute/" target="_blank">xml:lang</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-y-attribute/" target="_blank">y</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-y1-attribute/" target="_blank">y1</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-y2-attribute/" target="_blank">y2</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-ychannelselector-attribute/" target="_blank">yChannelSelector</a></td>
+<td><a href="https://www.geeksforgeeks.org/svg-z-attribute/" target="_blank">z</a></td>
+```
+
+easy eh?
+
+Now do a curl on each one of those, then grep for the syntax and then if there is a pipe character (`|`) in the syntax, then it is a string thing. (I think).
+
+This should do the job to get the webpages:
+
+```
+
+import os
+
+def get_filename(line):
+
+	assert "geeks.org/" in line
+	oof = line[line.index("geeks.org/")+len("geeks.org/"):]
+	oof = oof[:oof.index("/")]
+	print(oof)
+	return oof
+
+if __name__=="__main__":
+
+	fh = open("links.txt", "r")
+	lines = fh.readlines()
+	fh.close()
+
+	for line in lines:
+		line = line[line.index("\"")+1:] # Skip to the start of the link
+		line = line[:line.index("\"")]
+		print(line)
+		cmd = "curl "+str(line)+" > curl_stuff/"+str(get_filename(line))
+		print("Running this: "+str(cmd))
+		os.system(cmd)
+
+
+	exit(0)
+```
+
+now just iterate over them and see which of them have set strings.
+
+Here is my quick and dirty script to find the stuff:
+
+```
+
+import os
+
+if __name__=="__main__":
+
+	in_dir = "curl_stuff/"
+
+	files = os.listdir(in_dir)
+
+	strict_vals = {}
+
+	for file in files:
+		full_filename = in_dir + file # Prepend the directory...
+		attr = file[4:-10]
+		#print(attr)
+		fh = open(full_filename, "r")
+		lines = fh.readlines()
+		fh.close()
+		#print("="*100)
+		for i, line in enumerate(lines):
+			#if file in line:
+			#	print(line)
+
+			if "Syntax: " in line and "|" in line:
+				#print(line)
+				line = line[line.index("Syntax: ")+len("Syntax: "):]
+				#print(line)
+				if "Attribute Values" in line: # Proceed normally...
+					line = line[:line.index("Attribute Values")]
+
+					if "&" in line:
+						continue
+					assert "=" in line
+					assert line[line.index("=")+1] == " "
+					line = line[line.index("=")+2:]
+					#print(line)
+					possible_values = line.split(" | ")
+					print(possible_values)
+					strict_vals[attr] = possible_values
+				elif ";" in line:
+					#print(line)
+
+					line = line[:line.index(";")]
+
+
+					if "Property Values:" in line:
+						line = line[:line.index("Property Values:")]
+
+					if "&" in line:
+						continue
+					print("Fuck fuck: "+str(line))
+
+					line = line[line.index(" "):]
+
+					possible_values = line.split("|")
+					print("possible_values == "+str(possible_values))
+					for i in range(len(possible_values)):
+						val = possible_values[i]
+						val = val.replace(" ", "") # Remove space characters.
+						possible_values[i] = val
+					assert all([" " not in val for val in possible_values])
+					#print("Here is the possible values: "+str(possible_values))
+					strict_vals[attr] = possible_values
+
+				elif "Property Values:" in line:
+					line = line[:line.index("Property Values:")]
+					print("Fuck!!!!")
+					print("ffffffffffff" + line)
+					values = line[line.index(" ")+1:]
+					values = values.split(" | ")
+					strict_vals[attr] = values
+				else:
+					print("Here is the entire line: "+str(line))
+					#if "</div>" in line:
+					#	print("Next line: "+str(lines[i+1]))
+					#	print("Next line: "+str(lines[i+2]))
+					#	print("Next line: "+str(lines[i+3]))
+					#	print("Next line: "+str(lines[i+4]))
+
+				#assert "Attribute Values" in line
+
+
+		#print("="*100)
+
+	print("Here are the strict values: ")
+	print(strict_vals)
+	exit(0)
+
+
+```
+
+and here is the result:
+
+```
+Here are the strict values:
+{'shape-rendering': ['auto', 'optimizeLegibility', 'geometricPrecision', 'optimizeSpeed '], 'lighting-color': ['currentcolor', 'color', 'icccolor '], 'text-anchor': ['auto', 'optimizeLegibility', 'geometricPrecision', 'optimizeSpeed '], 'letter-spacing': ['normal', 'length', 'initial', 'inherit'], 'stop-opacity': ['currentcolor', 'color', 'icccolor '], 'word-spacing': ['length', 'initial', 'inherit'], 'stroke-linecap': ['butt', 'round', 'square', 'initial', 'inherit'], 'text-decoration': ['none', 'underline', 'overline', 'line-through', 'initial', 'inherit'], 'pointer-events': ['auto', 'none'], 'flood-color': ['currentcolor', 'color', 'icccolor ']}
+```
+
+then I need to add manually a couple of entries::
+
+Here is the result:
+
+```
+
+
+strict_values = {'shape-rendering': ['auto', 'optimizeLegibility', 'geometricPrecision', 'optimizeSpeed '], 'lighting-color': ['currentcolor', 'color', 'icccolor '], 'text-anchor': ['auto', 'optimizeLegibility', 'geometricPrecision', 'optimizeSpeed '], 'letter-spacing': ['normal', 'length', 'initial', 'inherit'], 'stop-opacity': ['currentcolor', 'color', 'icccolor '], 'word-spacing': ['length', 'initial', 'inherit'], 'stroke-linecap': ['butt', 'round', 'square', 'initial', 'inherit'], 'text-decoration': ['none', 'underline', 'overline', 'line-through', 'initial', 'inherit'], 'pointer-events': ['auto', 'none'], 'flood-color': ['currentcolor', 'color', 'icccolor '], 'font-size-adjust': ['number', 'none', 'initial', 'inherit']}
+
+
+
+```
+
+I don't know. That seems like quite little. Let's see if we are missing something... No? That actually seems like all there are!! Great!
+
+## Making a generic string mutator.
+
+Ok, so instead of just randomly generating a random string each time when mutating a string, we should just mutate the string actually. Let's create a new repository and then create a generic mutator and import that mutator to this mutator. Here is my generic mutator: https://github.com/personnumber3377/generic_mutator
+
+Here is a quick little demo:
+
+```
+
+import random
+import string # string.printable
+
+def remove_substring(string: str) -> str:
+	start_index = random.randrange(len(string)-1)
+	end_index = random.randrange(start_index, len(string))
+	return string[:start_index] + string[end_index:]
+
+def multiply_substring(string: str) -> str:
+	start_index = random.randrange(len(string)-1)
+	end_index = random.randrange(start_index, len(string))
+	substr = string[start_index:end_index]
+	where_to_place = random.randrange(len(string)-1)
+	return string[:where_to_place] + substr + string[where_to_place:]
+
+def add_character(string: str) -> str:
+	where_to_place = random.randrange(len(string)-1)
+	return string[:where_to_place] + random.choice(string.printable) + string[where_to_place:]
+
+def mutate(string: str) -> str: # Mutate a string.
+
+	strat = random.randrange(3)
+
+	match strat:
+		case 0:
+			# Remove substring
+			return remove_substring(string)
+		case 1:
+			# Multiply substring.
+			return multiply_substring(string)
+		case 2:
+			# Add a character somewhere
+			return add_character(string)
+		case _:
+			print("Invalid")
+			assert False
+	print("Invalid")
+	assert False
+
+
+```
+
+then after a bit of testing, here is the final result:
+
+```
+
+
+import random
+import string as string_mod # string.printable
+
+def remove_substring(string: str) -> str:
+	start_index = random.randrange(max(len(string)-1, 1))
+	end_index = random.randrange(start_index, len(string))
+	return string[:start_index] + string[end_index:]
+
+def multiply_substring(string: str) -> str:
+	start_index = random.randrange(max(len(string)-1, 1))
+	end_index = random.randrange(start_index, len(string))
+	substr = string[start_index:end_index]
+	where_to_place = random.randrange(max(len(string)-1, 1))
+	return string[:where_to_place] + substr + string[where_to_place:]
+
+def add_character(string: str) -> str:
+	#if len(string)-1 >= 1:
+
+	where_to_place = random.randrange(max(len(string)-1, 1))
+
+	return string[:where_to_place] + random.choice(string_mod.printable) + string[where_to_place:]
+
+def mutate_generic(string: str) -> str: # Mutate a string.
+
+	strat = random.randrange(3)
+
+	match strat:
+		case 0:
+			# Remove substring
+			return remove_substring(string)
+		case 1:
+			# Multiply substring.
+			return multiply_substring(string)
+		case 2:
+			# Add a character somewhere
+			return add_character(string)
+		case _:
+			print("Invalid")
+			assert False
+	print("Invalid")
+	assert False
+
+
+
+```
+
 ## TODO:
 
 - Add a way to process attributes such as "patternUnits" which only has a very specific set of valid input strings (see https://www.geeksforgeeks.org/svg-patternunits-attribute/) I think this can be done by just having a list of acceptable values for each of these types of attributes and then just randomly choosing one.
 - Add some attribute handlers for the "filter" attribute.
 - Add some support for the "url" type stuff like here: https://www.geeksforgeeks.org/svg-patternunits-attribute/ (see the `url(#geek1)`) . I think this could be quite a nice addition.
-
+- Add a generic string mutator. (This could be useful to mutate just normally maybe?)
+- Add a content mutator (a mutator which changes the contents of a tag instead of attributes).
+- Generate different kinds of numbers. Now the numbers we are generating are almost always obscenely large. I think we should add probabilities to generate just floats between zero and one etc etc etc..
 
 
 
