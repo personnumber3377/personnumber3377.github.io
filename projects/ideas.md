@@ -16,7 +16,7 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Fuzz python tomli module.
 - Fuzz librsvg with my new custom mutator.
 - Make an autodictionary tool, which creates a fuzzing dictionary out of the source code without even having to look at the code ourselves. I think clang already has this, but I think this should be used on other programming languages as well.
-
+- Make a custom mutator for CLVM crypto virtual machine.
 
 
 ## Some interesting looking stuff..

@@ -2000,6 +2000,27 @@ def mutate_generic(string: str) -> str: # Mutate a string.
 
 ```
 
+## Fuzzing results.
+
+Ok, so after fuzzing with our custom mutator. I managed to find quite an interesting assertion failure, though it is in the `cssparser` package: https://gitlab.gnome.org/GNOME/librsvg/-/issues/1117 , but I think it is still a bug in librsvg, because the library expects the values to be non-malformed before passing to it. I also managed to rediscover the integer overflow: https://gitlab.gnome.org/GNOME/librsvg/-/issues/1115
+
+## Fixing crashes and continuing fuzzing.
+
+Let's add the patches for the stuff and apply them and compile the fuzzers again.
+
+...
+
+after a bit of fuzzing, it looks like all the crashes which it finds are in the cairo library. Not in the librsvg library. Therefore we need to make the fuzzer a bit better.
+
+## Making the href mutator and the id thing mutator and url thing mutator.
+
+
+
+
+
+
+
+
 ## TODO:
 
 - (Complete) Add a way to process attributes such as "patternUnits" which only has a very specific set of valid input strings (see https://www.geeksforgeeks.org/svg-patternunits-attribute/) I think this can be done by just having a list of acceptable values for each of these types of attributes and then just randomly choosing one.
