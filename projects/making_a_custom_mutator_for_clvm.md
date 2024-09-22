@@ -1377,6 +1377,83 @@ to start fuzzing!
 
 I will come back and report with results after a while. I am going to let the fuzzer run for a bit to see if it discovers anything major.
 
+## Coverage report
+
+While fuzzing, I decided to generate a coverage report for the stuff. You can take a look at the cargo-fuzz documentation to find out what to do to get a coverage report: https://github.com/rust-fuzz/cargo-fuzz
+
+Sooo just run `cargo fuzz coverage fuzz_run_program` ???? That seems to do something. It will take quite a while for the stuff to finish.
+
+Fuck!
+
+```
+
+warning: /home/oof/clvm_rs/fuzz/Cargo.toml: unused manifest key: dependencies.libfuzzer-sys.path
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.51s
+Generating coverage data for corpus "/home/oof/clvm_rs/fuzz/corpus/fuzz_run_program"
+Warning: No Python module specified, using the default libfuzzer mutator (for now).
+WARNING: Disabling -len_control . Assuming custom mutator!
+INFO: Running with entropic power schedule (0xFF, 100).
+INFO: Seed: 633966693
+INFO: Loaded 1 modules   (233751 inline 8-bit counters): 233751 [0x558e9051c520, 0x558e90555637),
+INFO: Loaded 1 PC tables (233751 PCs): 233751 [0x558e90555638,0x558e908e67a8),
+MERGE-OUTER: 27311 files, 0 in the initial corpus, 0 processed earlier
+MERGE-OUTER: attempt 1
+Warning: No Python module specified, using the default libfuzzer mutator (for now).
+WARNING: Disabling -len_control . Assuming custom mutator!
+INFO: Running with entropic power schedule (0xFF, 100).
+INFO: Seed: 1149037973
+INFO: Loaded 1 modules   (233751 inline 8-bit counters): 233751 [0x559ac9176520, 0x559ac91af637),
+INFO: Loaded 1 PC tables (233751 PCs): 233751 [0x559ac91af638,0x559ac95407a8),
+INFO: -max_len is not provided; libFuzzer will not generate inputs larger than 1048576 bytes
+MERGE-INNER: using the control file '/tmp/libFuzzerTemp.Merge133894.txt'
+MERGE-INNER: 27311 total files; 0 processed earlier; will process 27311 files now
+#1	pulse  cov: 274 ft: 275 exec/s: 0 rss: 61Mb
+#2	pulse  cov: 287 ft: 301 exec/s: 0 rss: 62Mb
+#4	pulse  cov: 304 ft: 319 exec/s: 0 rss: 62Mb
+#8	pulse  cov: 400 ft: 480 exec/s: 0 rss: 63Mb
+#16	pulse  cov: 697 ft: 906 exec/s: 0 rss: 65Mb
+#32	pulse  cov: 953 ft: 1259 exec/s: 0 rss: 70Mb
+#64	pulse  cov: 1054 ft: 1453 exec/s: 0 rss: 76Mb
+#128	pulse  cov: 1323 ft: 1852 exec/s: 0 rss: 89Mb
+#256	pulse  cov: 1778 ft: 2791 exec/s: 0 rss: 110Mb
+#512	pulse  cov: 1917 ft: 3209 exec/s: 0 rss: 111Mb
+#1024	pulse  cov: 2223 ft: 3945 exec/s: 1024 rss: 113Mb
+#2048	pulse  cov: 2642 ft: 5615 exec/s: 1024 rss: 115Mb
+#4096	pulse  cov: 2903 ft: 7982 exec/s: 1024 rss: 117Mb
+#8192	pulse  cov: 3397 ft: 12810 exec/s: 744 rss: 128Mb
+#16384	pulse  cov: 4236 ft: 17673 exec/s: 468 rss: 128Mb
+#27311	DONE   cov: 4727 ft: 26199 exec/s: 205 rss: 458Mb
+MERGE-OUTER: successful in 1 attempt(s)
+MERGE-OUTER: the control file has 3595607 bytes
+MERGE-OUTER: consumed 2Mb (94Mb rss) to parse the control file
+MERGE-OUTER: 3375 new files with 26199 new features added; 4727 new coverage edges
+Merging raw coverage data...
+Error: Merging raw coverage files failed.
+
+Do you have LLVM coverage tools installed?
+https://doc.rust-lang.org/rustc/instrument-coverage.html#installing-llvm-coverage-tools
+
+Caused by:
+    0: Failed to run command: "/home/oof/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-profdata" "merge" "-sparse" "/home/oof/clvm_rs/fuzz/coverage/fuzz_run_program/raw" "-o" "/home/oof/clvm_rs/fuzz/coverage/fuzz_run_program/coverage.profdata"
+    1: No such file or directory (os error 2)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
