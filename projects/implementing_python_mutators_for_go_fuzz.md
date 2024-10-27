@@ -518,12 +518,26 @@ for example there is an example of this at: https://github.com/MozillaSecurity/l
 Then to run the fuzzer you can use this script here:
 
 ```
+#!/bin/sh
+
+export LD_PRELOAD="/usr/lib/python3.10/config-3.10-x86_64-linux-gnu/libpython3.10.so" # You have to preload python3.10 , otherwise you get a runtime error.
+export LIBFUZZER_PYTHON_MODULE="mutator" # This is the name of your python custom mutator file. For me it is mutator.py so put your custom mutator in a file called "mutator.py"
+export ASAN_OPTIONS="allocator_may_return_null=1:detect_leaks=0:use_sigaltstack=0" # Some ASAN options. Feel free to modify to your liking.
+export PYTHONPATH="." # Where to search for the custom mutator. (Use the current directory for now.)
+while true; do
+	./rangediff_fuzzer_custom -max_len=100000 -timeout=1 rangediffs/ 2>> rangediff_output.txt || true
+done
+
 
 
 
 ```
 
+That script outputs the fuzz output to a file called "rangediff_output.txt" of course you can play around with that script to your liking.
 
+Please let me know if you have any questions! (File an issue, pull request etc etc) And feel free to mod this however you like. I don't really care.
+
+Thanks for reading! :)
 
 
 
