@@ -4,7 +4,7 @@
 This is a compilation of some of my ideas, which I could do sometime.
 
 - Basic interpreter in python (WIP)
-- Write a time based fuzzer in python, which tries to find inputs, which timeout. (This could be useful for fuzzing different kinds of python applications for DOS vulns, like django etc).
+- Write a time based fuzzer in python, which tries to find inputs, which timeout. (This could be useful for fuzzing different kinds of python applications for DOS vulns, like django etc). (Done!)
 - HTTP request fuzzer (stateful with grammar), for example make a tool which could be used to find this bug:
 - Fuzz apache httpd with libfuzzer (use the oss-fuzz stuff to fuzz instead of doing something janky). (This is under progress.)
 - Try ruzzy (https://blog.trailofbits.com/2024/03/29/introducing-ruzzy-a-coverage-guided-ruby-fuzzer/) with the custom mutator which I made????
@@ -17,6 +17,10 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Fuzz librsvg with my new custom mutator.
 - Make an autodictionary tool, which creates a fuzzing dictionary out of the source code without even having to look at the code ourselves. I think clang already has this, but I think this should be used on other programming languages as well.
 - Make a custom mutator for CLVM crypto virtual machine.
+- Fuzz gitaly with golang fuzzer. (This is a part of the gitlab bug bounty.)
+- Try to find some vulnerabilities in third party libraries used by django, because maybe you can get a bounty that way.
+- Try to run my redos thing against python source code.
+- Add a way to get the http response content in the python requests library (just as in burp suite for example). Also maybe do this for the requests too?? (You can get the raw request text before sending.)
 
 
 ## Some interesting looking stuff..
