@@ -21,7 +21,7 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Try to find some vulnerabilities in third party libraries used by django, because maybe you can get a bounty that way.
 - Try to run my redos thing against python source code.
 - Add a way to get the http response content in the python requests library (just as in burp suite for example). Also maybe do this for the requests too?? (You can get the raw request text before sending.)
-
+- Make a custom mutator for APDU for rsk-powhsm stuff.
 
 ## Some interesting looking stuff..
 
