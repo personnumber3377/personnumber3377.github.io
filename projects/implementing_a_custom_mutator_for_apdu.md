@@ -1506,6 +1506,11 @@ unsigned int auth_sign_handle_btctx(volatile unsigned int rx) {
 
 basically does that. I have no fucking clue as to how this works. Let's just try it with some random data and see what happens????
 
+## Getting the testcases from the source code.
+
+There exists a utility called `extract-inputs-from-tests` which seems very interesting imo.. The testcases that come with the source originally don't really do anything, since some stuff is different and it makes them not work with the newest version or something idk..
+
+
 
 
 
