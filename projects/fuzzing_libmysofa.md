@@ -2,7 +2,7 @@
 
 libmysofa is a library which is used in ffmpeg: https://github.com/FFmpeg/FFmpeg/blob/master/libavfilter/af_sofalizer.c
 
-Looking through the library source code: https://github.com/hoene/libmysofa there doesn't appear to be fuzzers in place, so let's try to do that.
+Looking through the library source code: https://github.com/hoene/libmysofa there doesn't appear to be fuzzers in place, so let's try to do that. I made my own fork here: https://github.com/personnumber3377/libmysofa
 
 Looking at CMakeLists.txt there appears to be a variable called BUILD_STATIC_LIBS which determines if we should build a static library. Let's add an option to compile a fuzzer too:
 
@@ -98,4 +98,4 @@ make all test
 
 That actually seems to compile the fuzzer! After a couple of fixes I am now in commit 5a45c42f8185aa70a1d4d80ce270dbb4a51fc7c2 ! Thanks for reading!
 
-
+Anyway, you can take a look at the final source code here: https://github.com/personnumber3377/libmysofa
