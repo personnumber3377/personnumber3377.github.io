@@ -22,6 +22,17 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Try to run my redos thing against python source code.
 - Add a way to get the http response content in the python requests library (just as in burp suite for example). Also maybe do this for the requests too?? (You can get the raw request text before sending.)
 - Make a custom mutator for APDU for rsk-powhsm stuff.
+- Try to fuzz ffmpeg's http component:
+- Try this tool here?? https://taesoo.kim/pubs/2020/park:die.pdf  seems like a fun little tool to play around with.
+- Make a python script which generates a parser with a .h file which tells about some file format????
+- Fuzz libmysofa.
+- Explore some of this maybe? https://www.researchgate.net/publication/51911443_TRX_A_Formally_Verified_Parser_Interpreter
+- Maybe explore mathematical modelling of computer programs????
+- Add fuzz target for avfilter_graph_parse in ffmpeg???
+
+
+
+
 
 ## Some interesting looking stuff..
 
