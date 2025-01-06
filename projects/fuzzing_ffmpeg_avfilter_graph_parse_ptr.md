@@ -7369,6 +7369,147 @@ Next up, let's just get rid of the printing of the frames...
 
 There you go, now I think the next best step is to verify the syntax of the filtergraph before continuing further. So just copy the old fuzzer and then continue if the syntax is valid...
 
+## Optimizing the fuzzer
+
+Ok, so the performance is complete ass, since I get only a couple of execs a second. We may have to make the inbuild video file even smaller.
+
+Ok, so adding a more minimal video file we now get roughly 60 execs a second. Quite impressive in my opinion...
+
+I think there are more optimizations to be done, but idk.
+
+## Making a custom mutator for filtergraphs
+
+Ok, so let's start making the custom mutator for filtergraphs. This is going to take quite a while, but I think it will be worth it in the end and even if it isn't atleast it is good programming practice at least.
+
+## Start of the custom mutator
+
+Let's create a binary which checks if a filtergraph is actually valid or not. This is just to check for the syntactic validity of the filter graph.
+
+Maybe get rid of these???
+
+```
+
+INFO: Loaded 1 PC tables (2964151 PCs): 2964151 [0x55f9850cffa0,0x55f987e0ab10),
+./betterfuzzer: Running 1 inputs 1 time(s) each.
+Running: timeout-0bd7fbdc560fdd9644ee10e9f652a6db9c3e4d31
+Jumping to the loop...
+The thing s->nb_outputs: 2
+i == 0
+i == 1
+Exited the loop...
+Jumping to the loop...
+The thing s->nb_outputs: 2
+i == 0
+i == 1
+Exited the loop...
+^C==3734432== libFuzzer: run interrupted; exiting
+
+```
+
+## Diagnosing false positives...
+
+Ok, so when I run with bm3d I get a crash for some reason...
+
+```
+./testing/betterfuzzer: Running 1 inputs 1 time(s) each.
+Running: ./testing/bm3d.txt
+=================================================================
+==2037988==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x50e000003c20 at pc 0x559a73462bcf bp 0x7ffd073eb3f0 sp 0x7ffd073eb3e8
+READ of size 1 at 0x50e000003c20 thread T0
+    #0 0x559a73462bce in get_block_row /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/vf_bm3d.c:372:18
+    #1 0x559a734506c1 in basic_block_filtering /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/vf_bm3d.c:410:13
+    #2 0x559a7344db84 in filter_slice /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/vf_bm3d.c:717:13
+    #3 0x559a732be8bf in worker_func /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/pthread.c:48:15
+    #4 0x559a7ad02d4c in run_jobs /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavutil/slicethread.c:65:9
+    #5 0x559a7ad021b6 in avpriv_slicethread_execute /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavutil/slicethread.c:214:19
+    #6 0x559a732be2f2 in thread_execute /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/pthread.c:70:5
+    #7 0x559a734492c3 in filter_frame /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/vf_bm3d.c:752:9
+    #8 0x559a73445063 in activate /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/vf_bm3d.c:858:19
+    #9 0x559a731b8175 in ff_filter_activate /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/avfilter.c:1430:38
+    #10 0x559a731f184f in get_frame_internal /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/buffersink.c:133:19
+    #11 0x559a73045db2 in try_fuzz_video /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/tools/betterfuzzer.c:842:27
+    #12 0x559a730449f0 in LLVMFuzzerTestOneInput /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/tools/betterfuzzer.c:478:2
+    #13 0x559a72f4ff24 in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) (/home/oof/ffmpegfuzzerthing/myfork/FFmpeg/testing/betterfuzzer+0x7dc7f24) (BuildId: 535b98fac88d7241adccc33b500708b19355dea5)
+    #14 0x559a72f39056 in fuzzer::RunOneTest(fuzzer::Fuzzer*, char const*, unsigned long) (/home/oof/ffmpegfuzzerthing/myfork/FFmpeg/testing/betterfuzzer+0x7db1056) (BuildId: 535b98fac88d7241adccc33b500708b19355dea5)
+    #15 0x559a72f3eb0a in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) (/home/oof/ffmpegfuzzerthing/myfork/FFmpeg/testing/betterfuzzer+0x7db6b0a) (BuildId: 535b98fac88d7241adccc33b500708b19355dea5)
+    #16 0x559a72f692c6 in main (/home/oof/ffmpegfuzzerthing/myfork/FFmpeg/testing/betterfuzzer+0x7de12c6) (BuildId: 535b98fac88d7241adccc33b500708b19355dea5)
+    #17 0x7f1a030be1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #18 0x7f1a030be28a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #19 0x559a72f33c24 in _start (/home/oof/ffmpegfuzzerthing/myfork/FFmpeg/testing/betterfuzzer+0x7dabc24) (BuildId: 535b98fac88d7241adccc33b500708b19355dea5)
+
+0x50e000003c20 is located 0 bytes after 96-byte region [0x50e000003bc0,0x50e000003c20)
+allocated by thread T0 here:
+    #0 0x559a73004b3b in posix_memalign (/home/oof/ffmpegfuzzerthing/myfork/FFmpeg/testing/betterfuzzer+0x7e7cb3b) (BuildId: 535b98fac88d7241adccc33b500708b19355dea5)
+    #1 0x559a7abfde61 in av_malloc /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavutil/mem.c:107:9
+    #2 0x559a7ab0f812 in av_buffer_alloc /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavutil/buffer.c:82:12
+    #3 0x559a7ab0f812 in av_buffer_allocz /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavutil/buffer.c:95:24
+    #4 0x559a7ab141ca in pool_alloc_buffer /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavutil/buffer.c:369:26
+    #5 0x559a7ab141ca in av_buffer_pool_get /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavutil/buffer.c:407:15
+    #6 0x559a7329696b in ff_frame_pool_get /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/framepool.c:220:29
+    #7 0x559a743b8b56 in ff_default_get_video_buffer2 /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/video.c:100:13
+    #8 0x559a73e912d5 in scale_frame /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/vf_scale.c:837:11
+    #9 0x559a73e8d7c6 in do_scale /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/vf_scale.c:967:11
+    #10 0x559a732a23bc in ff_framesync_activate /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/framesync.c:364:11
+    #11 0x559a731b8175 in ff_filter_activate /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/avfilter.c:1430:38
+    #12 0x559a731f184f in get_frame_internal /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/buffersink.c:133:19
+    #13 0x559a73045db2 in try_fuzz_video /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/tools/betterfuzzer.c:842:27
+    #14 0x559a730449f0 in LLVMFuzzerTestOneInput /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/tools/betterfuzzer.c:478:2
+    #15 0x559a72f4ff24 in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) (/home/oof/ffmpegfuzzerthing/myfork/FFmpeg/testing/betterfuzzer+0x7dc7f24) (BuildId: 535b98fac88d7241adccc33b500708b19355dea5)
+    #16 0x559a72f39056 in fuzzer::RunOneTest(fuzzer::Fuzzer*, char const*, unsigned long) (/home/oof/ffmpegfuzzerthing/myfork/FFmpeg/testing/betterfuzzer+0x7db1056) (BuildId: 535b98fac88d7241adccc33b500708b19355dea5)
+    #17 0x559a72f3eb0a in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) (/home/oof/ffmpegfuzzerthing/myfork/FFmpeg/testing/betterfuzzer+0x7db6b0a) (BuildId: 535b98fac88d7241adccc33b500708b19355dea5)
+    #18 0x559a72f692c6 in main (/home/oof/ffmpegfuzzerthing/myfork/FFmpeg/testing/betterfuzzer+0x7de12c6) (BuildId: 535b98fac88d7241adccc33b500708b19355dea5)
+    #19 0x7f1a030be1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #20 0x7f1a030be28a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #21 0x559a72f33c24 in _start (/home/oof/ffmpegfuzzerthing/myfork/FFmpeg/testing/betterfuzzer+0x7dabc24) (BuildId: 535b98fac88d7241adccc33b500708b19355dea5)
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow /home/oof/ffmpegfuzzerthing/myfork/FFmpeg/libavfilter/vf_bm3d.c:372:18 in get_block_row
+Shadow bytes around the buggy address:
+  0x50e000003980: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x50e000003a00: 00 00 00 00 00 00 00 00 00 00 fa fa fa fa fa fa
+  0x50e000003a80: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00
+  0x50e000003b00: 00 00 00 00 fa fa fa fa fa fa fa fa fa fa fa fa
+  0x50e000003b80: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00
+=>0x50e000003c00: 00 00 00 00[fa]fa fa fa fa fa fa fa fa fa fa fa
+  0x50e000003c80: 00 00 00 00 00 00 00 00 00 00 00 fa fa fa fa fa
+  0x50e000003d00: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x50e000003d80: 00 00 00 00 00 00 00 00 00 00 fa fa fa fa fa fa
+  0x50e000003e00: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00
+  0x50e000003e80: 00 00 00 00 fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==2037988==ABORTING
+```
+
+the contents of the input file are just "bm3d" . When running with the in-memory file it runs normally. I think we can just banlist bm3d from the input and continue, but I think that we should later on actually fix this properly.
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
