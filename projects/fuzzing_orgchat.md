@@ -4630,7 +4630,9 @@ LAB_14004e55f:
  cmake -A x64 .. -DDynamoRIO_DIR=C:\Users\elsku\dynamorio2\DynamoRIO-Windows-11.3.0-1\cmake -DINTELPT=1 -DUSE_COLOR=1
 
 cmake --build . --config Release
+4D6DC
 
+0x4e2DC
 
 
 658c0
@@ -4640,6 +4642,2321 @@ the original shit was 0x4e2DC
 1400658c0
 
 C:\Users\elsku\winafl\winafl\build\bin\Release\afl-fuzz.exe -i c:\Users\elsku\inputs -o c:\Users\elsku\outputs -D C:\Users\elsku\dynamorio2\DynamoRIO-Windows-11.3.0-1\bin64 -I 40000  -debug -t 4000 -f test.opx -- -coverage_module ORGCHART.EXE -fuzz_iterations 1000 -persistence_mode in_app -target_module ORGCHART.EXE -verbose 100 -target_offset 0x4e2DC -nargs 6 -call_convention fastcall -- "C:\Program Files\Microsoft Office\root\Office16\ORGCHART.EXE" "@@"
+
+
+So the fucking target function actually spawns a thread inside of it. Holy shit this is annoying to debug...
+
+Here is the complete call stack:
+
+```
+
+Säikeen tunnist Osoite           Paluun kohde     Paluun lähde     Kok Muistialue   Kommentti
+29016 - Pääsäie
+                00000013925AE3C8 00007FFBB4FA4F78 00007FFBDEF744D0 40  Järjestelmä  kernel32.CreateThread
+                00000013925AE408 00007FFBB4F909B4 00007FFBB4FA4F78 90  Järjestelmä  winspool.Ordinal#361+B8
+                00000013925AE498 00007FFBDD363324 00007FFBB4F909B4 70  Järjestelmä  winspool.DocumentEvent+44
+                00000013925AE508 00007FFBDD2FEF45 00007FFBDD363324 350 Järjestelmä  gdi32full.DocumentEventEx+114
+                00000013925AE858 00007FFBDD324717 00007FFBDD2FEF45 80  Järjestelmä  gdi32full.hdcCreateDCW+195
+                00000013925AE8D8 00007FFBDD323B21 00007FFBDD324717 40  Järjestelmä  gdi32full.SetBitmapDimensionEx+147
+                00000013925AE918 00007FF79ACCDBD8 00007FFBDD323B21 310 Käyttäjäalue gdi32full.CreateICA+11
+                00000013925AEC28 00007FF79ACB40D6 00007FF79ACCDBD8 130 Käyttäjäalue orgchart.00007FF79ACCDBD8
+                00000013925AED58 00007FF79ACB52A0 00007FF79ACB40D6 6C0 Käyttäjäalue orgchart.00007FF79ACB40D6
+                00000013925AF418 00007FF79ACB5B4E 00007FF79ACB52A0 40  Käyttäjäalue orgchart.00007FF79ACB52A0
+                00000013925AF458 00007FF79ACB5C9F 00007FF79ACB5B4E 150 Käyttäjäalue orgchart.00007FF79ACB5B4E
+                00000013925AF5A8 00007FF79ACA8D0C 00007FF79ACB5C9F 1D0 Käyttäjäalue orgchart.00007FF79ACB5C9F
+                00000013925AF778 00007FF79ACDD472 00007FF79ACA8D0C 40  Käyttäjäalue orgchart.00007FF79ACA8D0C
+                00000013925AF7B8 00007FFBDEF7259D 00007FF79ACDD472 30  Järjestelmä  orgchart.00007FF79ACDD472
+                00000013925AF7E8 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                00000013925AF868 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+19816
+                0000001392DFF848 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                0000001392DFFB28 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                0000001392DFFB58 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                0000001392DFFBD8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+2568
+                00000013928FF518 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                00000013928FF7F8 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                00000013928FF828 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                00000013928FF8A8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+4408
+                00000013929FF868 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                00000013929FFB48 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                00000013929FFB78 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                00000013929FFBF8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+1712
+                0000001392CFF508 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                0000001392CFF7E8 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                0000001392CFF818 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                0000001392CFF898 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+6960
+                0000001392AFF518 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                0000001392AFF7F8 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                0000001392AFF828 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                0000001392AFF8A8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+29272
+                0000001392BFF518 00007FFBDD7B6849 00007FFBE0010EF4 2E0 Järjestelmä  ntdll.NtWaitForMultipleObjects+14
+                0000001392BFF7F8 00007FFBDE0807AD 00007FFBDD7B6849 2A0 Järjestelmä  kernelbase.WaitForMultipleObjectsEx+E9
+                0000001392BFFA98 00007FFBDE08061A 00007FFBDE0807AD 50  Järjestelmä  combase.CoFreeUnusedLibrariesEx+82D
+                0000001392BFFAE8 00007FFBDE08040F 00007FFBDE08061A 80  Järjestelmä  combase.CoFreeUnusedLibrariesEx+69A
+                0000001392BFFB68 00007FFBDE080829 00007FFBDE08040F 30  Järjestelmä  combase.CoFreeUnusedLibrariesEx+48F
+                0000001392BFFB98 00007FFBDEF7259D 00007FFBDE080829 30  Järjestelmä  combase.CoFreeUnusedLibrariesEx+8A9
+                0000001392BFFBC8 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                0000001392BFFC48 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+
+
+```
+
+
+We are calling the CreateICA function from this function here:
+
+```
+
+
+void FUN_14007d9fc(LPCSTR param_1,HGLOBAL param_2,int *param_3,int *param_4,int param_5,
+                  undefined4 *param_6,undefined8 param_7,int param_8)
+
+{
+  BYTE BVar1;
+  HGLOBAL hMem;
+  int *piVar2;
+  char cVar3;
+  undefined2 uVar4;
+  int iVar5;
+  BOOL BVar6;
+  LONG LVar7;
+  HDC pHVar8;
+  HDC pHVar9;
+  undefined8 *puVar10;
+  HDC__ *pHVar11;
+  PDEVMODEA pDevModeOutput;
+  PDEVMODEA p_Var12;
+  HDC__ *pHVar13;
+  undefined2 uVar14;
+  longlong lVar15;
+  PDEVMODEA p_Var16;
+  int iVar17;
+  HDC lpString1;
+  HDC pHVar19;
+  undefined auStackY_308 [32];
+  HANDLE local_2d8;
+  int local_2d0;
+  HGLOBAL local_2c8;
+  int *local_2c0;
+  int *local_2b8;
+  HDC__ *local_2b0;
+  undefined8 local_2a8;
+  undefined8 uStack_2a0;
+  undefined8 local_298;
+  undefined8 uStack_290;
+  undefined8 local_288;
+  undefined8 uStack_280;
+  undefined8 local_278;
+  undefined8 uStack_270;
+  undefined8 local_268;
+  undefined8 uStack_260;
+  undefined8 local_258;
+  undefined8 uStack_250;
+  undefined8 local_248;
+  undefined8 uStack_240;
+  undefined4 local_238;
+  undefined4 uStack_234;
+  undefined4 uStack_230;
+  undefined4 uStack_22c;
+  undefined8 local_228;
+  undefined8 uStack_220;
+  undefined8 local_218;
+  undefined4 local_210;
+  _devicemodeA local_208;
+  HDC__ local_168 [68];
+  ulonglong local_58;
+  HDC pHVar18;
+
+  local_58 = DAT_140098000 ^ (ulonglong)auStackY_308;
+  local_2c8 = param_2;
+  local_2c0 = param_3;
+  local_2b8 = param_4;
+  memset(&local_208,0,0x9c);
+  memset(&local_2a8,0,0x9c);
+  pHVar9 = (HDC)0x0;
+  local_2b0 = (HDC__ *)0x0;
+  local_2d0 = 0;
+  local_2d8 = (HANDLE)0x0;
+  iVar5 = lstrlenA(param_1);
+  if (iVar5 == 0) {
+    GetProfileStringA("windows","device","",param_1,0x105);
+    *param_6 = 1;
+    param_5 = 2;
+  }
+  iVar5 = lstrlenA(param_1);
+  pHVar18 = (HDC)0x0;
+  iVar17 = 0;
+  lpString1 = pHVar9;
+  if (iVar5 == 0) {
+LAB_14007dc7f:
+    GetProfileStringA("windows","device","",param_1,0x105);
+    iVar5 = lstrlenA(param_1);
+    param_5 = (iVar5 != 0) + 1;
+LAB_14007dcb8:
+    pHVar9 = (HDC)0x0;
+    if (param_2 != (HGLOBAL)0x0) {
+      puVar10 = (undefined8 *)GlobalLock(param_2);
+      if (param_5 < 1) {
+        if (*(short *)((longlong)puVar10 + 0x34) < 0x1a) {
+          *(undefined2 *)((longlong)puVar10 + 0x34) = 100;
+        }
+      }
+      else {
+        *(undefined *)puVar10 = 0;
+        *(undefined2 *)((longlong)puVar10 + 0x3e) = 1;
+        *(undefined4 *)((longlong)puVar10 + 0x22) = 0x9c0000;
+        *(undefined2 *)((longlong)puVar10 + 0x26) = 0;
+        *(undefined4 *)((longlong)puVar10 + 0x36) = 0x80001;
+        *(undefined4 *)((longlong)puVar10 + 0x3a) = 0x1fffc;
+        if (param_8 != 0) {
+          *(short *)((longlong)puVar10 + 0x2c) = (short)param_8;
+        }
+        iVar5 = DAT_1400992d0;
+        if (param_5 == 1) {
+          *(undefined2 *)(puVar10 + 4) = 0x401;
+          if (iVar5 == 0) {
+            uVar4 = 0xb9a;
+            uVar14 = 0x834;
+          }
+          else {
+            uVar4 = 0x86f;
+            uVar14 = 0xaea;
+          }
+          *(undefined2 *)(puVar10 + 6) = uVar14;
+          *(undefined2 *)((longlong)puVar10 + 0x32) = uVar4;
+          *(undefined2 *)((longlong)puVar10 + 0x2c) = 2;
+          if (iVar5 == 0) {
+            uVar4 = 9;
+          }
+          else {
+            uVar4 = 1;
+          }
+          *(undefined2 *)((longlong)puVar10 + 0x2e) = uVar4;
+          *(undefined2 *)((longlong)puVar10 + 0x34) = 100;
+        }
+        else {
+          local_2a8 = *puVar10;
+          uStack_2a0 = puVar10[1];
+          local_298 = puVar10[2];
+          uStack_290 = puVar10[3];
+          local_288 = puVar10[4];
+          uStack_280 = puVar10[5];
+          local_278 = puVar10[6];
+          uStack_270 = puVar10[7];
+          local_268 = puVar10[8];
+          uStack_260 = puVar10[9];
+          local_258 = puVar10[10];
+          uStack_250 = puVar10[0xb];
+          local_248 = puVar10[0xc];
+          uStack_240 = puVar10[0xd];
+          local_218 = puVar10[0x12];
+          local_238 = *(undefined4 *)(puVar10 + 0xe);
+          uStack_234 = *(undefined4 *)((longlong)puVar10 + 0x74);
+          uStack_230 = *(undefined4 *)(puVar10 + 0xf);
+          uStack_22c = *(undefined4 *)((longlong)puVar10 + 0x7c);
+          local_228 = puVar10[0x10];
+          uStack_220 = puVar10[0x11];
+          local_210 = *(undefined4 *)(puVar10 + 0x13);
+        }
+        *(undefined4 *)(puVar10 + 5) = 0x713;
+      }
+      iVar5 = lstrlenA(param_1);
+      if (iVar5 != 0) {
+        lVar15 = 0x106;
+        pHVar13 = local_168;
+        do {
+          if ((lVar15 == -0x7ffffef8) ||
+             (cVar3 = *(char *)((longlong)pHVar13 + ((longlong)param_1 - (longlong)local_168)),
+             cVar3 == '\0')) break;
+          *(char *)&pHVar13->unused = cVar3;
+          pHVar13 = (HDC__ *)((longlong)&pHVar13->unused + 1);
+          lVar15 = lVar15 + -1;
+        } while (lVar15 != 0);
+        lpString1 = (HDC)0x0;
+        iVar5 = 0;
+        pHVar11 = (HDC__ *)((longlong)&pHVar13[-1].unused + 3);
+        if (lVar15 != 0) {
+          pHVar11 = pHVar13;
+        }
+        pHVar9 = local_168;
+        *(undefined *)&pHVar11->unused = 0;
+        local_2b0 = local_168;
+        pHVar8 = lpString1;
+        pHVar18 = lpString1;
+        if ((char)local_168[0].unused == '\0') {
+LAB_14007dea9:
+          iVar5 = 0x2714;
+        }
+        else {
+          do {
+            if ((char)local_168[0].unused == ',') {
+              *(undefined *)&pHVar9->unused = 0;
+              do {
+                pHVar9 = (HDC)((longlong)&pHVar9->unused + 1);
+              } while (*(char *)&pHVar9->unused == ' ');
+              pHVar18 = pHVar9;
+              if (pHVar8 != (HDC)0x0) {
+                lpString1 = pHVar9;
+                pHVar18 = pHVar8;
+              }
+            }
+            else {
+              pHVar9 = (HDC)CharNextA((LPCSTR)pHVar9);
+              pHVar18 = pHVar8;
+            }
+            local_168[0].unused._0_1_ = *(char *)&pHVar9->unused;
+            pHVar8 = pHVar18;
+          } while ((char)local_168[0].unused != '\0');
+          if ((pHVar18 == (HDC)0x0) || (lpString1 == (HDC)0x0)) goto LAB_14007dea9;
+        }
+        if (((iVar5 == 0) && (iVar5 = lstrcmpiA((LPCSTR)lpString1,"None"), iVar5 != 0)) &&
+           (BVar6 = OpenPrinterA((LPSTR)local_168,&local_2d8,(LPPRINTER_DEFAULTSA)0x0), BVar6 ==  0))
+        {
+          local_2d8 = (HANDLE)0x0;
+        }
+        pHVar9 = (HDC)0x0;
+        param_2 = local_2c8;
+        if (local_2d8 != (HANDLE)0x0) {
+          LVar7 = DocumentPropertiesA((HWND)0x0,local_2d8,(LPSTR)pHVar18,(PDEVMODEA)0x0,
+                                      (PDEVMODEA)0x0,0);
+          hMem = local_2c8;
+          GlobalUnlock(local_2c8);
+          GlobalReAlloc(hMem,(longlong)LVar7,0);
+          pDevModeOutput = (PDEVMODEA)GlobalLock(hMem);
+          lVar15 = 0x20;
+          p_Var16 = pDevModeOutput;
+          do {
+            if ((lVar15 == -0x7fffffde) ||
+               (BVar1 = *(BYTE *)(((longlong)local_168 - (longlong)pDevModeOutput) +
+                                 (longlong)p_Var16), BVar1 == '\0')) break;
+            p_Var16->dmDeviceName[0] = BVar1;
+            p_Var16 = (PDEVMODEA)(p_Var16->dmDeviceName + 1);
+            lVar15 = lVar15 + -1;
+          } while (lVar15 != 0);
+          p_Var12 = (PDEVMODEA)((longlong)&p_Var16[-1].dmPanningHeight + 3);
+          if (lVar15 != 0) {
+            p_Var12 = p_Var16;
+          }
+          p_Var12->dmDeviceName[0] = '\0';
+          if (param_5 == 0) {
+            memmove(&local_208,pDevModeOutput,0x9c);
+          }
+          else {
+            DocumentPropertiesA((HWND)0x0,local_2d8,(LPSTR)pHVar18,pDevModeOutput,(PDEVMODEA)0x0 ,2);
+            memmove(&local_208,pDevModeOutput,0x9c);
+            if (param_8 != 0) {
+              local_208.field6_0x2c.field0.dmOrientation = (short)param_8;
+            }
+            if (param_5 == 1) {
+              local_208.field6_0x2c.field0.dmOrientation = 2;
+              local_208.dmFields = 1;
+            }
+            else if (param_5 == 2) {
+              local_208.field6_0x2c.field0.dmOrientation = uStack_280._4_2_;
+              local_208.field6_0x2c.field0.dmPaperSize = uStack_280._6_2_;
+              local_208.dmFields = 3;
+            }
+            if ((((pDevModeOutput->field6_0x2c).field0.dmPaperLength != 0) &&
+                ((pDevModeOutput->field6_0x2c).field0.dmPaperLength < 0x3f8)) ||
+               (((pDevModeOutput->field6_0x2c).field0.dmPaperWidth != 0 &&
+                ((pDevModeOutput->field6_0x2c).field0.dmPaperWidth < 0x3f8)))) {
+              local_208.dmFields = local_208.dmFields | 2;
+              local_208.field6_0x2c.field0.dmPaperSize = 1;
+            }
+            local_208.dmSize = 0x9c;
+            local_208.dmDriverExtra = 0;
+          }
+          DocumentPropertiesA((HWND)0x0,local_2d8,(LPSTR)pHVar18,pDevModeOutput,&local_208,10);
+          pDevModeOutput->dmFields = 0x713;
+          pHVar9 = FUN_14007e14c((LPCSTR)pHVar18,(LPCSTR)local_168,(LPCSTR)lpString1,hMem);
+          if (local_2d8 != (HANDLE)0x0) {
+            ClosePrinter(local_2d8);
+          }
+          param_2 = local_2c8;
+          FUN_14007d6c0(pHVar9,local_2c8,local_2b8,local_2c0);
+          local_2d0 = 1;
+        }
+      }
+      GlobalUnlock(param_2);
+    }
+LAB_14007e0d4:
+    if ((param_5 != 1) && (pHVar9 != (HDC)0x0)) goto LAB_14007e124;
+    if (local_2d0 == 0) {
+      local_2c0[0] = 0;
+      local_2c0[1] = 0;
+      local_2c0[2] = 0;
+      local_2c0[3] = 0;
+      local_2b8[1] = 0x630;
+      *local_2b8 = 0x4c8;
+    }
+  }
+  else {
+    pHVar13 = local_168;
+    lVar15 = 0x106;
+    do {
+      if ((lVar15 == -0x7ffffef8) ||
+         (cVar3 = *(char *)((longlong)pHVar13 + ((longlong)param_1 - (longlong)local_168)),
+         cVar3 == '\0')) break;
+      *(char *)&pHVar13->unused = cVar3;
+      pHVar13 = (HDC__ *)((longlong)&pHVar13->unused + 1);
+      lVar15 = lVar15 + -1;
+    } while (lVar15 != 0);
+    pHVar11 = (HDC__ *)((longlong)&pHVar13[-1].unused + 3);
+    if (lVar15 != 0) {
+      pHVar11 = pHVar13;
+    }
+    pHVar8 = local_168;
+    *(undefined *)&pHVar11->unused = 0;
+    local_2b0 = local_168;
+    pHVar19 = pHVar18;
+    cVar3 = (char)local_168[0].unused;
+    if ((char)local_168[0].unused == '\0') {
+LAB_14007db92:
+      iVar17 = 0x2714;
+    }
+    else {
+      do {
+        if (cVar3 == ',') {
+          *(undefined *)&pHVar8->unused = 0;
+          do {
+            pHVar8 = (HDC)((longlong)&pHVar8->unused + 1);
+          } while (*(char *)&pHVar8->unused == ' ');
+          pHVar18 = pHVar8;
+          if (pHVar19 != (HDC)0x0) {
+            lpString1 = pHVar8;
+            pHVar18 = pHVar19;
+          }
+        }
+        else {
+          pHVar8 = (HDC)CharNextA((LPCSTR)pHVar8);
+          pHVar18 = pHVar19;
+        }
+        cVar3 = *(char *)&pHVar8->unused;
+        pHVar19 = pHVar18;
+      } while (cVar3 != '\0');
+      if ((pHVar18 == (HDC)0x0) || (lpString1 == (HDC)0x0)) goto LAB_14007db92;
+    }
+    if ((iVar17 != 0) || (iVar5 = lstrcmpiA((LPCSTR)lpString1,"None"), iVar5 == 0))
+    goto LAB_14007dc7f;
+    SetErrorMode(0x8000);
+    pHVar8 = CreateICA((LPCSTR)pHVar18,(LPCSTR)local_168,(LPCSTR)lpString1,(DEVMODEA *)0x0);
+    SetErrorMode(0);
+    param_2 = local_2c8;
+    if (pHVar8 == (HDC)0x0) goto LAB_14007dc7f;
+    iVar5 = GetDeviceCaps(pHVar8,2);
+    DeleteDC(pHVar8);
+    param_2 = local_2c8;
+    if (iVar5 == 4) goto LAB_14007e0d4;
+    if (local_2c8 == (HGLOBAL)0x0) {
+      param_5 = 2;
+    }
+    if (param_5 != 0) goto LAB_14007dcb8;
+    pHVar9 = FUN_14007e14c((LPCSTR)pHVar18,(LPCSTR)local_168,(LPCSTR)lpString1,local_2c8);
+    piVar2 = local_2b8;
+    FUN_14007d6c0(pHVar9,param_2,local_2b8,local_2c0);
+    if ((*piVar2 == 0x240) && (piVar2[1] == 0x240)) {
+      param_5 = 1;
+      DeleteDC(pHVar9);
+      goto LAB_14007dcb8;
+    }
+  }
+  if (pHVar9 == (HDC)0x0) {
+    FUN_14007e14c((LPCSTR)0x0,(LPCSTR)local_2b0,(LPCSTR)lpString1,(HGLOBAL)0x0);
+  }
+LAB_14007e124:
+  FUN_14008d510(local_58 ^ (ulonglong)auStackY_308);
+  return;
+}
+
+
+```
+
+Here is some documentation:
+
+https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createica
+
+I am going to rename this function to createdrivericathing
+
+
+Ok, so we call that function from:
+
+```
+
+
+void FUN_140063ae8(HWND param_1,uint param_2,int param_3)
+
+{
+  HWND pHVar1;
+  int iVar2;
+  int iVar3;
+  uint uVar4;
+  undefined4 uVar5;
+  uint uVar6;
+  HGLOBAL pvVar7;
+  LPVOID pvVar8;
+  ulonglong uVar9;
+  HGLOBAL pvVar10;
+  LPVOID pvVar11;
+  longlong lVar12;
+  SIZE_T SVar13;
+  undefined2 *puVar14;
+  HDC hdc;
+  char cVar15;
+  ulonglong uVar16;
+  undefined8 uVar17;
+  int *piVar18;
+  HGLOBAL pvVar19;
+  HGLOBAL hMem;
+  undefined auStackY_128 [32];
+  undefined4 in_stack_ffffffffffffff08;
+  undefined4 in_stack_ffffffffffffff0c;
+  undefined4 uVar20;
+  undefined4 in_stack_ffffffffffffff14;
+  undefined8 in_stack_ffffffffffffff18;
+  HGLOBAL local_d8;
+  HGLOBAL local_d0;
+  HGLOBAL local_c8;
+  longlong local_c0;
+  HGLOBAL local_b8;
+  HWND local_b0;
+  HGLOBAL local_a8;
+  HGLOBAL local_a0;
+  HGLOBAL local_98;
+  HGLOBAL local_90;
+  HGLOBAL local_88;
+  HGLOBAL local_80;
+  longlong local_78 [2];
+  tagRECT local_68;
+  tagRECT local_58;
+  ulonglong local_48;
+
+  local_48 = DAT_140098000 ^ (ulonglong)auStackY_128;
+  pvVar10 = (HGLOBAL)0x0;
+  uVar16 = (ulonglong)param_2;
+  local_a8 = (HGLOBAL)0x0;
+  local_d0 = (HGLOBAL)0x0;
+  local_d8 = (HGLOBAL)0x0;
+  local_80 = (HGLOBAL)0x0;
+  local_b8 = (HGLOBAL)0x0;
+  local_98 = (HGLOBAL)0x0;
+  pvVar19 = (HGLOBAL)0x0;
+  local_88 = (HGLOBAL)0x0;
+  local_c0 = 0;
+  local_78[0] = 0;
+  local_a0 = (HGLOBAL)0x0;
+  local_78[1] = 0;
+  local_b0 = param_1;
+  pvVar7 = GlobalAlloc(2,0x428);
+  local_c8 = pvVar7;
+  if (pvVar7 != (HGLOBAL)0x0) {
+    local_90 = GlobalAlloc(2,0x9c);
+    hMem = pvVar10;
+    if (((((local_90 != (HGLOBAL)0x0) &&
+          (local_a0 = GlobalAlloc(0x42,4), hMem = pvVar19, local_a0 != (HGLOBAL)0x0)) &&
+         (iVar2 = FUN_1400460a4(param_2,100,0x68,0x3c,(longlong *)&local_b8), iVar2 == 0)) &&
+        ((iVar2 = FUN_1400460a4(param_2,100,0x6a,0x1a,(longlong *)&local_88), iVar2 == 0 &&
+         (iVar2 = FUN_1400460a4(param_2,100,100,0x438,&local_c0), iVar2 == 0)))) &&
+       ((iVar2 = FUN_1400460a4(param_2,100,0x6e,0xac,local_78), iVar2 == 0 &&
+        (iVar2 = FUN_1400460a4(param_2,100,0x6f,0x14,local_78 + 1), iVar2 == 0)))) {
+      pvVar8 = GlobalLock(local_b8);
+      *(undefined8 *)((longlong)pvVar8 + 0x20) = 0;
+      *(undefined4 *)((longlong)pvVar8 + 0x28) = 0;
+      *(undefined8 *)((longlong)pvVar8 + 0x34) = 0;
+      *(undefined8 *)((longlong)pvVar8 + 0x10) = 1;
+      GlobalUnlock(local_b8);
+      uVar9 = FUN_14007ad40(&local_a8);
+      if (((int)uVar9 != 0) || (pvVar10 = GlobalAlloc(2,0), pvVar10 == (HGLOBAL)0x0))
+      goto LAB_140063d96;
+      iVar2 = 0;
+      if ((param_3 == 5) || (((param_3 == 6 || (param_3 == 0x60)) || (param_3 == 99)))) {
+        iVar2 = 1;
+      }
+      local_c0 = CONCAT44(local_c0._4_4_,iVar2);
+      if ((iVar2 == 0) || ((DAT_1400babf6 & 0x100) == 0)) {
+        iVar3 = FUN_140063ab4(100,0x67,&local_d8);
+        iVar2 = DAT_1400bacf0;
+        if (iVar3 == 0) goto LAB_140063d56;
+LAB_140063d8e:
+        local_d0 = local_d8;
+LAB_140063d96:
+        pvVar19 = pvVar10;
+        if (local_a8 != (HGLOBAL)0x0) {
+          GlobalFree(local_a8);
+        }
+      }
+      else {
+        iVar2 = FUN_140063ab4(100,0x71,&local_d8);
+        if (iVar2 != 0) goto LAB_140063d8e;
+        iVar2 = 1;
+LAB_140063d56:
+        iVar2 = FUN_140063ab4(0x67,iVar2,&local_d0);
+        if (iVar2 != 0) goto LAB_140063d8e;
+        iVar2 = FUN_140046144(param_2,0x67,0,(longlong)local_d0);
+        if (iVar2 != 0) {
+          GlobalFree(local_d0);
+          goto LAB_140063d8e;
+        }
+        SetRect(&local_58,0,0,DAT_1400bac94,DAT_1400bac94);
+        pvVar8 = GlobalLock(pvVar7);
+        local_d0 = local_d8;
+        *(undefined4 *)((longlong)pvVar8 + 0x22a) = DAT_1400bac8c;
+        *(undefined4 *)((longlong)pvVar8 + 0x22e) = DAT_1400bacdc;
+        *(undefined4 *)((longlong)pvVar8 + 0x232) = DAT_1400bacf4;
+        *(undefined4 *)((longlong)pvVar8 + 0x236) = DAT_1400bace4;
+        *(undefined4 *)((longlong)pvVar8 + 0x23a) = DAT_1400bace0;
+        *(undefined4 *)((longlong)pvVar8 + 0x23e) = DAT_1400bacb0;
+        *(undefined4 *)((longlong)pvVar8 + 0x242) = DAT_1400baca4;
+        *(undefined4 *)((longlong)pvVar8 + 0x246) = DAT_1400baca8;
+        *(undefined4 *)((longlong)pvVar8 + 0x24a) = DAT_1400bacac;
+        *(undefined4 *)((longlong)pvVar8 + 0x276) = DAT_1400bac9c;
+        *(undefined4 *)((longlong)pvVar8 + 0x27a) = DAT_1400bac98;
+        *(undefined4 *)((longlong)pvVar8 + 0x27e) = 0;
+        uVar20 = DAT_1400bac54;
+        if (param_3 == 0x60) {
+          uVar20 = 0xe;
+        }
+        *(undefined4 *)((longlong)pvVar8 + 0x282) = uVar20;
+        *(undefined4 *)((longlong)pvVar8 + 0x286) = DAT_1400bac58;
+        *(undefined4 *)((longlong)pvVar8 + 0x28a) = DAT_1400bac5c;
+        *(undefined4 *)((longlong)pvVar8 + 0x266) = DAT_1400bacc8;
+        *(undefined4 *)((longlong)pvVar8 + 0x26e) = DAT_1400baccc;
+        *(undefined4 *)((longlong)pvVar8 + 0x26a) = DAT_1400bacd0;
+        uVar20 = DAT_1400bacd8;
+        *(undefined4 *)((longlong)pvVar8 + 0xf6) = 0xffffffff;
+        *(HGLOBAL *)((longlong)pvVar8 + 0xde) = local_d8;
+        *(undefined8 *)((longlong)pvVar8 + 0xea) = 0;
+        *(undefined8 *)((longlong)pvVar8 + 0x21e) = 0;
+        *(undefined8 *)((longlong)pvVar8 + 0x1e6) = 0;
+        *(undefined4 *)((longlong)pvVar8 + 0x272) = uVar20;
+        *(undefined4 *)((longlong)pvVar8 + 0xce) = 0;
+        *(undefined8 *)((longlong)pvVar8 + 0xfe) = 0;
+        *(undefined8 *)((longlong)pvVar8 + 0x1fa) = 0;
+        *(undefined8 *)((longlong)pvVar8 + 0x212) = 0;
+        *(undefined8 *)((longlong)pvVar8 + 0x206) = 0;
+        *(undefined8 *)((longlong)pvVar8 + 0x2c2) = 0;
+        *(undefined8 *)((longlong)pvVar8 + 0x2ca) = 0;
+        *(HGLOBAL *)((longlong)pvVar8 + 0xba) = local_a0;
+        *(LPCSTR)((longlong)pvVar8 + 0x2d2) = '\0';
+        *(undefined4 *)((longlong)pvVar8 + 0x226) = 0;
+        *(undefined8 *)((longlong)pvVar8 + 0x296) = 0;
+        *(undefined4 *)((longlong)pvVar8 + 0x29e) = 0;
+        *(undefined8 *)((longlong)pvVar8 + 0xd2) = 0;
+        *(uint *)((longlong)pvVar8 + 0x26) = param_2;
+        *(undefined4 *)((longlong)pvVar8 + 0x22) = 0x2800;
+        *(undefined8 *)((longlong)pvVar8 + 0x28e) = 1;
+        *(undefined4 *)((longlong)pvVar8 + 0x3a) = 1;
+        *(undefined4 *)((longlong)pvVar8 + 0x2a2) = 1;
+        *(undefined4 *)((longlong)pvVar8 + 0x2be) = DAT_1400bacd0;
+        SetRect((LPRECT)((longlong)pvVar8 + 0x2a6),0,0,0,0);
+        pvVar7 = local_90;
+        *(undefined4 *)((longlong)pvVar8 + 0x3d8) = 0;
+        *(undefined4 *)((longlong)pvVar8 + 0x3dc) = DAT_140098334;
+        *(undefined4 *)((longlong)pvVar8 + 0x3e0) = DAT_1400983fc;
+        *(undefined8 *)((longlong)pvVar8 + 0x3e4) = 0;
+        *(undefined4 *)((longlong)pvVar8 + 0xfa) = DAT_1400bacd4;
+        *(undefined8 *)((longlong)pvVar8 + 0x2b6) = 0;
+        pvVar11 = GlobalLock(local_90);
+        memmove(pvVar11,&DAT_1400bb364,0x9c);
+        *(HGLOBAL *)((longlong)pvVar8 + 0xae) = pvVar7;
+        GlobalUnlock(pvVar7);
+        uVar20 = 0;
+        local_d8 = (HGLOBAL)CONCAT44(local_d8._4_4_,1);
+        lVar12 = createdrivericathing
+                           ((LPCSTR)((longlong)pvVar8 + 0x2d2),pvVar7,
+                            (int *)((longlong)pvVar8 + 0x8a),(int *)((longlong)pvVar8 + 0x66),1,
+                            (undefined4 *)&local_d8,
+                            CONCAT44(in_stack_ffffffffffffff0c,in_stack_ffffffffffffff08),0);
+        *(longlong *)((longlong)pvVar8 + 0x21e) = lVar12;
+        pvVar7 = local_c8;
+        if (lVar12 == 0) goto LAB_140063d96;
+        uVar4 = *(uint *)((longlong)pvVar8 + 0x22);
+        if ((int)local_d8 == 0) {
+          if ((uVar4 & 0x2000) != 0) {
+            uVar4 = uVar4 ^ 0x2000;
+            goto LAB_14006410a;
+          }
+        }
+        else {
+          uVar4 = uVar4 | 0x2000;
+LAB_14006410a:
+          *(uint *)((longlong)pvVar8 + 0x22) = uVar4;
+        }
+        pvVar19 = GlobalAlloc(0x42,4);
+        pvVar7 = local_c8;
+        local_98 = pvVar19;
+        if (pvVar19 == (HGLOBAL)0x0) goto LAB_140063d96;
+        *(HGLOBAL *)((longlong)pvVar8 + 0x1e6) = pvVar19;
+        SVar13 = GlobalSize(pvVar19);
+        iVar2 = FUN_1400460a4(param_2,100,0x69,SVar13 + 0x10,(longlong *)&local_d8);
+        pvVar7 = local_c8;
+        if (iVar2 != 0) goto LAB_140063d96;
+        FUN_1400489d0(pvVar19,local_d8);
+        FUN_140048a3c(local_d8);
+        iVar2 = FUN_14007b578(*(HGLOBAL *)((longlong)pvVar8 + 0x1e6),DAT_1400990d0);
+        iVar2 = FUN_14007b67c(local_a0,iVar2);
+        pvVar7 = local_c8;
+        if (iVar2 == -1) goto LAB_140063d96;
+        *(int *)((longlong)pvVar8 + 0x27e) = iVar2;
+        DAT_140098ee0 = *(undefined8 *)((longlong)pvVar8 + 0xba);
+        DAT_140098ed8 = *(undefined8 *)((longlong)pvVar8 + 0x1e6);
+        iVar2 = FUN_140062a10(param_2,local_b8,&local_80,(int *)&local_d8,1);
+        pvVar19 = local_88;
+        pvVar7 = local_c8;
+        if (iVar2 != 0) goto LAB_140063d96;
+        FUN_140048a3c(local_88);
+        pvVar11 = GlobalLock(pvVar19);
+        uVar5 = (int)local_d8;
+        *(undefined2 *)((longlong)pvVar11 + 0x10) = 0x3ed;
+        *(undefined4 *)((longlong)pvVar11 + 0x12) = 0;
+        *(int *)((longlong)pvVar11 + 0x16) = (int)local_d8;
+        GlobalUnlock(pvVar19);
+        pvVar19 = local_80;
+        *(HGLOBAL *)((longlong)pvVar8 + 0xea) = local_80;
+        *(undefined4 *)((longlong)pvVar8 + 0xf6) = uVar5;
+        if (local_80 != (HGLOBAL)0x0) {
+          pvVar11 = GlobalLock(local_80);
+          if (pvVar11 != (LPVOID)0x0) {
+            *(ushort *)((longlong)pvVar11 + 0xe) = *(ushort *)((longlong)pvVar11 + 0xe) | 4;
+          }
+          GlobalUnlock(pvVar19);
+        }
+        if (((int)local_c0 != 0) && (((byte)DAT_1400babfa & 0x40) != 0)) {
+          FUN_1400627c0(param_2,(longlong)pvVar8,local_b8);
+        }
+        iVar2 = FUN_140046144(param_2,100,0x67,*(longlong *)((longlong)pvVar8 + 0xde));
+        pHVar1 = local_b0;
+        pvVar7 = local_c8;
+        if (iVar2 != 0) goto LAB_140063d96;
+        local_d0 = (HGLOBAL)0x0;
+        FUN_14003e2c4(local_b0,(longlong)pvVar8,0x6c,0xffffffff,1);
+        pvVar7 = local_c8;
+        *(undefined4 *)((longlong)pvVar8 + 0x1f6) = DAT_1400bac78;
+        GlobalUnlock(local_c8);
+        SetWindowLongPtrA(pHVar1,8,(LONG_PTR)pvVar7);
+        if ((((param_3 == 2) || (param_3 == 4)) || (param_3 == 5)) ||
+           (((param_3 == 7 || (param_3 == 8)) ||
+            ((param_3 == 0x5b || ((param_3 == 0x5c || (param_3 == 0x5e)))))))) {
+          local_c0 = CONCAT44(local_c0._4_4_,1);
+          local_c8 = (HGLOBAL)CONCAT44(local_c8._4_4_,1);
+        }
+        else {
+          iVar2 = FUN_1400279a8(pHVar1,param_2,pvVar19,1,1);
+          if ((iVar2 != 0) ||
+             (uVar9 = FUN_14002221c(pHVar1,param_2,DAT_1400bac78,pvVar19,0,1), (int)uVar9 != 0))
+          goto LAB_140063d96;
+          FUN_140079e78(2,32000);
+          FUN_14007a020(2,0);
+          pvVar8 = GlobalLock(pvVar19);
+          local_c0 = CONCAT44(local_c0._4_4_,
+                              *(int *)((longlong)pvVar8 + 0x24) - *(int *)((longlong)pvVar8 + 0x1c ))
+          ;
+          local_c8 = (HGLOBAL)CONCAT44(local_c8._4_4_,
+                                       *(int *)((longlong)pvVar8 + 0x28) -
+                                       *(int *)((longlong)pvVar8 + 0x20));
+          GlobalUnlock(pvVar19);
+        }
+        if (pvVar19 != (HGLOBAL)0x0) {
+          pvVar8 = GlobalLock(pvVar19);
+          if ((pvVar8 != (LPVOID)0x0) && ((*(ushort *)((longlong)pvVar8 + 0xe) & 4) != 0)) {
+            *(ushort *)((longlong)pvVar8 + 0xe) = *(ushort *)((longlong)pvVar8 + 0xe) ^ 4;
+          }
+          GlobalUnlock(pvVar19);
+        }
+        SetRect(&local_68,4,4,4,0);
+        uVar4 = FUN_14004313c(pvVar10,&local_58.left,&local_68.left,0,0x420);
+        if (((((uVar4 != 0) ||
+              (uVar4 = FUN_14004313c(pvVar10,&local_58.left,&local_68.left,1,0x20), uVar4 != 0)) ||
+             (uVar4 = FUN_14004313c(pvVar10,&local_58.left,&local_68.left,2,0x420), uVar4 != 0)) ||
+            ((uVar4 = FUN_14004313c(pvVar10,&local_58.left,&local_68.left,3,0x420), uVar4 != 0 ||
+             (uVar4 = FUN_14004313c(pvVar10,&local_58.left,&local_68.left,4,0x420), uVar4 != 0))) )
+           || (uVar4 = FUN_14004313c(pvVar10,&local_58.left,&local_68.left,5,0x420), uVar4 != 0) )
+        goto LAB_140063d96;
+        puVar14 = (undefined2 *)GlobalLock(pvVar7);
+        *(HGLOBAL *)(puVar14 + 0x69) = local_a8;
+        *puVar14 = 0x3ed;
+        *(HGLOBAL *)(puVar14 + 99) = pvVar10;
+        *(undefined8 *)(puVar14 + 0x7f) = 0;
+        *(undefined8 *)(puVar14 + 0xfd) = 0;
+        *(uint *)(puVar14 + 0x13) = param_2;
+        *(HGLOBAL *)(puVar14 + 0x75) = pvVar19;
+        *(int *)(puVar14 + 0x7b) = (int)local_d8;
+        *(int *)(puVar14 + 0x21) = (int)local_d8;
+        *(HGLOBAL *)(puVar14 + 0xed) = local_b8;
+        *(int *)(puVar14 + 0x27) = (int)local_c0;
+        *(undefined8 *)(puVar14 + 0x15) = 3;
+        *(undefined8 *)(puVar14 + 0x19) = 0;
+        *(undefined4 *)(puVar14 + 0x1f) = 0;
+        *(undefined8 *)(puVar14 + 0x23) = 0;
+        *(undefined4 *)(puVar14 + 0x85) = 0;
+        *(undefined4 *)(puVar14 + 0xc3) = 0;
+        *(undefined4 *)(puVar14 + 0x29) = local_c8._0_4_;
+        *(int *)(puVar14 + 0x3b) = (int)local_c0 / 2;
+        *(undefined8 *)(puVar14 + 0x2b) = 0;
+        *(undefined4 *)(puVar14 + 0x37) = 0x5a;
+        *(undefined4 *)(puVar14 + 0x39) = 0x12;
+        if ((*(int *)(puVar14 + 0x45) == 0) || (uVar5 = 0xe, *(int *)(puVar14 + 0x47) == 0)) {
+          uVar5 = 0;
+        }
+        *(undefined4 *)(puVar14 + 0x51) = uVar5;
+        *(undefined8 *)(puVar14 + 0x53) = 0;
+        CopyRect((LPRECT)(puVar14 + 0x3d),(RECT *)&DAT_1400bac68);
+        uVar4 = *(uint *)(puVar14 + 0x11);
+        uVar6 = uVar4 | 2;
+        *(uint *)(puVar14 + 0x11) = uVar6;
+        cVar15 = (char)DAT_1400babf6;
+        if ((DAT_1400babf6 & 4) != 0) {
+          uVar6 = uVar4 | 6;
+          *(uint *)(puVar14 + 0x11) = uVar6;
+          cVar15 = (char)DAT_1400babf6;
+        }
+        if (cVar15 < '\0') {
+          *(uint *)(puVar14 + 0x11) = uVar6 | 0x200;
+        }
+        *(undefined4 *)(puVar14 + 0x11) = 0x2602;
+        iVar2 = FUN_140046144(param_2,100,0x65,*(longlong *)(puVar14 + 99));
+        if (iVar2 != 0) goto LAB_140063d96;
+        uVar17 = 100;
+        pvVar19 = (HGLOBAL)0x0;
+        pvVar10 = (HGLOBAL)0x0;
+        iVar2 = FUN_140046144(param_2,100,0x66,*(longlong *)(puVar14 + 0x69));
+        pHVar1 = local_b0;
+        if (iVar2 != 0) goto LAB_140063d96;
+        piVar18 = (int *)(puVar14 + 0x3d);
+        local_a8 = (HGLOBAL)0x0;
+        iVar2 = FUN_14002d200(uVar16,uVar17,piVar18,*(undefined8 *)(puVar14 + 0x37),
+                              *(undefined8 *)(puVar14 + 0x2b),local_b0,param_2,
+                              CONCAT44(in_stack_ffffffffffffff14,uVar20),in_stack_ffffffffffffff18 ,
+                              (longlong *)(puVar14 + 0xfd));
+        uVar4 = (uint)piVar18;
+        if (iVar2 == 0) {
+          if ((((param_3 != 2) && (param_3 != 4)) && (param_3 != 5)) &&
+             ((((param_3 != 6 && (param_3 != 7)) &&
+               ((param_3 != 8 && ((param_3 != 0x5b && (param_3 != 0x5c)))))) && (param_3 != 0x5e) )))
+          {
+            FUN_1400782bc((longlong)puVar14,0);
+            pvVar19 = *(HGLOBAL *)(puVar14 + 99);
+            FUN_140078b28(pHVar1,*(HGLOBAL *)(puVar14 + 0x7f),pvVar19,*(HGLOBAL *)(puVar14 + 0x69 ),
+                          (longlong)puVar14);
+            uVar4 = (uint)pvVar19;
+          }
+          if (((DAT_1400babf6 & 2) == 0) && ((*(uint *)(puVar14 + 0x11) & 2) != 0)) {
+            *(uint *)(puVar14 + 0x11) = *(uint *)(puVar14 + 0x11) ^ 2;
+          }
+          GlobalUnlock(pvVar7);
+          uVar4 = FUN_140073ce4(pHVar1,pvVar7,uVar4);
+          if (uVar4 == 0) goto LAB_1400647e3;
+          goto LAB_140063d96;
+        }
+      }
+      if (local_d0 != (HGLOBAL)0x0) {
+        GlobalFree(local_d0);
+      }
+      param_1 = local_b0;
+      hMem = local_98;
+      if (pvVar19 != (HGLOBAL)0x0) {
+        GlobalFree(pvVar19);
+        param_1 = local_b0;
+        hMem = local_98;
+      }
+    }
+    if (local_90 != (HGLOBAL)0x0) {
+      GlobalFree(local_90);
+    }
+    if (local_a0 != (HGLOBAL)0x0) {
+      GlobalFree(local_a0);
+    }
+    if (hMem != (HGLOBAL)0x0) {
+      GlobalFree(hMem);
+    }
+  }
+  if (pvVar7 != (HGLOBAL)0x0) {
+    pvVar8 = GlobalLock(pvVar7);
+    if (*(longlong *)((longlong)pvVar8 + 0x212) != 0) {
+      hdc = GetDC(param_1);
+      SelectPalette(hdc,*(HPALETTE *)((longlong)pvVar8 + 0x212),0);
+      RealizePalette(hdc);
+      param_1 = local_b0;
+      ReleaseDC(local_b0,hdc);
+    }
+    if (*(HGDIOBJ *)((longlong)pvVar8 + 0x206) != (HGDIOBJ)0x0) {
+      DeleteObject(*(HGDIOBJ *)((longlong)pvVar8 + 0x206));
+      SendMessageA((HWND)0xffff,0x311,(WPARAM)DAT_140099270,0);
+    }
+    if (*(HDC *)((longlong)pvVar8 + 0x21e) != (HDC)0x0) {
+      DeleteDC(*(HDC *)((longlong)pvVar8 + 0x21e));
+    }
+    GlobalUnlock(pvVar7);
+    GlobalFree(pvVar7);
+  }
+  SetWindowLongPtrA(param_1,8,0);
+  PostMessageA(DAT_140099270,6,1,0);
+LAB_1400647e3:
+  FUN_14008d510(local_48 ^ (ulonglong)auStackY_128);
+  return;
+}
+
+```
+
+
+Which seems quite a long function related to some rendering bullshit.
+
+
+We are then calling that function here:
+```
+LAB_140065293:
+          uVar17 = FUN_140063ae8(pHVar9,uVar17,uVar1);
+
+```
+
+which is in:
+
+```
+
+
+void openfileastempandopenwindows(LPCSTR param_1,uint param_2,undefined8 *param_3)
+
+{
+  uint uVar1;
+  bool bVar2;
+  int iVar3;
+  BOOL BVar4;
+  undefined4 uVar5;
+  undefined8 uVar6;
+  char *pcVar7;
+  HWND pHVar8;
+  HWND pHVar9;
+  HGLOBAL pvVar10;
+  LPVOID pvVar11;
+  HDC hDC;
+  int iVar12;
+  UINT UVar13;
+  char *pcVar14;
+  char *pcVar15;
+  longlong lVar16;
+  uint uVar17;
+  ulonglong uVar18;
+  uint uVar19;
+  bool bVar20;
+  undefined auStackY_6b8 [32];
+  int local_658;
+  HGLOBAL local_650;
+  int local_648;
+  uint local_644;
+  undefined8 *local_640;
+  int local_638;
+  HWND local_630;
+  char *local_628;
+  char *local_620;
+  HINSTANCE local_618;
+  undefined8 local_610;
+  undefined8 uStack_608;
+  undefined4 local_600;
+  undefined8 local_5f8;
+  tagRECT local_5f0;
+  tagRECT local_5e0;
+  WINDOWPLACEMENT local_5d0;
+  char local_598 [272];
+  char local_488 [272];
+  char local_378 [272];
+  char local_268 [272];
+  char local_158 [272];
+  ulonglong local_48;
+
+  local_48 = DAT_140098000 ^ (ulonglong)auStackY_6b8;
+  pHVar9 = (HWND)0x0;
+  uVar19 = 0;
+  iVar12 = 0;
+  local_648 = 0;
+  local_644 = 0;
+  bVar20 = false;
+  local_630 = (HWND)0x0;
+  local_650 = (HGLOBAL)0x0;
+  bVar2 = false;
+  *param_3 = 0;
+  local_640 = param_3;
+  if (param_2 == 0x5d) {
+    iVar3 = FUN_14006864c(param_1);
+    if (iVar3 == 2) {
+      param_2 = 0x5c;
+    }
+  }
+  if ((((param_2 == 0xffffffa5) || (param_2 == 0xfffffffe)) || (param_2 == 2)) ||
+     (local_658 = 0, param_2 - 0x5a < 3)) {
+    local_658 = 1;
+  }
+  if ((((param_2 == 0x5a) || (param_2 == 0x5c)) ||
+      ((param_2 == 0x5d || ((param_2 == 0x5f || (param_2 == 0x60)))))) || (param_2 == 0x61)) {
+    iVar12 = 1;
+  }
+  else {
+    DAT_1400990d4 = 0;
+  }
+  if ((int)param_2 < 0) {
+    iVar12 = 1;
+  }
+  uVar1 = -param_2;
+  if (-1 < (int)param_2) {
+    uVar1 = param_2;
+  }
+  local_638 = iVar12;
+  if ((uVar1 != 0x61) && (uVar6 = FUN_14006315c(), (int)uVar6 != 0)) goto LAB_140065729;
+  SetCursor(DAT_1400baa28);
+  some_thing_global = 1;
+  pHVar8 = pHVar9;
+  if ((int)uVar1 < 0x5b) {
+    if (((uVar1 == 0x5a) || (uVar1 == 4)) || ((uVar1 == 5 || (uVar1 == 6)))) goto LAB_140064f9c;
+    iVar12 = uVar1 - 7;
+LAB_140064ebe:
+    if ((iVar12 == 0) || (iVar12 == 1)) goto LAB_140064f9c;
+    pcVar14 = local_598;
+    lVar16 = 0x106;
+    do {
+      if ((lVar16 == -0x7ffffef8) || (pcVar14[(longlong)param_1 - (longlong)local_598] == '\0'))
+      break;
+      *pcVar14 = pcVar14[(longlong)param_1 - (longlong)local_598];
+      pcVar14 = pcVar14 + 1;
+      lVar16 = lVar16 + -1;
+    } while (lVar16 != 0);
+    pcVar15 = pcVar14 + -1;
+    if (lVar16 != 0) {
+      pcVar15 = pcVar14;
+    }
+    *pcVar15 = '\0';
+    _splitpath_s(local_598,local_158,0x106,local_488,0x106,local_378,0x106,local_268,0x106);
+    lVar16 = 0x106;
+    pcVar15 = local_598;
+    do {
+      if ((lVar16 == -0x7ffffef8) || (pcVar15[0x220] == '\0')) break;
+      *pcVar15 = pcVar15[0x220];
+      pcVar15 = pcVar15 + 1;
+      lVar16 = lVar16 + -1;
+    } while (lVar16 != 0);
+    pcVar14 = local_268;
+    pcVar7 = pcVar15 + -1;
+    if (lVar16 != 0) {
+      pcVar7 = pcVar15;
+    }
+    *pcVar7 = '\0';
+LAB_140064fe4:
+    uVar17 = 0;
+    FUN_140021134(local_598,0x106,(longlong)pcVar14);
+    uVar5 = 0x1000000;
+    local_628 = "OPWDocumentClass";
+    local_620 = local_598;
+    local_618 = DAT_140099278;
+    local_610 = 0x8000000080000000;
+    uStack_608 = 0x8000000080000000;
+    local_5f8 = 0;
+    BVar4 = IsIconic(DAT_140099270);
+    if (BVar4 != 0) {
+      uVar5 = 0;
+      local_5d0.length = 0x2c;
+      local_5d0.flags = 0;
+      local_5d0.showCmd = 2;
+      GetWindowPlacement(DAT_140099270,&local_5d0);
+      iVar12 = local_5d0.rcNormalPosition.right - local_5d0.rcNormalPosition.left;
+      iVar3 = local_5d0.rcNormalPosition.bottom - local_5d0.rcNormalPosition.top;
+      if (0x10 < iVar12) {
+        iVar12 = iVar12 + -0x10;
+      }
+      uStack_608 = CONCAT44(iVar3,iVar12);
+      if (0x10 < iVar3) {
+        uStack_608 = CONCAT44(iVar3 + -0x10,iVar12);
+      }
+    }
+    local_600 = uVar5;
+    SetRect(&local_5f0,0,0,1000,1000);
+    if (uVar1 == 0x61) {
+LAB_1400650e4:
+      pHVar9 = pHVar8;
+      if (pHVar8 == (HWND)0x0) {
+        pHVar9 = DAT_140099270;
+      }
+      pHVar9 = CreateWindowExA(0,"OPWChartClass",(LPCSTR)0x0,0x42300000,0,0,local_5f0.right,
+                               local_5f0.bottom,pHVar9,(HMENU)0x0,DAT_140099278,(LPVOID)0x0);
+      uVar17 = ~-(uint)(pHVar9 != (HWND)0x0) & 0x2714;
+      if (pHVar9 == (HWND)0x0) goto LAB_14006522e;
+      *local_640 = pHVar9;
+      uVar17 = DAT_1400bab40;
+      pvVar10 = local_650;
+      if (uVar1 != 0x61) {
+        if ((uVar1 - 0x5a < 9) && ((0x123U >> (uVar1 - 0x5a & 0x1f) & 1) != 0)) {
+          iVar12 = 1;
+        }
+        else {
+          iVar12 = 0;
+        }
+        uVar17 = maybecreatetemp(pHVar8,uVar19,iVar12,local_658,param_1,(uint *)&local_640);
+        if (uVar17 != 0) {
+          bVar2 = false;
+          goto LAB_140065235;
+        }
+        uVar17 = (uint)local_640;
+      }
+      if ((int)uVar1 < 0x5b) {
+        if ((((uVar1 == 0x5a) || (uVar1 == 2)) || (uVar1 == 4)) ||
+           (((uVar1 == 5 || (uVar1 == 6)) || ((uVar1 == 7 || (uVar1 == 8)))))) {
+showwindownochecksumhere:
+          ShowWindow(pHVar8,0);
+          bVar2 = true;
+          bVar20 = true;
+LAB_140065293:
+          uVar17 = FUN_140063ae8(pHVar9,uVar17,uVar1);
+          goto LAB_1400652a0;
+        }
+LAB_140065212:
+        uVar17 = FUN_140063370(pHVar9,uVar17,uVar1);
+        if (uVar17 != 0) goto LAB_14006522e;
+      }
+      else {
+        if ((uVar1 == 0x5b) || (uVar1 == 0x5c)) goto showwindownochecksumhere;
+        if (uVar1 != 0x5f) {
+          if (uVar1 == 0x60) goto showwindownochecksumhere;
+          if (uVar1 != 99) goto LAB_140065212;
+          bVar2 = false;
+          goto LAB_140065293;
+        }
+        ShowWindow(pHVar8,0);
+        bVar2 = true;
+        bVar20 = true;
+        uVar17 = FUN_140063370(pHVar9,uVar17,0x5f);
+LAB_1400652a0:
+        if (uVar17 != 0) goto LAB_140065235;
+      }
+      bVar2 = bVar20;
+      pvVar10 = (HGLOBAL)GetWindowLongPtrA(pHVar9,8);
+      pvVar11 = GlobalLock(pvVar10);
+      if ((*(uint *)((longlong)pvVar11 + 0x22) & 1) != 0) {
+        *(uint *)((longlong)pvVar11 + 0x22) = *(uint *)((longlong)pvVar11 + 0x22) ^ 1;
+      }
+      iVar12 = DAT_1400bac64;
+      if ((int)uVar1 < 0x5b) {
+        if (((((uVar1 != 0x5a) && (uVar1 != 2)) && (uVar1 != 4)) && ((uVar1 != 5 && (uVar1 != 6)) ))
+           && (uVar1 != 7)) {
+          bVar20 = uVar1 == 8;
+LAB_140065351:
+          if (!bVar20) {
+            uVar19 = *(uint *)((longlong)pvVar11 + 0xe);
+            iVar12 = *(int *)((longlong)pvVar11 + 10);
+            if (((uVar1 == 0x5b) || (uVar1 == 0x62)) && ((DAT_1400babf6 & 0x400) != 0)) {
+              uVar19 = (uint)(DAT_1400bac64 < 0);
+              iVar12 = DAT_1400bac64;
+            }
+            uVar18 = (ulonglong)*(uint *)((longlong)pvVar11 + 0x5a);
+            uVar17 = FUN_14007ede0(pHVar9,*(undefined4 *)((longlong)pvVar11 + 0x56),
+                                   *(uint *)((longlong)pvVar11 + 0x5a),iVar12,uVar19);
+            if ((uVar1 == 0x62) || (uVar17 = FUN_140055e48(pHVar9,(longlong)pvVar11), uVar17 == 0))
+            {
+              if ((iVar12 != 0) && ((uVar19 & 1) == 0)) {
+                hDC = GetDC(pHVar9);
+                FUN_14007ec98(hDC,iVar12);
+                ReleaseDC(pHVar9,hDC);
+                local_648 = iVar12;
+              }
+              local_644 = uVar19 & 1;
+              if (uVar17 == 0) {
+                GetClientRect(pHVar9,&local_5e0);
+                FUN_14007ee90(pHVar9,0,uVar18,*(int *)((longlong)pvVar11 + 2),local_5e0.right,0);
+                FUN_14007ee90(pHVar9,1,uVar18,*(int *)((longlong)pvVar11 + 6),local_5e0.bottom,0) ;
+                SendMessageA(pHVar9,0x114,(ulonglong)*(ushort *)((longlong)pvVar11 + 2) << 0x10 |  99
+                             ,0);
+                SendMessageA(pHVar9,0x115,(ulonglong)*(ushort *)((longlong)pvVar11 + 6) << 0x10 |  99
+                             ,0);
+              }
+            }
+            goto LAB_140065489;
+          }
+        }
+LAB_1400654bb:
+        if ((DAT_1400babf6 & 0x400) == 0) {
+          iVar12 = 0;
+        }
+        else if (uVar1 - 0x5a < 2) {
+          if ((DAT_1400bac64 < 500) && (DAT_1400bac64 != 0)) {
+            uVar5 = 1;
+          }
+          else {
+            uVar5 = 0;
+          }
+          *(undefined4 *)((longlong)pvVar11 + 0xe) = uVar5;
+          *(int *)((longlong)pvVar11 + 10) = iVar12;
+        }
+        uVar17 = FUN_14007ede0(pHVar9,*(undefined4 *)((longlong)pvVar11 + 0x56),
+                               *(undefined4 *)((longlong)pvVar11 + 0x5a),iVar12,0);
+        local_648 = 0;
+        if (1 < iVar12 + 1U) {
+          local_648 = iVar12;
+        }
+      }
+      else {
+        if (((uVar1 == 0x5b) || (uVar1 == 0x5c)) || ((uVar1 == 0x5f || (uVar1 == 0x60))))
+        goto LAB_1400654bb;
+        if (uVar1 != 0x61) {
+          bVar20 = uVar1 == 99;
+          goto LAB_140065351;
+        }
+        uVar17 = FUN_14007ede0(pHVar9,*(undefined4 *)((longlong)pvVar11 + 0x56),
+                               *(undefined4 *)((longlong)pvVar11 + 0x5a),0,0);
+      }
+LAB_140065489:
+      GlobalUnlock(pvVar10);
+      pHVar8 = local_630;
+    }
+    else {
+      pHVar8 = (HWND)SendMessageA(DAT_1400992a8,0x220,0,(LPARAM)&local_628);
+      local_630 = pHVar8;
+      if (pHVar8 == (HWND)0x0) {
+        uVar17 = 0x2712;
+      }
+      else {
+        GetClientRect(pHVar8,&local_5f0);
+      }
+      pvVar10 = (HGLOBAL)0x0;
+      pHVar9 = (HWND)0x0;
+      if (uVar17 == 0) goto LAB_1400650e4;
+    }
+  }
+  else {
+    if (((uVar1 != 0x5b) && (uVar1 != 0x5f)) && (uVar1 != 0x60)) {
+      iVar12 = uVar1 - 0x62;
+      goto LAB_140064ebe;
+    }
+LAB_140064f9c:
+    uVar17 = FUN_14007ea70(500,local_598);
+    if (uVar17 == 0) {
+      uVar19 = DAT_140099140 + 1;
+      FUN_140068b2c(local_488,0x106,&DAT_1400901ec,(ulonglong)uVar19);
+      pcVar14 = local_488;
+      goto LAB_140064fe4;
+    }
+LAB_14006522e:
+    bVar2 = false;
+    pvVar10 = (HGLOBAL)0x0;
+  }
+LAB_140065235:
+  if (uVar17 == 0) {
+    if (((((uVar1 == 4) || (uVar1 == 5)) || (uVar1 == 6)) ||
+        (((uVar1 == 7 || (uVar1 == 8)) || ((uVar1 == 0x5b || ((uVar1 == 0x60 || (uVar1 == 0x62)) ))))
+        )) || (uVar1 == 99)) {
+      DAT_140099140 = DAT_140099140 + 1;
+    }
+    if (uVar1 == 0x61) goto LAB_140065729;
+    if (((((uVar1 - 0x5d & 0xfffffffc) != 0) || (uVar1 == 0x5e)) && (!bVar2)) &&
+       ((uVar1 - 0x5a & 0xfffffffd) != 0)) {
+      ShowWindow(pHVar8,5);
+      ShowWindow(pHVar9,5);
+    }
+    if (local_648 != 0) {
+      FUN_1400690ec(pHVar9,local_648,local_644);
+    }
+    FUN_14006909c(pHVar8);
+    FUN_14005a940(pHVar8,1);
+    iVar12 = 0;
+    if (uVar1 == 0x5a) {
+LAB_1400656a2:
+      FUN_140025c0c(pHVar9,0,0,1,0,0);
+      FUN_140026c90(pHVar9,0x459,0,0,1,0);
+      pvVar11 = GlobalLock(pvVar10);
+      if (*(HGLOBAL *)((longlong)pvVar11 + 0xfe) != (HGLOBAL)0x0) {
+        FUN_140043d1c(*(HGLOBAL *)((longlong)pvVar11 + 0xfe),0,iVar12,1,0);
+      }
+    }
+    else {
+      if (uVar1 != 0x5b) {
+        iVar12 = 0;
+        if ((uVar1 != 0x5f) && (uVar1 != 0x60)) {
+          if (uVar1 == 0x62) goto LAB_140065753;
+          if (uVar1 != 99) goto LAB_140065713;
+          iVar12 = 1;
+        }
+        goto LAB_1400656a2;
+      }
+LAB_140065753:
+      pvVar11 = GlobalLock(pvVar10);
+      *(uint *)((longlong)pvVar11 + 0x22) = *(uint *)((longlong)pvVar11 + 0x22) | 0x80;
+      FUN_140026c90(pHVar9,0x457,(uint)*(ushort *)((longlong)pvVar11 + 0xf6) << 0x10,0,1,0);
+      FUN_140025c0c(pHVar9,0,0,1,0,0);
+      if ((*(uint *)((longlong)pvVar11 + 0x22) & 0x80) != 0) {
+        *(uint *)((longlong)pvVar11 + 0x22) = *(uint *)((longlong)pvVar11 + 0x22) ^ 0x80;
+      }
+      iVar12 = GetScrollPos(pHVar9,0);
+      *(int *)((longlong)pvVar11 + 2) = iVar12;
+      iVar12 = GetScrollPos(pHVar9,1);
+      *(int *)((longlong)pvVar11 + 6) = iVar12;
+    }
+    GlobalUnlock(pvVar10);
+  }
+  else {
+    if (pHVar8 == (HWND)0x0) {
+      if (pHVar9 != (HWND)0x0) {
+        DefWindowProcA(pHVar9,0x10,0,0);
+      }
+    }
+    else {
+      FUN_140067690(pHVar8);
+      DefMDIChildProcA(pHVar8,0x10,0,0);
+    }
+    if (((uVar17 != 2) && (local_638 == 0)) && (uVar17 != 0xffffffff)) {
+      UVar13 = 7;
+      if (uVar17 == 7) {
+        UVar13 = 0x5dd;
+      }
+      else if (uVar17 == 0x2716) {
+        UVar13 = 0x33;
+      }
+      else if (uVar17 == 0x2717) {
+        UVar13 = 0x3a;
+      }
+      else if (uVar17 == 0x2718) {
+        UVar13 = (-(uint)(local_658 != 0) & 0x54c) + 0x98;
+      }
+      FUN_14005738c(UVar13);
+    }
+  }
+LAB_140065713:
+  SetCursor(DAT_1400baa20);
+  some_thing_global = 0;
+LAB_140065729:
+  FUN_14008d510(local_48 ^ (ulonglong)auStackY_6b8);
+  return;
+}
+
+```
+
+Which is in our openfileastempandopenwindows function?????????? That seems kinda sus.
+
+and here is the bullshit where we call that:
+
+```
+
+int load_file(LPCSTR filename,uint some_integer)
+
+{
+  int *piVar1;
+  int iVar2;
+  uint uVar3;
+  HWND pHVar4;
+  HGLOBAL hMem;
+  LPVOID pvVar5;
+  int iVar6;
+  ulonglong uVar7;
+  int iVar8;
+  HWND window_thing_object [2];
+
+  iVar2 = 0;
+  SetCursor(DAT_1400baa28);
+  iVar8 = 1;
+  some_thing_global = 1;
+  pHVar4 = FUN_1400657f0(filename);
+  if (pHVar4 == (HWND)0x0) {
+    if (some_integer == 0x5d) {
+      some_integer = 0xfffffffd;
+      iVar6 = iVar8;
+    }
+    else {
+      iVar6 = 0;
+      if (some_integer == 0x5c) {
+        some_integer = 0xfffffffe;
+        iVar6 = iVar8;
+      }
+    }
+    iVar2 = openfileastempandopenwindows(filename,some_integer,window_thing_object);
+    if (window_thing_object[0] == (HWND)0x0) {
+      iVar2 = iVar8;
+    }
+    if (iVar2 != 0) goto LAB_140065c1c;
+    if (((some_integer == 0xfffffffe) || (some_integer == 2)) || (some_integer - 0x5b < 2)) {
+      uVar7 = (ulonglong)some_integer;
+      pHVar4 = window_thing_object[0];
+      do {
+        checkvaliddatathing(pHVar4,filename,(int)uVar7);
+      } while( true );
+    }
+    if (((iVar6 != 0) && (window_thing_object[0] != (HWND)0x0)) &&
+       (hMem = (HGLOBAL)GetWindowLongPtrA(window_thing_object[0],8), hMem != (HGLOBAL)0x0)) {
+      pvVar5 = GlobalLock(hMem);
+      piVar1 = *(int **)((longlong)pvVar5 + 0x2ca);
+      if (((piVar1 != (int *)0x0) && (*piVar1 != 0)) && (*(longlong *)(piVar1 + 3) != 0)) {
+        *(undefined4 *)(*(longlong *)(piVar1 + 3) + 0x60) = 2;
+      }
+      GlobalUnlock(hMem);
+    }
+  }
+  else {
+    BringWindowToTop(pHVar4);
+  }
+  if (DAT_1400991b0 != (HWND)0x0) {
+    uVar3 = FUN_140065a10(DAT_1400991b0);
+    if (uVar3 == 0) {
+      pHVar4 = GetParent(DAT_1400991b0);
+      SendMessageA(pHVar4,0x10,0,0);
+    }
+    DAT_1400991b0 = (HWND)0x0;
+  }
+
+```
+
+
+Wait fuck nevermind. That was the wrong call stack....
+
+Here is the actual thing:
+
+```
+
+
+Säikeen tunnist Osoite           Paluun kohde     Paluun lähde     Kok Muistialue   Kommentti
+29456 - Pääsäie
+                00000087C2EFEFE8 00007FFBB4FA4F78 00007FFBDEF744D0 40  Järjestelmä  kernel32.CreateThread
+                00000087C2EFF028 00007FFBB4F909B4 00007FFBB4FA4F78 90  Järjestelmä  winspool.Ordinal#361+B8
+                00000087C2EFF0B8 00007FFBDD363324 00007FFBB4F909B4 70  Järjestelmä  winspool.DocumentEvent+44
+                00000087C2EFF128 00007FFBDD2FEF45 00007FFBDD363324 350 Järjestelmä  gdi32full.DocumentEventEx+114
+                00000087C2EFF478 00007FFBDD324717 00007FFBDD2FEF45 80  Järjestelmä  gdi32full.hdcCreateDCW+195
+                00000087C2EFF4F8 00007FFBDD323B21 00007FFBDD324717 40  Järjestelmä  gdi32full.SetBitmapDimensionEx+147
+                00000087C2EFF538 00007FF79ACCDBD8 00007FFBDD323B21 310 Käyttäjäalue gdi32full.CreateICA+11
+                00000087C2EFF848 00007FF79AC9F587 00007FF79ACCDBD8 50  Käyttäjäalue orgchart.00007FF79ACCDBD8
+                00000087C2EFF898 00007FF79AC9EF70 00007FF79AC9F587 1F0 Käyttäjäalue orgchart.00007FF79AC9F587
+                00000087C2EFFA88 00007FF79AC9E650 00007FF79AC9EF70 90  Käyttäjäalue orgchart.00007FF79AC9EF70
+                00000087C2EFFB18 00007FF79ACB592E 00007FF79AC9E650 40  Käyttäjäalue orgchart.00007FF79AC9E650
+                00000087C2EFFB58 00007FF79ACB5B81 00007FF79ACB592E 40  Käyttäjäalue orgchart.00007FF79ACB592E
+                00000087C2EFFB98 00007FF79ACB5C9F 00007FF79ACB5B81 150 Käyttäjäalue orgchart.00007FF79ACB5B81
+                00000087C2EFFCE8 00007FF79ACA8D0C 00007FF79ACB5C9F 1D0 Käyttäjäalue orgchart.00007FF79ACB5C9F
+                00000087C2EFFEB8 00007FF79ACDD472 00007FF79ACA8D0C 40  Käyttäjäalue orgchart.00007FF79ACA8D0C
+                00000087C2EFFEF8 00007FFBDEF7259D 00007FF79ACDD472 30  Järjestelmä  orgchart.00007FF79ACDD472
+                00000087C2EFFF28 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                00000087C2EFFFA8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+10956
+                00000087C2FFFA78 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                00000087C2FFFD58 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                00000087C2FFFD88 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                00000087C2FFFE08 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+21288
+                00000087C30FFBF8 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                00000087C30FFED8 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                00000087C30FFF08 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                00000087C30FFF88 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+25044
+                00000087C32FF338 00007FFBDD7B6849 00007FFBE0010EF4 2E0 Järjestelmä  ntdll.NtWaitForMultipleObjects+14
+                00000087C32FF618 00007FFBDE0807AD 00007FFBDD7B6849 2A0 Järjestelmä  kernelbase.WaitForMultipleObjectsEx+E9
+                00000087C32FF8B8 00007FFBDE08061A 00007FFBDE0807AD 50  Järjestelmä  combase.CoFreeUnusedLibrariesEx+82D
+                00000087C32FF908 00007FFBDE08040F 00007FFBDE08061A 80  Järjestelmä  combase.CoFreeUnusedLibrariesEx+69A
+                00000087C32FF988 00007FFBDE080829 00007FFBDE08040F 30  Järjestelmä  combase.CoFreeUnusedLibrariesEx+48F
+                00000087C32FF9B8 00007FFBDEF7259D 00007FFBDE080829 30  Järjestelmä  combase.CoFreeUnusedLibrariesEx+8A9
+                00000087C32FF9E8 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                00000087C32FFA68 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+10576
+                00000087C31FFB48 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                00000087C31FFE28 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                00000087C31FFE58 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                00000087C31FFED8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+14816
+                00000087C33FF638 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                00000087C33FF918 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                00000087C33FF948 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                00000087C33FF9C8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+28332
+                00000087C34FF828 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                00000087C34FFB08 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                00000087C34FFB38 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                00000087C34FFBB8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+
+
+```
+
+
+Here is the place where we are:
+
+```
+
+void maybe_load_data(HWND window_handle,longlong window_lock,HANDLE filehandle)
+
+{
+  bool bVar1;
+  bool bVar2;
+  uint uVar3;
+  uint uVar4;
+  undefined8 uVar5;
+  ulonglong uVar6;
+  int iVar7;
+  undefined auStack_1e8 [32];
+  uint local_1c8;
+  uint local_1c4;
+  uint local_1c0;
+  uint local_1bc;
+  HWND local_1b8;
+  undefined local_1a8 [112];
+  undefined4 local_138;
+  undefined4 local_134;
+  undefined4 local_130;
+  int local_12c;
+  undefined8 local_128;
+  undefined8 uStack_120;
+  undefined4 local_114;
+  undefined4 local_f8;
+  undefined8 local_78;
+  undefined8 uStack_70;
+  undefined4 local_68;
+  ulonglong local_48;
+
+  local_48 = DAT_140098000 ^ (ulonglong)auStack_1e8;
+  local_1c4 = 0;
+  bVar1 = false;
+  local_1b8 = window_handle;
+LAB_14004eecd:
+  uVar4 = FUN_14005333c(filehandle,&local_1c4,&local_1c0);
+  uVar3 = local_1c4;
+  if (uVar4 != 0) goto LAB_14004f3e1;
+  iVar7 = 0;
+  if (local_1c4 < 0x96) {
+    if (local_1c4 == 0x95) {
+      FUN_140054444((longlong)local_1a8,0x1400a97b0);
+      *(undefined8 *)(window_lock + 0x3d8) = local_78;
+      *(undefined8 *)(window_lock + 0x3e0) = uStack_70;
+      *(undefined4 *)(window_lock + 1000) = local_68;
+      *(int *)(window_lock + 0x292) = local_12c + -0x5dc;
+      *(undefined4 *)(window_lock + 0x296) = local_138;
+      *(undefined4 *)(window_lock + 0x29a) = local_134;
+      *(undefined4 *)(window_lock + 0x29e) = local_130;
+      *(undefined4 *)(window_lock + 0x28e) = local_114;
+      *(undefined4 *)(window_lock + 0x2be) = local_f8;
+      *(undefined8 *)(window_lock + 0x2a6) = local_128;
+      *(undefined8 *)(window_lock + 0x2ae) = uStack_120;
+      goto LAB_14004f3b8;
+    }
+    if (0x54 < local_1c4) {
+      if (local_1c4 == 0x56) {
+        FUN_140054854(0x1400bb580,&DAT_1400980ac,&DAT_140099028);
+      }
+      else {
+        if (local_1c4 == 0x90) {
+          uVar5 = FUN_14004ed08(window_lock);
+          uVar4 = (uint)uVar5;
+          goto joined_r0x00014004ef74;
+        }
+        if (local_1c4 == 0x91) {
+          if (!bVar1) goto LAB_14004f3e1;
+          _DAT_140099044 = ((uint)(ushort)DAT_1400a97b2 * 0x90) / DAT_1400980b8;
+          _DAT_140099040 = ((uint)DAT_1400a97b2._2_2_ * 0x90) / DAT_1400980b8;
+        }
+        else if (local_1c4 == 0x92) {
+          _DAT_1400bb550 =
+               CONCAT26((ushort)DAT_1400a97b6,
+                        CONCAT24(DAT_1400a97b2._2_2_,CONCAT22((ushort)DAT_1400a97b2,DAT_1400a97b0 )))
+          ;
+          uRam00000001400bb558 =
+               CONCAT26(DAT_1400a97be,CONCAT42(_DAT_1400a97ba,DAT_1400a97b6._2_2_));
+        }
+        else if (local_1c4 == 0x93) {
+          FUN_14005439c(&DAT_1400bb500,0x1400a97b0);
+        }
+      }
+      goto LAB_14004f3b8;
+    }
+    if (local_1c4 == 0x54) {
+      DAT_1400bb560 =
+           CONCAT26((ushort)DAT_1400a97b6,
+                    CONCAT24(DAT_1400a97b2._2_2_,CONCAT22((ushort)DAT_1400a97b2,DAT_1400a97b0))) ;
+      DAT_1400bb568 = CONCAT26(DAT_1400a97be,CONCAT42(_DAT_1400a97ba,DAT_1400a97b6._2_2_));
+      DAT_1400bb570 = _DAT_1400a97c0;
+      goto LAB_14004f3b8;
+    }
+    if (local_1c4 == 0x20) {
+      if (!bVar1) goto LAB_14004f3e1;
+      if (DAT_1400a97be == 1) {
+        if (DAT_1400a97c3 == '\x01') {
+          uVar4 = DAT_1400983fc | 0xff000000;
+        }
+        else {
+          uVar4 = (_DAT_1400a97c0 >> 0x10 & 0xff) << 8 | (_DAT_1400a97c0 >> 8 & 0xff) << 0x10 |
+                  _DAT_1400a97c0 & 0xff;
+        }
+        *(uint *)(window_lock + 0xfa) = uVar4;
+        uVar4 = DAT_1400980b8;
+        *(uint *)(window_lock + 0x1f6) = (uint)(DAT_1400a97c4 * 0x90) / DAT_1400980b8;
+        *(uint *)(window_lock + 0xa6) = (uint)(DAT_1400a97c8 * 0x90) / uVar4;
+        *(uint *)(window_lock + 0xaa) = (uint)(DAT_1400a97cc * 0x90) / uVar4;
+      }
+      else {
+        iVar7 = 0x5e4;
+      }
+      if (iVar7 != 0) goto LAB_14004f3e1;
+      uVar4 = 0;
+    }
+    else {
+      if (local_1c4 != 0x21) {
+        if (local_1c4 != 0x22) {
+          if (local_1c4 == 0x24) {
+            *(int *)(window_lock + 0xf6) = (int)DAT_1400a97b0;
+          }
+          else if (local_1c4 == 0x53) {
+            _DAT_1400bb540 =
+                 CONCAT26((ushort)DAT_1400a97b6,
+                          CONCAT24(DAT_1400a97b2._2_2_,CONCAT22((ushort)DAT_1400a97b2,DAT_1400a97 b0)
+                                  ));
+            uRam00000001400bb548 =
+                 CONCAT26(DAT_1400a97be,CONCAT42(_DAT_1400a97ba,DAT_1400a97b6._2_2_));
+          }
+          goto LAB_14004f3b8;
+        }
+        if (bVar1) {
+          uVar5 = somebullshitfunctioncreatesthread(window_lock,local_1c0);
+          uVar4 = (uint)uVar5;
+          goto joined_r0x00014004ef74;
+        }
+        goto LAB_14004f3e1;
+      }
+      DAT_1400980b8 = ((uint)DAT_1400a97b2._2_2_ * (uint)(ushort)DAT_1400a97b6) / 100;
+      uVar4 = ~-(uint)(DAT_1400980b8 != 0) & 0x5dd;
+      if (DAT_1400980b8 == 0) goto LAB_14004f3e1;
+      bVar1 = true;
+    }
+  }
+  else if (local_1c4 < 0x400b) {
+    if (local_1c4 == 0x400a) {
+      local_1c8 = 0;
+      bVar2 = false;
+      do {
+        uVar4 = FUN_14005333c(filehandle,&local_1c8,&local_1bc);
+        if (uVar4 != 0) break;
+        if (local_1c8 == 0x23) {
+          uVar4 = FUN_140053550(window_lock,(ulonglong)local_1bc);
+          if (uVar4 != 0) goto LAB_14004f343;
+          bVar2 = true;
+        }
+      } while (local_1c8 != 0x600a);
+      if (!bVar2) {
+        uVar4 = 0x5dd;
+      }
+LAB_14004f343:
+      if (uVar4 == 0) {
+        uVar4 = 0;
+        goto joined_r0x00014004ef74;
+      }
+      goto LAB_14004f3e1;
+    }
+    if (local_1c4 == 0x96) {
+      FUN_140054300((longlong)local_1a8,0x1400a97b0);
+      *(undefined8 *)(window_lock + 0x3d8) = local_78;
+      *(undefined8 *)(window_lock + 0x3e0) = uStack_70;
+      *(undefined4 *)(window_lock + 1000) = local_68;
+      goto LAB_14004f3b8;
+    }
+    if (local_1c4 == 0x98) {
+      if ((ushort)DAT_1400a97b2 == 0) {
+        *(uint *)(window_lock + 0x22) = *(uint *)(window_lock + 0x22) | 0x800;
+      }
+      else if ((*(uint *)(window_lock + 0x22) & 0x800) != 0) {
+        *(uint *)(window_lock + 0x22) = *(uint *)(window_lock + 0x22) ^ 0x800;
+      }
+      goto LAB_14004f3b8;
+    }
+    if (local_1c4 == 0x9b) {
+      if (local_1c0 < 10) {
+        iVar7 = 0x6a;
+      }
+      else {
+        if ((ushort)DAT_1400a97b2 == 0) {
+          if ((*(uint *)(window_lock + 0x2a) & 4) != 0) {
+            *(uint *)(window_lock + 0x2a) = *(uint *)(window_lock + 0x2a) ^ 4;
+          }
+        }
+        else {
+          *(uint *)(window_lock + 0x2a) = *(uint *)(window_lock + 0x2a) | 4;
+        }
+        *(uint *)(window_lock + 0x3a) = (uint)(ushort)DAT_1400a97b6;
+        *(uint *)(window_lock + 0x2a2) = (uint)DAT_1400a97b6._2_2_;
+        *(uint *)(window_lock + 0x226) = (uint)DAT_1400a97b2._2_2_;
+      }
+      if (iVar7 == 0) {
+        uVar4 = 0;
+        goto joined_r0x00014004ef74;
+      }
+      goto LAB_14004f3e1;
+    }
+    if (local_1c4 == 0x4006) {
+      uVar6 = FUN_14004f940(window_lock,filehandle);
+      uVar4 = (uint)uVar6;
+    }
+    else {
+      if (local_1c4 != 0x4009) goto LAB_14004f3b8;
+      uVar6 = FUN_1400502bc(window_lock,filehandle);
+      uVar4 = (uint)uVar6;
+    }
+  }
+  else if (local_1c4 == 0x400b) {
+    uVar4 = FUN_14004f5d0(window_lock,filehandle);
+    if (uVar4 != 0) goto LAB_14004f3e1;
+  }
+  else if (local_1c4 == 0x400e) {
+    uVar4 = FUN_1400521dc(local_1b8,window_lock,filehandle);
+  }
+  else if (local_1c4 == 0x4010) {
+    uVar5 = FUN_14004f79c(window_lock,filehandle);
+    uVar4 = (uint)uVar5;
+  }
+  else {
+    if (local_1c4 != 0x4012) goto LAB_14004f3b8;
+    uVar4 = FUN_140051b6c(local_1b8,window_lock,filehandle);
+  }
+joined_r0x00014004ef74:
+  if (uVar4 != 0) goto LAB_14004f3e1;
+LAB_14004f3b8:
+  if (uVar3 == 0x6003) {
+LAB_14004f3e1:
+    FUN_14008d510(local_48 ^ (ulonglong)auStack_1e8);
+    return;
+  }
+  goto LAB_14004eecd;
+}
+
+
+```
+
+Here is the call table on the second thread creation call:
+
+```
+
+Säikeen tunnist Osoite           Paluun kohde     Paluun lähde     Kok Muistialue   Kommentti
+20416 - Pääsäie
+                0000004772AFECA8 00007FFBB4FA4F78 00007FFBDEF744D0 40  Järjestelmä  kernel32.CreateThread
+                0000004772AFECE8 00007FFBB4F909B4 00007FFBB4FA4F78 90  Järjestelmä  winspool.Ordinal#361+B8
+                0000004772AFED78 00007FFBDD363324 00007FFBB4F909B4 70  Järjestelmä  winspool.DocumentEvent+44
+                0000004772AFEDE8 00007FFBDD2FEF45 00007FFBDD363324 350 Järjestelmä  gdi32full.DocumentEventEx+114
+                0000004772AFF138 00007FFBDD324717 00007FFBDD2FEF45 80  Järjestelmä  gdi32full.hdcCreateDCW+195
+                0000004772AFF1B8 00007FFBDD323B21 00007FFBDD324717 40  Järjestelmä  gdi32full.SetBitmapDimensionEx+147
+                0000004772AFF1F8 00007FF79ACCE195 00007FFBDD323B21 30  Käyttäjäalue gdi32full.CreateICA+11
+                0000004772AFF228 00007FF79ACCE092 00007FF79ACCE195 310 Käyttäjäalue orgchart.00007FF79ACCE195
+                0000004772AFF538 00007FF79AC9F587 00007FF79ACCE092 50  Käyttäjäalue orgchart.00007FF79ACCE092
+                0000004772AFF588 00007FF79AC9EF70 00007FF79AC9F587 1F0 Käyttäjäalue orgchart.00007FF79AC9F587
+                0000004772AFF778 00007FF79AC9E650 00007FF79AC9EF70 90  Käyttäjäalue orgchart.00007FF79AC9EF70
+                0000004772AFF808 00007FF79ACB592E 00007FF79AC9E650 40  Käyttäjäalue orgchart.00007FF79AC9E650
+                0000004772AFF848 00007FF79ACB5B81 00007FF79ACB592E 40  Käyttäjäalue orgchart.00007FF79ACB592E
+                0000004772AFF888 00007FF79ACB5C9F 00007FF79ACB5B81 150 Käyttäjäalue orgchart.00007FF79ACB5B81
+                0000004772AFF9D8 00007FF79ACA8D0C 00007FF79ACB5C9F 1D0 Käyttäjäalue orgchart.00007FF79ACB5C9F
+                0000004772AFFBA8 00007FF79ACDD472 00007FF79ACA8D0C 40  Käyttäjäalue orgchart.00007FF79ACA8D0C
+                0000004772AFFBE8 00007FFBDEF7259D 00007FF79ACDD472 30  Järjestelmä  orgchart.00007FF79ACDD472
+                0000004772AFFC18 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                0000004772AFFC98 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+24472
+                0000004772FFFC48 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                0000004772FFFF28 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                0000004772FFFF58 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                0000004772FFFFD8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+24244
+                0000004772BFF498 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                0000004772BFF778 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                0000004772BFF7A8 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                0000004772BFF828 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+27540
+                0000004772CFFAA8 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                0000004772CFFD88 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                0000004772CFFDB8 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                0000004772CFFE38 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+23456
+                00000047730FF528 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                00000047730FF808 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                00000047730FF838 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                00000047730FF8B8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+8444
+                0000004772DFF748 00007FFBDFFA586E 00007FFBE0013FF4 2E0 Järjestelmä  ntdll.NtWaitForWorkViaWorkerFactory+14
+                0000004772DFFA28 00007FFBDEF7259D 00007FFBDFFA586E 30  Järjestelmä  ntdll.RtlClearThreadWorkOnBehalfTicket+35E
+                0000004772DFFA58 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                0000004772DFFAD8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+27064
+                0000004772EFF888 00007FFBDD7B6849 00007FFBE0010EF4 2E0 Järjestelmä  ntdll.NtWaitForMultipleObjects+14
+                0000004772EFFB68 00007FFBDE0807AD 00007FFBDD7B6849 2A0 Järjestelmä  kernelbase.WaitForMultipleObjectsEx+E9
+                0000004772EFFE08 00007FFBDE08061A 00007FFBDE0807AD 50  Järjestelmä  combase.CoFreeUnusedLibrariesEx+82D
+                0000004772EFFE58 00007FFBDE08040F 00007FFBDE08061A 80  Järjestelmä  combase.CoFreeUnusedLibrariesEx+69A
+                0000004772EFFED8 00007FFBDE080829 00007FFBDE08040F 30  Järjestelmä  combase.CoFreeUnusedLibrariesEx+48F
+                0000004772EFFF08 00007FFBDEF7259D 00007FFBDE080829 30  Järjestelmä  combase.CoFreeUnusedLibrariesEx+8A9
+                0000004772EFFF38 00007FFBDFFCAF38 00007FFBDEF7259D 80  Järjestelmä  kernel32.BaseThreadInitThunk+1D
+                0000004772EFFFB8 0000000000000000 00007FFBDFFCAF38     Käyttäjäalue ntdll.RtlUserThreadStart+28
+
+
+```
+
+
+
+
+Here is the functionality which we want to patch out:
+
+```
+
+       14004e63d 45  85  ff       TEST       show_data_maybe ,show_data_maybe
+       14004e640 74  10           JZ         LAB_14004e652
+       14004e642 4d  8b  c5       MOV        param_3 ,opened_file
+       14004e645 48  8b  d7       MOV        maybe_buffer ,somecheckvar
+       14004e648 48  8b  cd       MOV        window_handle ,RBP
+       14004e64b e8  34  08       CALL       maybe_load_data                                  undefined maybe_load_data(HWND w
+                 00  00
+       14004e650 8b  d8           MOV        EBX ,window_lock
+
+
+```
+
+Now I don't think that the program will work if we patch out the call to maybe_load_data, because some shit depends on it further down the line, but let's see..
+
+e8  34  08 00  00
+
+Ok, so if we nop out those instructions, we just get an error message when opening the file thing. Instead, let's just put a mov ebx, 1 there and see what happens...
+
+
+```
+
+       14004e64b bb  00  00       MOV        EBX ,0x0
+                 00  00
+
+```
+
+Here is the actual bullshit function:
+
+```
+
+
+undefined8 somebullshitfunctioncreatesthread(longlong param_1,uint param_2)
+
+{
+  uint uVar1;
+  LPVOID pvVar2;
+  longlong driverbullshit;
+  undefined2 uVar3;
+  int local_res10 [2];
+  undefined8 in_stack_ffffffffffffffe8;
+
+  if (param_2 < 0x2c) {
+    return 0x6a;
+  }
+  if ((short)DAT_1400a97b2 != 0) {
+    return 0x5e8;
+  }
+  pvVar2 = GlobalLock(*(HGLOBAL *)(param_1 + 0xae));
+  if (DAT_1400a97b2._2_2_ == 0) {
+    uVar3 = 1;
+  }
+  else {
+    uVar3 = 2;
+  }
+  *(undefined2 *)((longlong)pvVar2 + 0x2c) = uVar3;
+  *(undefined2 *)((longlong)pvVar2 + 0x2e) = DAT_1400a97d0;
+  uVar1 = *(uint *)(param_1 + 0x22);
+  if (DAT_1400a97b6._2_2_ == 0) {
+    if ((uVar1 & 4) != 0) {
+      uVar1 = uVar1 ^ 4;
+      goto LAB_14004f493;
+    }
+  }
+  else {
+    uVar1 = uVar1 | 4;
+LAB_14004f493:
+    *(uint *)(param_1 + 0x22) = uVar1;
+  }
+  if (_DAT_1400a97ba == 0) {
+    if ((uVar1 & 2) != 0) {
+      uVar1 = uVar1 ^ 2;
+      goto LAB_14004f4ac;
+    }
+  }
+  else {
+    uVar1 = uVar1 | 2;
+LAB_14004f4ac:
+    *(uint *)(param_1 + 0x22) = uVar1;
+  }
+  uVar1 = DAT_1400980b8;
+  *(uint *)(param_1 + 0x7a) = (uint)(_DAT_1400a97bc * 0x90) / DAT_1400980b8;
+  *(uint *)(param_1 + 0x82) = (uint)(_DAT_1400a97c0 * 0x90) / uVar1;
+  *(uint *)(param_1 + 0x7e) = (uint)(DAT_1400a97c4 * 0x90) / uVar1;
+  *(uint *)(param_1 + 0x86) = (uint)(DAT_1400a97c8 * 0x90) / uVar1;
+  *(uint *)(param_1 + 0xa2) = (uint)(DAT_1400a97cc * 0x90) / uVar1;
+  *(uint *)(param_1 + 0x6e) = (uint)(DAT_1400a97d4 * 0x90) / uVar1;
+  *(uint *)(param_1 + 0x72) = (uint)(DAT_1400a97d8 * 0x90) / uVar1;
+  GlobalUnlock(*(HGLOBAL *)(param_1 + 0xae));
+  *(LPCSTR)(param_1 + 0x2d2) = '\0';
+  local_res10[0] = 1;
+  driverbullshit =
+       createdrivericathing
+                 ((LPCSTR)(param_1 + 0x2d2),*(HGLOBAL *)(param_1 + 0xae),(int *)(param_1 + 0x8a),
+                  (int *)(param_1 + 0x66),0,local_res10,in_stack_ffffffffffffffe8,0);
+  uVar1 = *(uint *)(param_1 + 0x22);
+  if (local_res10[0] == 0) {
+    if ((uVar1 & 0x2000) == 0) goto LAB_14004f5a5;
+    uVar1 = uVar1 ^ 0x2000;
+  }
+  else {
+    uVar1 = uVar1 | 0x2000;
+  }
+  *(uint *)(param_1 + 0x22) = uVar1;
+LAB_14004f5a5:
+  if (driverbullshit != 0) {
+    DeleteDC(*(HDC *)(param_1 + 0x21e));
+    *(longlong *)(param_1 + 0x21e) = driverbullshit;
+  }
+  return 0;
+}
+
+```
+
+Here:
+
+```
+
+  if (driverbullshit != 0) {
+    DeleteDC(*(HDC *)(param_1 + 0x21e));
+    *(longlong *)(param_1 + 0x21e) = driverbullshit;
+  }
+
+```
+
+we check if the thing is not zero, so therefore if we just set zero there we should be good???
+
+This probably fucks up something else later on, but maybe this will solve it???
+
+Here is the call thing:
+
+```
+
+       14004f57b 40  88  31       MOV        byte ptr [param_1 ],SIL
+       14004f57e 89  7c  24       MOV        dword ptr [RSP  + local_res10 ],EDI
+                 58
+       14004f582 e8  75  e4       CALL       createdrivericathing                             undefined createdrivericathing(L
+                 02  00
+
+
+```
+
+
+
+C:\Users\elsku\winafl\winafl\build\bin\Release\afl-fuzz.exe -d -i c:\Users\elsku\inputs -o c:\Users\elsku\outputs -D C:\Users\elsku\dynamorio2\DynamoRIO-Windows-11.3.0-1\bin64 -I 40000   -t 40000 -f test.opx -- -coverage_module ORGCHART.EXE -fuzz_iterations 1000 -persistence_mode native -target_module ORGCHART.EXE -verbose 100 -target_offset 0x4E2DC -nargs 6 -call_convention fastcall -- "C:\Program Files\Microsoft Office\root\Office16\ORGCHART.EXE" "@@"
+
+
+The fail fast bullshit is called from here:
+
+```
+
+
+int * FUN_1400224dc(HGLOBAL param_1,int param_2)
+
+{
+  bool bVar1;
+  SIZE_T SVar2;
+  int *piVar3;
+
+  SVar2 = GlobalSize(param_1);
+  if (((param_2 < 0) ||
+      (piVar3 = (int *)((longlong)param_1 + (longlong)param_2 * 4 + 0xc4),
+      (int *)((longlong)param_1 + SVar2) <= piVar3)) || (*piVar3 < 0)) {
+    bVar1 = true;
+  }
+  else {
+    bVar1 = false;
+  }
+  if (bVar1) {
+    RaiseFailFastException((PEXCEPTION_RECORD)0x0,(PCONTEXT)0x0,0);
+  }
+  piVar3 = (int *)((longlong)*(int *)((longlong)param_1 + (longlong)param_2 * 4 + 0xc4) +
+                  (longlong)param_1);
+  if ((int *)((longlong)param_1 + SVar2) <= piVar3) {
+    RaiseFailFastException((PEXCEPTION_RECORD)0x0,(PCONTEXT)0x0,0);
+  }
+  return piVar3;
+}
+
+
+```
+
+here is the calling function again:
+
+```
+
+
+ulonglong FUN_14004f940(longlong window_lock_bullshit,HANDLE filehandle)
+
+{
+  bool bVar1;
+  uint uVar2;
+  longlong lVar3;
+  int *piVar4;
+  short *psVar5;
+  short *psVar6;
+  ulonglong uVar7;
+  uint uVar8;
+  short *psVar9;
+  short *hMem;
+  int iVar10;
+  short *psVar11;
+  int iVar12;
+  short *psVar13;
+  int iVar14;
+  int iVar16;
+  short *hMem_00;
+  int local_res20;
+  int local_68;
+  uint local_64;
+  int local_60;
+  uint local_5c;
+  short *local_58;
+  short *local_50 [2];
+  int iVar15;
+
+  hMem = (short *)0x0;
+  local_68 = 1;
+  local_64 = 0;
+  bVar1 = false;
+  local_res20 = 0;
+  local_50[0] = (short *)0x0;
+  local_58 = (short *)0x0;
+  psVar11 = hMem;
+  psVar13 = hMem;
+  hMem_00 = hMem;
+  psVar5 = hMem;
+  psVar6 = hMem;
+  do {
+    iVar12 = (int)psVar13;
+    iVar10 = (int)psVar11;
+    local_60 = iVar12;
+    uVar2 = read_file_buffer(filehandle,&local_64,&local_5c);
+    iVar16 = 0;
+    iVar15 = 0;
+    iVar14 = 0;
+    if (uVar2 != 0) break;
+    if (local_64 < 0x88) {
+      if (local_64 == 0x87) {
+        if ((hMem_00 == (short *)0x0) || (!bVar1)) {
+          if ((hMem != (short *)0x0) &&
+             ((0 < iVar12 && (psVar9 = psVar5, iVar10 = iVar12, iVar12 <= *(int *)(psVar5 + 0x46) )))
+             ) goto LAB_14004fddd;
+        }
+        else if ((0 < iVar10) && (psVar9 = psVar6, iVar10 <= *(int *)(psVar6 + 0x46))) {
+LAB_14004fddd:
+          piVar4 = failfastthing(psVar9,iVar10 + -1);
+          piVar4[0x30] = 0x68;
+          goto LAB_14004fa64;
+        }
+LAB_1400500e0:
+        uVar2 = 0x5dd;
+        break;
+      }
+      if (local_64 != 0x41) {
+        if (local_64 == 0x42) {
+          if (hMem == (short *)0x0) goto LAB_1400500e0;
+          FUN_1400541c0(psVar5,0);
+          iVar16 = 0;
+          if (hMem_00 == (short *)0x0) goto LAB_1400500c9;
+          FUN_1400541c0(psVar6,1);
+LAB_14004fa64:
+          iVar16 = 0;
+          goto LAB_1400500c9;
+        }
+        if (local_64 == 0x50) {
+          local_res20 = (int)DAT_1400a97b0;
+          iVar16 = iVar15;
+          goto LAB_1400500c9;
+        }
+        if (local_64 != 0x51) {
+          if (local_64 == 0x53) {
+            if ((hMem_00 == (short *)0x0) || (!bVar1)) {
+              if ((hMem != (short *)0x0) &&
+                 ((0 < iVar12 &&
+                  (psVar9 = psVar5, iVar10 = iVar12, iVar12 <= *(int *)(psVar5 + 0x46)))))
+              goto LAB_14004fb79;
+            }
+            else if ((0 < iVar10) && (psVar9 = psVar6, iVar10 <= *(int *)(psVar6 + 0x46))) {
+LAB_14004fb79:
+              piVar4 = failfastthing(psVar9,iVar10 + -1);
+              FUN_140054444((longlong)piVar4,0x1400a97b0);
+              goto LAB_14004fa64;
+            }
+          }
+          else {
+            if (local_64 != 0x54) {
+              iVar16 = 0;
+              if (local_64 == 0x56) {
+                if ((hMem_00 == (short *)0x0) || (!bVar1)) {
+                  if ((hMem == (short *)0x0) || ((iVar12 < 1 || (*(int *)(psVar5 + 0x46) < iVar12 )))
+                     ) goto LAB_1400500e0;
+                  iVar16 = iVar15;
+                  if (iVar12 < *(int *)(psVar5 + 0x4e)) {
+                    lVar3 = (longlong)psVar5 + (longlong)*(int *)(psVar5 + 0x50);
+                    goto LAB_14004fa56;
+                  }
+                }
+                else {
+                  if ((iVar10 < 1) || (*(int *)(psVar6 + 0x46) < iVar10)) goto LAB_1400500e0;
+                  if (iVar10 < *(int *)(psVar6 + 0x4e)) {
+                    lVar3 = (longlong)psVar6 + (longlong)*(int *)(psVar6 + 0x50);
+                    iVar12 = iVar10;
+LAB_14004fa56:
+                    FUN_140054854(lVar3 + (longlong)iVar12 * 0x14,(uint *)0x0,(uint *)0x0);
+                    goto LAB_14004fa64;
+                  }
+                }
+              }
+              goto LAB_1400500c9;
+            }
+            if ((hMem_00 == (short *)0x0) || (!bVar1)) {
+              if ((hMem != (short *)0x0) && ((0 < iVar12 && (iVar12 <= *(int *)(psVar5 + 0x46)))) ) {
+                piVar4 = failfastthing(psVar5,iVar12 + -1);
+                psVar9 = psVar5;
+                goto LAB_14004fadc;
+              }
+            }
+            else if ((0 < iVar10) && (iVar10 <= *(int *)(psVar6 + 0x46))) {
+              piVar4 = failfastthing(psVar6,iVar10 + -1);
+              psVar9 = psVar6;
+LAB_14004fadc:
+              piVar4[0x12] = ((uint)(ushort)DAT_1400a97b6 * 0x90) / DAT_1400980b8;
+              piVar4[0x13] = ((uint)DAT_1400a97b6._2_2_ * 0x90) / DAT_1400980b8;
+              FUN_140054240(psVar9,0x1400a97b0);
+              goto LAB_14004fa64;
+            }
+          }
+          goto LAB_1400500e0;
+        }
+        if (hMem == (short *)0x0) goto LAB_1400500c0;
+        local_68 = 1;
+        if ((hMem_00 == (short *)0x0) || ((short)DAT_1400a97b2 != 2)) {
+          piVar4 = failfastthing(psVar5,iVar12);
+          psVar13 = (short *)(ulonglong)(iVar12 + 1);
+          bVar1 = false;
+          piVar4[0x1b] = local_res20;
+          psVar9 = psVar5;
+          iVar10 = local_60;
+        }
+        else {
+          piVar4 = failfastthing(psVar6,iVar10);
+          psVar11 = (short *)(ulonglong)(iVar10 + 1);
+          bVar1 = true;
+          piVar4[0x1b] = local_res20;
+          psVar9 = psVar6;
+        }
+        uVar7 = FUN_1400548fc(psVar9,iVar10);
+        uVar2 = (uint)uVar7;
+LAB_1400500c5:
+        iVar14 = 0;
+        iVar16 = 0;
+        if (uVar2 == 0) goto LAB_1400500c9;
+        break;
+      }
+      if (local_68 == 0) goto LAB_1400500ec;
+      if (hMem_00 == (short *)0x0) {
+        if (hMem != (short *)0x0) {
+          uVar7 = FUN_14004f868((longlong)psVar5);
+          uVar2 = (uint)uVar7;
+          GlobalUnlock(hMem);
+          if (uVar2 == 0) goto LAB_14004fce8;
+          goto LAB_1400500f1;
+        }
+      }
+      else {
+        *(int *)(psVar5 + 0x16) = (int)*psVar6;
+        *(int *)(psVar5 + 0x18) = *(int *)(psVar6 + 0x46) + -1;
+        uVar7 = FUN_14004f868((longlong)psVar6);
+        uVar2 = (uint)uVar7;
+        GlobalUnlock(hMem_00);
+        if (uVar2 != 0) goto LAB_1400500f1;
+        uVar7 = FUN_140054b28(window_lock_bullshit,hMem_00);
+        local_58 = (short *)0x0;
+        if ((int)uVar7 != 0) {
+          return uVar7;
+        }
+        GlobalUnlock(hMem);
+LAB_14004fce8:
+        uVar7 = FUN_140054b28(window_lock_bullshit,hMem);
+        if ((int)uVar7 != 0) {
+          return uVar7;
+        }
+      }
+      uVar7 = FUN_140053dbc(window_lock_bullshit,(longlong *)local_50,0);
+      if ((int)uVar7 != 0) {
+        return uVar7;
+      }
+      uVar7 = FUN_140053dbc(window_lock_bullshit,(longlong *)&local_58,1);
+      hMem = local_50[0];
+      if ((int)uVar7 != 0) {
+        return uVar7;
+      }
+      psVar5 = (short *)GlobalLock(local_50[0]);
+      hMem_00 = local_58;
+      if (local_58 != (short *)0x0) {
+        psVar6 = (short *)GlobalLock(local_58);
+      }
+      psVar11 = (short *)0x0;
+      local_68 = 0;
+      bVar1 = false;
+      local_res20 = 0;
+      uVar2 = 0;
+      psVar13 = psVar11;
+      iVar16 = 0;
+    }
+    else {
+      if (local_64 == 0x88) {
+        if ((hMem_00 == (short *)0x0) || (!bVar1)) {
+          if (hMem == (short *)0x0) goto LAB_1400500c0;
+          if ((0 < iVar12) && (psVar9 = psVar5, iVar10 = iVar12, iVar12 <= *(int *)(psVar5 + 0x46 )))
+          goto LAB_140050098;
+        }
+        else if ((0 < iVar10) && (psVar9 = psVar6, iVar10 <= *(int *)(psVar6 + 0x46))) {
+LAB_140050098:
+          piVar4 = failfastthing(psVar9,iVar10 + -1);
+          piVar4[0xb] = piVar4[0xb] | 1;
+          goto LAB_14004fa64;
+        }
+        goto LAB_1400500e0;
+      }
+      if (local_64 == 0x92) {
+        if ((hMem_00 == (short *)0x0) || (!bVar1)) {
+          if ((hMem != (short *)0x0) &&
+             ((0 < iVar12 && (psVar9 = psVar5, iVar10 = iVar12, iVar12 <= *(int *)(psVar5 + 0x46) )))
+             ) goto LAB_14005003b;
+        }
+        else if ((0 < iVar10) && (psVar9 = psVar6, iVar10 <= *(int *)(psVar6 + 0x46))) {
+LAB_14005003b:
+          piVar4 = failfastthing(psVar9,iVar10 + -1);
+          FUN_140054300((longlong)piVar4,0x1400a97b0);
+          goto LAB_14004fa64;
+        }
+        goto LAB_1400500e0;
+      }
+      if (local_64 == 0x93) {
+        if (hMem == (short *)0x0) goto LAB_1400500e0;
+        FUN_14005439c((undefined4 *)(psVar5 + 0x58),0x1400a97b0);
+        if (hMem_00 != (short *)0x0) {
+          FUN_14005439c((undefined4 *)(psVar6 + 0x58),0x1400a97b0);
+        }
+      }
+      else {
+        if (local_64 == 0x9a) {
+          if ((hMem_00 == (short *)0x0) || (!bVar1)) {
+            if ((hMem != (short *)0x0) && ((0 < iVar12 && (iVar12 <= *(int *)(psVar5 + 0x46))))) {
+              piVar4 = failfastthing(psVar5,iVar12 + -1);
+              uVar8 = piVar4[0x3d];
+              if ((short)DAT_1400a97b2 == 0) goto LAB_14004ff7b;
+              uVar8 = uVar8 | 0x200;
+              goto LAB_14004ff70;
+            }
+          }
+          else if ((0 < iVar10) && (iVar10 <= *(int *)(psVar6 + 0x46))) {
+            piVar4 = failfastthing(psVar6,iVar10 + -1);
+            uVar8 = piVar4[0x3d];
+            if ((short)DAT_1400a97b2 == 0) {
+LAB_14004ff7b:
+              iVar16 = 0;
+              if ((uVar8 & 0x200) == 0) goto LAB_1400500c9;
+              uVar8 = uVar8 ^ 0x200;
+            }
+            else {
+              uVar8 = uVar8 | 0x200;
+            }
+LAB_14004ff70:
+            piVar4[0x3d] = uVar8;
+            iVar16 = 0;
+            goto LAB_1400500c9;
+          }
+          goto LAB_1400500e0;
+        }
+        if (local_64 == 0x4008) {
+          if ((hMem_00 == (short *)0x0) || (!bVar1)) {
+            if ((hMem != (short *)0x0) &&
+               ((0 < iVar12 && (psVar9 = psVar5, iVar10 = iVar12, iVar12 <= *(int *)(psVar5 + 0x4 6))
+                ))) goto LAB_14004ff01;
+          }
+          else if ((0 < iVar10) && (psVar9 = psVar6, iVar10 <= *(int *)(psVar6 + 0x46))) {
+LAB_14004ff01:
+            piVar4 = failfastthing(psVar9,iVar10 + -1);
+            uVar7 = FUN_1400504c4(window_lock_bullshit,piVar4[4],filehandle);
+            uVar2 = (uint)uVar7;
+            goto LAB_1400500c5;
+          }
+LAB_1400500c0:
+          uVar2 = 0x5dd;
+          goto LAB_1400500c5;
+        }
+        iVar16 = iVar15;
+        if (local_64 == 0x400c) {
+          if ((hMem_00 == (short *)0x0) || (!bVar1)) {
+            if (hMem == (short *)0x0) goto LAB_1400500c0;
+            if ((0 < iVar12) && (psVar9 = psVar5, iVar12 <= *(int *)(psVar5 + 0x46)))
+            goto LAB_14004fe9b;
+          }
+          else if ((0 < iVar10) && (psVar9 = psVar6, iVar10 <= *(int *)(psVar6 + 0x46))) {
+LAB_14004fe9b:
+            uVar2 = FUN_140051970((longlong)psVar9,filehandle);
+            goto LAB_1400500c5;
+          }
+        }
+      }
+    }
+LAB_1400500c9:
+    iVar14 = iVar16;
+  } while (local_64 != 0x6006);
+  if (local_68 == iVar14) {
+LAB_1400500ec:
+    uVar2 = 0x5dd;
+  }
+  else if (uVar2 == 0) {
+    if (hMem_00 == (short *)0x0) {
+      if (hMem == (short *)0x0) goto LAB_1400500f1;
+      uVar7 = FUN_14004f868((longlong)psVar5);
+      uVar2 = (uint)uVar7;
+      GlobalUnlock(hMem);
+      if (uVar2 != 0) goto LAB_1400500f1;
+    }
+    else {
+      *(int *)(psVar5 + 0x16) = (int)*psVar6;
+      *(int *)(psVar5 + 0x18) = *(int *)(psVar6 + 0x46) + -1;
+      uVar7 = FUN_14004f868((longlong)psVar6);
+      uVar2 = (uint)uVar7;
+      GlobalUnlock(hMem_00);
+      if (uVar2 != 0) goto LAB_1400500f1;
+      uVar7 = FUN_140054b28(window_lock_bullshit,hMem_00);
+      if ((int)uVar7 != 0) {
+        return uVar7;
+      }
+      GlobalUnlock(hMem);
+    }
+    uVar7 = FUN_140054b28(window_lock_bullshit,hMem);
+    uVar2 = (uint)uVar7;
+    if (uVar2 != 0) {
+      return uVar7;
+    }
+  }
+LAB_1400500f1:
+  return (ulonglong)uVar2;
+}
+
+
+
+```
+
+here:
+
+```
+
+        if ((hMem_00 == (short *)0x0) || ((short)DAT_1400a97b2 != 2)) {
+          piVar4 = failfastthing(psVar5,iVar12);
+          psVar13 = (short *)(ulonglong)(iVar12 + 1);
+          bVar1 = false;
+          piVar4[0x1b] = local_res20;
+          psVar9 = psVar5;
+          iVar10 = local_60;
+        }
+
+```
+
+So i think that the check is just there for some size calculation or some bullshit like that.
+
+I wasn't actually able to get the afl-fuzz to work with this, because the harness didn't want to cooperate with me, so I just wrote up a dumb fuzzer and found a crash that way.
+
+
+
+
+
+
+
+
+
 
 
 

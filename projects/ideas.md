@@ -32,7 +32,8 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Make an autodictionary tool for webpages etc..
 - Add ways to fuzz the parsers in ffmpeg individually. As it stands, all of the parsers are being fuzzed simultaneously and that isn't really good. The parsers.c file has some pointers as to how to do about doing this. My idea is to just write one file which serves as a template and then compile all of the fuzzers individually with a compiler flag signifying which parser to use... This way each of the formats that ffmpeg supports get's fuzzed individually. Jpeg-XL seems to have the most complex parsing by just looking at the file sizes.
 - Fuzz OPX files in microsoft office.
-
+- Fuzz GDIplus with winafl and other windows internals...
+- Try to make a custom mutator for the EMF file format.
 
 
 
