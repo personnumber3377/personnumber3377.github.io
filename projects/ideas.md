@@ -34,7 +34,8 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Fuzz OPX files in microsoft office.
 - Fuzz GDIplus with winafl and other windows internals...
 - Try to make a custom mutator for the EMF file format.
-
+- Try to fuzz with this: https://github.com/fuzzitdev/jsfuzz/tree/master the standard library of nodejs or something like that maybe???
+- Finish the microsoft office svg fuzzer...
 
 
 
