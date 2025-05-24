@@ -36,7 +36,11 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Try to make a custom mutator for the EMF file format.
 - Try to fuzz with this: https://github.com/fuzzitdev/jsfuzz/tree/master the standard library of nodejs or something like that maybe???
 - Finish the microsoft office svg fuzzer...
-
+- Try to fuzz django for SQL injection vulns.
+- Maybe try to differential fuzz pitchfork which is made by shopify or some bullshit like that????
+- Make a content farm for youtube and automatically upload "summary style" videos or shorts to youtube, like this one here: https://www.youtube.com/watch?v=j-3QuSfDuvI
+- Fuzz windows LDAP (lsass.exe) and maybe http parsing (HTTP.sys) and mime parsing???
+- Do a custom mutator for the program fuzzer in clvm in chia netowrk maybe????
 
 
 

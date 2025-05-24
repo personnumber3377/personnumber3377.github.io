@@ -1,0 +1,6 @@
+cmake -A x64 .. -DTINYINST=1
+
+and then
+cmake --build . --config Release
+
+both of these must be done in the build64 directory which you can make with "mkdir build64"
