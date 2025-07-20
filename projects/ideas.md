@@ -41,6 +41,10 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Make a content farm for youtube and automatically upload "summary style" videos or shorts to youtube, like this one here: https://www.youtube.com/watch?v=j-3QuSfDuvI
 - Fuzz windows LDAP (lsass.exe) and maybe http parsing (HTTP.sys) and mime parsing???
 - Do a custom mutator for the program fuzzer in clvm in chia netowrk maybe????
+- Fuzz python internals...
+- Fuzz chromium svg stuff in blink maybe???
+- Differential fuzz golang stdlib with other libraries like net/http...
+
 
 
 
