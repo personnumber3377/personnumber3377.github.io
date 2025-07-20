@@ -44,7 +44,7 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Fuzz python internals...
 - Fuzz chromium svg stuff in blink maybe???
 - Differential fuzz golang stdlib with other libraries like net/http...
-
+- Differential fuzz llhttp and apache module? (see personal_notes/20.7.2025.txt in the personal_notes repo...)
 
 
 
