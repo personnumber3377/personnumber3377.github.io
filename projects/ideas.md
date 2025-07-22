@@ -45,7 +45,7 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Fuzz chromium svg stuff in blink maybe???
 - Differential fuzz golang stdlib with other libraries like net/http...
 - Differential fuzz llhttp and apache module? (see personal_notes/20.7.2025.txt in the personal_notes repo...)
-
+- Maybe try to fuzz rack or some web server as a state machine or something or maybe try fuzzing for rce bugs or unexpected exceptions which may signify RCE or other stuff???
 
 
 ## Some interesting looking stuff..
