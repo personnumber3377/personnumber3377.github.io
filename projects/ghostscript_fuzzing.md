@@ -2630,8 +2630,6 @@ currentdict exch exec
 _Filters pdf_flushfilters
 end
 } [/_Filters] bld
-/pdf_image {{image} /DataSource pdf_dictOp} bd
-/pdf_imagemask {{imagemask} /DataSource pdf_dictOp} bd
 /pdf_shfill {{sh} /DataSource pdf_dictOp} bd
 /pdf_sethalftone {{sethalftone} /Thresholds pdf_dictOp} bd
 /pdf_maskedImage
@@ -6780,13 +6778,35 @@ showpage
 
 which causes the roundtrip error minimally...
 
+## Even more testing....
 
+So I found a potential bug but it only happens in the debug mode in ghostscript so I banned the function ".setdebug" such that these don't happen...
 
+I also noticed that my ir language thing doesn't handle these cases:
 
+```
+oof@elskun-lppri:~/ghostscript_mutator/newstuff$ cat more_minimal.ps
 
+/S 80 string def
+108 480 moveto
+/Helvetica 12 selectfont
+ { currentfile S readline pop dup (%END) eq { pop exit } if
+   gsave show grestore 0 -15 rmoveto
+ } loop
+Let the
+%END
+showpage
+```
 
+which outputs this:
 
+```
+/S 80 string def
+108 480 moveto
+/Helvetica 12 selectfont { currentfile S readline pop dup (%END) eq { pop exit} if gsave show grestore 0 -15 rmoveto} loop Let the showpage
+```
 
+and the other `%END` disappears. This is because strings starting with a percent are treated as comments, even though they are not. So I am thinking of adding a function which checks if the string is a special string and then do not remove it.
 
 
 
