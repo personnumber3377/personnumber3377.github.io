@@ -2667,12 +2667,814 @@ which outputs this:
 
 and the other `%END` disappears. This is because strings starting with a percent are treated as comments, even though they are not. So I am thinking of adding a function which checks if the string is a special string and then do not remove it.
 
+So I made this somewhat hacky fix to do the thing:
+
+```
+
+# ps_to_ir.py
+import re
+import struct
+from typing import List, Tuple
+
+import setup
+import forward as IR
+
+# Build operator index from your FUNCS list
+setup.run_setup()
+FUNCS = setup.FUNCS
+FUNC_INDEX = {name: i for i, (name, _argc) in enumerate(FUNCS)}
+
+# Allowed chars (must match your tiny_ps_ir.ALLOWED_CHARS)
+ALLOWED = IR.ALLOWED_CHARS
+IDX = {chr(c): i for i, c in enumerate(ALLOWED)}
+
+NUMS = set(list("0987654321"))
+HEX_NO_NUMS = set(list("abcdefABCDEF"))
+HEX_CHARS = NUMS.union(HEX_NO_NUMS) # Can not do NUMS + HEX_NO_NUMS
+SPECIAL_PCT_LINES   = { '%END', '%EOF', '%EOD', '%ENDDATA' }
+SPECIAL_PCT_PREFIX  = ('%!', '%%')  # file header and DSC directives
+
+DEBUG = True
+
+def dprint(s: str) -> None:
+	if DEBUG:
+		print("[DEBUG] " + str(s))
+
+def is_special_pct_line(line: str) -> bool:
+	s = line.rstrip('\r\n')
+	if any(s.startswith(p) for p in SPECIAL_PCT_PREFIX):
+		return True
+	# exact-match sentinels
+	return s in SPECIAL_PCT_LINES
+
+def pack_allowed(s: bytes) -> bytes:
+	out = bytearray()
+	s_dec = s.decode('latin1')
+	for ch in s_dec:
+		if ch in IDX:
+			out.append(IDX[ch])
+		else:
+			dprint("Encountered invalid string: "+str(s_dec))
+			# assert False
+			out.append(IDX.get('A', 0))  # fallback
+	out.append(0xFF)
+	return bytes(out)
+
+def pack_raw(s: bytes) -> bytes:
+	assert len(s) <= 2**16
+	out = struct.pack('<h', len(s)) + s
+	assert len(out) == len(s) + 2
+	return out
+
+# ------------- Tokenizer (minimal but robust) -------------
+_WS = b" \t\r\n\f\v"
+_STOP = set(b"()[]{}<>/% \t\r\n\f\v")
+_STOP_NO_COMMENT = set(b"()[]{}<>/ \t\r\n\f\v")
+_comment = re.compile(rb'%[^\r\n]*')
+_number = re.compile(rb'[+-]?(?:\d+\.\d*|\d*\.\d+|\d+)')
+
+def _skip_comment(b: bytes, i: int) -> int:
+	n = len(b)
+	while i < n and b[i] not in b"\r\n":
+		i += 1
+	return i
+
+def _read_string(b: bytes, i: int) -> Tuple[str, int]:
+	out = bytearray(b'('); i += 1; depth = 1; n = len(b)
+	while i < n and depth > 0:
+		c = b[i]; out.append(c); i += 1
+		if c == ord('\\'):
+			if i < n: out.append(b[i]); i += 1
+		elif c == ord('('): depth += 1
+		elif c == ord(')'): depth -= 1
+	return out.decode('latin1'), i
+
+# def _read_string_raw(b: bytes, i: int) -> Tuple[str, int]:
 
 
+def _read_balanced(b: bytes, i: int, o: int, c: int) -> Tuple[str, int]:
+	out = bytearray([b[i]]); i += 1; depth = 1; n = len(b)
+	while i < n and depth > 0:
+		ch = b[i]
+		if ch == ord('%'):
+			j = _skip_comment(b, i); out += b[i:j]; i = j; continue
+		if ch == ord('('):
+			s, i = _read_string(b, i); out += s.encode('latin1'); continue
+		out.append(ch); i += 1
+		if ch == o: depth += 1
+		elif ch == c: depth -= 1
+	return out.decode('latin1'), i
+
+def _read_hex_or_dict(b: bytes, i: int) -> Tuple[str, int]:
+	n = len(b)
+	if i + 1 < n and b[i+1] == ord('<'):
+		# dict
+		out = bytearray(b'<<'); i += 2; depth = 1
+		while i < n and depth > 0:
+			if b[i] == ord('%'):
+				j = _skip_comment(b, i); out += b[i:j]; i = j; continue
+			if b[i] == ord('('):
+				s, i = _read_string(b, i); out += s.encode('latin1'); continue
+			if i + 1 < n and b[i] == ord('<') and b[i+1] == ord('<'):
+				out += b'<<'; i += 2; depth += 1; continue
+			if i + 1 < n and b[i] == ord('>') and b[i+1] == ord('>'):
+				out += b'>>'; i += 2; depth -= 1; continue
+			out.append(b[i]); i += 1
+		return out.decode('latin1'), i
+	else:
+		# hexstring
+		out = bytearray(b'<'); i += 1
+		while i < n:
+			out.append(b[i]); c = b[i]; i += 1
+			if c == ord('>'): break
+		return out.decode('latin1'), i
+
+def _read_word(b: bytes, i: int, disallowed_chars: set) -> Tuple[str, int]:
+	n = len(b); s = i
+	while i < n and b[i] not in disallowed_chars:
+		i += 1
+	return b[s:i].decode('latin1'), i
+
+def _split_expressions(ps: str) -> List[str]:
+	"""Split PS into logical expressions. If a line starts with /name, keep reading until top-level 'def'."""
+	# This ugly hack is to get rid of invalid characters...
+	b = ps.encode('latin1', 'ignore'); i = 0; n = len(b)
+	out, buf = [], bytearray()
+	in_def = False
+	while i < n:
+		c = b[i]
+		#if c == ord('%'):
+		#	i = _skip_comment(b, i); continue
+
+		if c == ord('%'):
+			# flush any buffered code on this line
+			line = buf.decode('latin1').strip()
+			if line:
+				out.append(line)
+			buf.clear()
+			j = _skip_comment(b, i)
+			raw = b[i:j].decode('latin1').rstrip()
+			dprint("raw: "+str(raw))
+			if is_special_pct_line(raw):
+				out.append(raw)  # keep as its own expression
+			# consume newline if present
+			i = j
+			if i < n and b[i] in b'\r\n':
+				if b[i] == ord('\r') and i+1 < n and b[i+1] == ord('\n'):
+					i += 2
+				else:
+					i += 1
+			continue
+
+		if c == ord('('):
+			s, i = _read_string(b, i); buf += s.encode('latin1'); continue
+		if c == ord('['):
+			s, i = _read_balanced(b, i, ord('['), ord(']')); buf += s.encode('latin1'); continue
+		if c == ord('{'):
+			s, i = _read_balanced(b, i, ord('{'), ord('}')); buf += s.encode('latin1'); continue
+		if c == ord('<'):
+			s, i = _read_hex_or_dict(b, i); buf += s.encode('latin1'); continue
+
+		if not buf.strip() and c == ord('/'):
+			in_def = True
+
+		if in_def and c == ord('d') and b[i:i+3] == b'def' and (i+3 == n or b[i+3] in _WS + b"()[]{}<>/%"):
+			buf += b'def'; i += 3
+			out.append(buf.decode('latin1').strip()); buf.clear(); in_def = False
+			while i < n and b[i] in _WS:
+				if b[i] in b'\r\n':
+					if b[i] == ord('\r') and i+1 < n and b[i+1] == ord('\n'): i += 2
+					else: i += 1
+					break
+				i += 1
+			continue
+
+		if c in (ord('\n'), ord('\r')) and not in_def:
+			line = buf.decode('latin1').strip()
+			if line: out.append(line)
+			buf.clear()
+			if c == ord('\r') and i+1 < n and b[i+1] == ord('\n'): i += 2
+			else: i += 1
+			continue
+
+		buf.append(c); i += 1
+
+	last = buf.decode('latin1').strip()
+	if last: out.append(last)
+	return out
+
+def _tokenize_expr(expr: str) -> List[Tuple[str, str]]:
+	"""Return [('INT','123'), ('ENAME','moveto'), ('LNAME','box'), ('STRING','(abc)'), ...]"""
+	b = expr.encode('latin1'); i = 0; n = len(b)
+	toks: List[Tuple[str,str]] = []
+	while i < n:
+		while i < n and b[i] in _WS: i += 1
+		if i >= n: break
+		c = b[i]
+		dprint("Current buffer: "+str(b[i:]))
+		if c == ord('%'):
+			# Check if special string...
+			if not is_special_pct_line(expr):
+				i = _skip_comment(b, i); continue # Is not special, so comment.
+			else:
+				dprint("String "+str(expr)+" is special...")
+		elif c == ord('('):
+			s, i = _read_string(b, i); toks.append(('STRING', s)); continue
+		elif c == ord('['):
+			s, i = _read_balanced(b, i, ord('['), ord(']')); toks.append(('ARRAY', s)); continue
+		elif c == ord('{'):
+			s, i = _read_balanced(b, i, ord('{'), ord('}')); toks.append(('PROC', s)); continue
+		elif c == ord('<'):
+			s, i = _read_hex_or_dict(b, i); toks.append(('HEXDICT', s)); continue
+		elif c == ord('/'):
+			i += 1; w, i = _read_word(b, i, _STOP); toks.append(('LNAME', w)); continue
+		elif c in (ord('}'), ord(')'), ord('>'), ord(']')):
+			i += 1; continue
+		m = _number.match(b, i)
+		if m:
+			txt = m.group(0).decode('latin1'); i = m.end()
+			toks.append(('NUM', txt)); continue
+		dprint("Current buffer 2: "+str(b[i:]))
+		w, i = _read_word(b, i, _STOP_NO_COMMENT)
+		dprint("w: "+str(w))
+		if w:
+			if w not in ("false", "true"):
+				toks.append(('ENAME', w))
+			else:
+				toks.append(('BOOL', 1 if w == "true" else 0))
+	return toks
+
+# ------------- Encoder: tokens -> IR (now fully recursive) -------------
+def _emit_name(name: str, defined_vars: List[str]) -> bytes:
+	if name in FUNC_INDEX:
+		idx = FUNC_INDEX[name]
+		return bytes([IR.LOOKUP_FUNC]) + struct.pack('<h', idx)
+	if ('/' + name) in defined_vars:
+		vidx = defined_vars.index('/' + name)
+		return bytes([IR.LOOKUP_VAR]) + struct.pack('<h', vidx)
+	return bytes([IR.I_ENAME]) + pack_allowed(name.encode('latin1'))
+
+def _emit_number_token(val: str) -> bytes:
+	if '.' in val:
+		try:
+			intpart, frac = val.split('.', 1)
+			intpart = max(0, min(0xFFFF, int(intpart or '0')))
+			frac = ''.join(ch for ch in frac if ch.isdigit()) or '0'
+			frac = max(0, min(0xFFFF, int(frac)))
+		except Exception:
+			intpart, frac = 0, 0
+		u = (intpart << 16) | frac
+		return bytes([IR.I_REAL32]) + IR.varint_encode(IR.zz_encode(u))
+	else:
+		return bytes([IR.I_INT]) + IR.varint_encode(IR.zz_encode(int(val)))
+
+def _clean_hex(s: str) -> str:
+	o = ""
+	for c in s:
+		if c in HEX_CHARS:
+			o += c
+	return o
+
+def _emit_hex_or_dict(val: str, defined_vars: List[str]) -> bytes:
+	if val.startswith('<<'):
+		# Keep as empty dict placeholder for now
+		# return bytes([IR.DICT_S]) + bytes([IR.DICT_E])
+		# Parse the inner tokens and keep them
+		inner = val[2:-2]
+		out = bytearray([IR.DICT_S])
+		inner_toks = _tokenize_expr(inner)
+		encode_tokens(inner_toks, defined_vars, out)
+		out.append(IR.DICT_E)
+		return bytes(out)
+	else:
+		# hexstring
+		s = val[1:-1].strip()
+		# Just throw out all non-hex characters...
+		s = _clean_hex(s)
+		# Maybe we should actually check like this here:
+		# if len(s) % 2 == 1:
+		# 	s = s + "0"
+		if len(s) % 2 == 1:
+			s = s[:-1] + "0" + s[-1]
+		dprint("s: "+str(s))
+		hexbytes = bytes.fromhex(s)
+		return bytes([IR.I_HEX]) + pack_raw(hexbytes)
+
+def encode_tokens(toks: List[Tuple[str, str]], defined_vars: List[str], out: bytearray) -> None:
+	"""
+	Recursively encode a token list into IR.
+	Handles nested ARRAY and PROC (and HEXDICT) anywhere.
+	"""
+	for kind, val in toks:
+		if kind == 'NUM':
+			out += _emit_number_token(val)
+		elif kind == 'LNAME':
+			defined_vars.append('/' + val)
+			out += bytes([IR.I_LNAME]) + pack_allowed(val.encode('latin1'))
+		elif kind == 'ENAME':
+			out += _emit_name(val, defined_vars)
+		elif kind == 'STRING':
+			body = val[1:-1]
+			out += bytes([IR.I_STRING]) + pack_allowed(body.encode('latin1'))
+		elif kind == 'BOOL':
+			out += bytes([IR.I_BOOL]) + bytes([val])  # val already 0/1
+		elif kind == 'HEXDICT':
+			out += _emit_hex_or_dict(val, defined_vars)
+		elif kind == 'ARRAY':
+			out += bytes([IR.ARR_S])
+			inner = val[1:-1]
+			inner_toks = _tokenize_expr(inner)
+			encode_tokens(inner_toks, defined_vars, out)
+			out += bytes([IR.ARR_E])
+		elif kind == 'PROC':
+			out += bytes([IR.PROC_S])
+			inner = val[1:-1]
+			inner_toks = _tokenize_expr(inner)
+			encode_tokens(inner_toks, defined_vars, out)
+			out += bytes([IR.PROC_E])
+		else:
+			# unknown token kinds are ignored
+			pass
+
+def ps_to_ir(ps_text: str) -> bytes:
+	dprint("Called ps_to_ir...")
+	defined_vars: List[str] = []
+	out = bytearray()
+	exprs = _split_expressions(ps_text)
+	dprint("exprs: "+str(exprs))
+	for line in exprs:
+		toks = _tokenize_expr(line)
+		encode_tokens(toks, defined_vars, out)
+		out += bytes([IR.END_EXPR])
+	return bytes(out)
+
+import sys
+
+def test():
+	if len(sys.argv) != 2:
+		ps = r"""/boxsize
+		  inwidth inheight gt
+		  { pagewidth inwidth truncate 1 .max div }
+		  { pageheight inheight truncate 1 .max div }
+		  ifelse
+		def
+		1 1 add
+		"""
+	else:
+		fh = open(sys.argv[1], "r")
+		ps = fh.read()
+		fh.close()
+
+	blob = ps_to_ir(ps)
+	fh = open("output.bin", "wb")
+	fh.write(blob)
+	fh.close()
+	print("Forward....")
+	# print(IR.ir_to_postscript(blob).decode('latin1'))
+
+	stuff = IR.ir_to_postscript(blob).decode('latin1')
+	print(stuff)
+	fh = open("roundtrip.ps", "w")
+	fh.write(stuff)
+	fh.close()
+	return
+
+if __name__=="__main__":
+	test()
+	exit(0)
+
+```
+
+Now, it really sucks that the percent sign is used for both comments and some special markers. This is bad design in my opinion, but too bad I guess...
+
+There was another bug or actually my own design choice which made the fuzzer bad. I was under the assumption that newlines were only for show and didn't affect program execution, but I was painfully mistaken and as a result I now have this:
+
+```
+
+# ps_to_ir.py
+import re
+import struct
+from typing import List, Tuple
+
+import setup
+import forward as IR
+
+# Build operator index from your FUNCS list
+setup.run_setup()
+FUNCS = setup.FUNCS
+FUNC_INDEX = {name: i for i, (name, _argc) in enumerate(FUNCS)}
+
+# Allowed chars (must match your tiny_ps_ir.ALLOWED_CHARS)
+ALLOWED = IR.ALLOWED_CHARS
+IDX = {chr(c): i for i, c in enumerate(ALLOWED)}
+
+NUMS = set(list("0987654321"))
+HEX_NO_NUMS = set(list("abcdefABCDEF"))
+HEX_CHARS = NUMS.union(HEX_NO_NUMS) # Can not do NUMS + HEX_NO_NUMS
+SPECIAL_PCT_LINES   = { '%END', '%EOF', '%EOD', '%ENDDATA' }
+SPECIAL_PCT_PREFIX  = ('%!', '%%')  # file header and DSC directives
+
+DEBUG = False
+
+def dprint(s: str) -> None:
+	if DEBUG:
+		print("[DEBUG] " + str(s))
+
+def is_special_pct_line(line: str) -> bool:
+	s = line.rstrip('\r\n')
+	if any(s.startswith(p) for p in SPECIAL_PCT_PREFIX):
+		return True
+	# exact-match sentinels
+	return s in SPECIAL_PCT_LINES
+
+def pack_allowed(s: bytes) -> bytes:
+	out = bytearray()
+	s_dec = s.decode('latin1')
+	for ch in s_dec:
+		if ch in IDX:
+			out.append(IDX[ch])
+		else:
+			dprint("Encountered invalid string: "+str(s_dec))
+			# assert False
+			out.append(IDX.get('A', 0))  # fallback
+	out.append(0xFF)
+	return bytes(out)
+
+def pack_raw(s: bytes) -> bytes:
+	assert len(s) <= 2**16
+	out = struct.pack('<h', len(s)) + s
+	assert len(out) == len(s) + 2
+	return out
+
+# ------------- Tokenizer (minimal but robust) -------------
+_WS = b" \t\r\n\f\v"
+_STOP = set(b"()[]{}<>/% \t\r\n\f\v")
+_STOP_NO_COMMENT = set(b"()[]{}<>/ \t\r\n\f\v")
+_comment = re.compile(rb'%[^\r\n]*')
+_number = re.compile(rb'[+-]?(?:\d+\.\d*|\d*\.\d+|\d+)')
+
+def _skip_comment(b: bytes, i: int) -> int:
+	n = len(b)
+	while i < n and b[i] not in b"\r\n":
+		i += 1
+	return i
+
+def _read_string(b: bytes, i: int) -> Tuple[str, int]:
+	out = bytearray(b'('); i += 1; depth = 1; n = len(b)
+	while i < n and depth > 0:
+		c = b[i]; out.append(c); i += 1
+		if c == ord('\\'):
+			if i < n: out.append(b[i]); i += 1
+		elif c == ord('('): depth += 1
+		elif c == ord(')'): depth -= 1
+	return out.decode('latin1'), i
+
+# def _read_string_raw(b: bytes, i: int) -> Tuple[str, int]:
 
 
+def _read_balanced(b: bytes, i: int, o: int, c: int) -> Tuple[str, int]:
+	out = bytearray([b[i]]); i += 1; depth = 1; n = len(b)
+	while i < n and depth > 0:
+		ch = b[i]
+		if ch == ord('%'):
+			j = _skip_comment(b, i); out += b[i:j]; i = j; continue
+		if ch == ord('('):
+			s, i = _read_string(b, i); out += s.encode('latin1'); continue
+		out.append(ch); i += 1
+		if ch == o: depth += 1
+		elif ch == c: depth -= 1
+	return out.decode('latin1'), i
 
+def _read_hex_or_dict(b: bytes, i: int) -> Tuple[str, int]:
+	n = len(b)
+	if i + 1 < n and b[i+1] == ord('<'):
+		# dict
+		out = bytearray(b'<<'); i += 2; depth = 1
+		while i < n and depth > 0:
+			if b[i] == ord('%'):
+				j = _skip_comment(b, i); out += b[i:j]; i = j; continue
+			if b[i] == ord('('):
+				s, i = _read_string(b, i); out += s.encode('latin1'); continue
+			if i + 1 < n and b[i] == ord('<') and b[i+1] == ord('<'):
+				out += b'<<'; i += 2; depth += 1; continue
+			if i + 1 < n and b[i] == ord('>') and b[i+1] == ord('>'):
+				out += b'>>'; i += 2; depth -= 1; continue
+			out.append(b[i]); i += 1
+		return out.decode('latin1'), i
+	else:
+		# hexstring
+		out = bytearray(b'<'); i += 1
+		while i < n:
+			out.append(b[i]); c = b[i]; i += 1
+			if c == ord('>'): break
+		return out.decode('latin1'), i
 
+def _read_word(b: bytes, i: int, disallowed_chars: set) -> Tuple[str, int]:
+	n = len(b); s = i; nl = False
+	while i < n and b[i] not in disallowed_chars:
+		i += 1
+	if not i < n:
+		return b[s:i].decode('latin1'), i, nl
+	dprint("b[i:] : "+str(b[i:]))
+	dprint("b[i]: "+str(b[i]))
+	if b[i] == ord('\n'): # Check for newline.
+		nl = True
+	return b[s:i].decode('latin1'), i, nl
+
+def _split_expressions(ps: str) -> List[str]:
+	"""Split PS into logical expressions. If a line starts with /name, keep reading until top-level 'def'."""
+	# This ugly hack is to get rid of invalid characters...
+	b = ps.encode('latin1', 'ignore'); i = 0; n = len(b)
+	out, buf = [], bytearray()
+	in_def = False
+	while i < n:
+		c = b[i]
+		#if c == ord('%'):
+		#	i = _skip_comment(b, i); continue
+
+		if c == ord('%'):
+			# flush any buffered code on this line
+			line = buf.decode('latin1').strip()
+			if line:
+				out.append(line)
+			buf.clear()
+			j = _skip_comment(b, i)
+			raw = b[i:j].decode('latin1').rstrip()
+			dprint("raw: "+str(raw))
+			if is_special_pct_line(raw):
+				out.append(raw)  # keep as its own expression
+			# consume newline if present
+			i = j
+			if i < n and b[i] in b'\r\n':
+				if b[i] == ord('\r') and i+1 < n and b[i+1] == ord('\n'):
+					i += 2
+				else:
+					i += 1
+			continue
+
+		if c == ord('('):
+			s, i = _read_string(b, i); buf += s.encode('latin1'); continue
+		if c == ord('['):
+			s, i = _read_balanced(b, i, ord('['), ord(']')); buf += s.encode('latin1'); continue
+		if c == ord('{'):
+			s, i = _read_balanced(b, i, ord('{'), ord('}')); buf += s.encode('latin1'); continue
+		if c == ord('<'):
+			s, i = _read_hex_or_dict(b, i); buf += s.encode('latin1'); continue
+
+		if not buf.strip() and c == ord('/'):
+			in_def = True
+
+		if in_def and c == ord('d') and b[i:i+3] == b'def' and (i+3 == n or b[i+3] in _WS + b"()[]{}<>/%"):
+			buf += b'def'; i += 3
+			out.append(buf.decode('latin1').strip()); buf.clear(); in_def = False
+			while i < n and b[i] in _WS:
+				if b[i] in b'\r\n':
+					if b[i] == ord('\r') and i+1 < n and b[i+1] == ord('\n'): i += 2
+					else: i += 1
+					break
+				i += 1
+			continue
+
+		if c in (ord('\n'), ord('\r')) and not in_def:
+			line = buf.decode('latin1').strip()
+			if line: out.append(line)
+			buf.clear()
+			if c == ord('\r') and i+1 < n and b[i+1] == ord('\n'): i += 2
+			else: i += 1
+			continue
+
+		buf.append(c); i += 1
+
+	last = buf.decode('latin1').strip()
+	if last: out.append(last)
+	return out
+
+def _tokenize_expr(expr: str) -> List[Tuple[str, str]]:
+	"""Return [('INT','123'), ('ENAME','moveto'), ('LNAME','box'), ('STRING','(abc)'), ...]"""
+	b = expr.encode('latin1'); i = 0; n = len(b)
+	toks: List[Tuple[str,str]] = []
+	while i < n:
+		while i < n and b[i] in _WS: i += 1
+		if i >= n: break
+		c = b[i]
+		dprint("Current buffer: "+str(b[i:]))
+		if c == ord('%'):
+			# Check if special string...
+			if not is_special_pct_line(expr):
+				i = _skip_comment(b, i); continue # Is not special, so comment.
+			else:
+				dprint("String "+str(expr)+" is special...")
+		elif c == ord('('):
+			s, i = _read_string(b, i); toks.append(('STRING', s)); continue
+		elif c == ord('['):
+			s, i = _read_balanced(b, i, ord('['), ord(']')); toks.append(('ARRAY', s)); continue
+		elif c == ord('{'):
+			s, i = _read_balanced(b, i, ord('{'), ord('}')); toks.append(('PROC', s)); continue
+		elif c == ord('<'):
+			s, i = _read_hex_or_dict(b, i); toks.append(('HEXDICT', s)); continue
+		elif c == ord('/'):
+			i += 1; w, i, _ = _read_word(b, i, _STOP); toks.append(('LNAME', w)); continue
+		elif c in (ord('}'), ord(')'), ord('>'), ord(']')):
+			i += 1; continue
+		m = _number.match(b, i)
+		if m:
+			txt = m.group(0).decode('latin1'); i = m.end()
+			toks.append(('NUM', txt)); continue
+		dprint("Current buffer 2: "+str(b[i:]))
+		w, i, nl = _read_word(b, i, _STOP_NO_COMMENT)
+		dprint("w: "+str(w))
+		dprint("nl: "+str(nl))
+		if w:
+			if w not in ("false", "true"):
+				toks.append(('ENAME', w))
+			else:
+				toks.append(('BOOL', 1 if w == "true" else 0))
+			if nl:
+				# Append newline end of expression too...
+				toks.append(('END_EXPR', None))
+	return toks
+
+# ------------- Encoder: tokens -> IR (now fully recursive) -------------
+def _emit_name(name: str, defined_vars: List[str]) -> bytes:
+	if name in FUNC_INDEX:
+		idx = FUNC_INDEX[name]
+		return bytes([IR.LOOKUP_FUNC]) + struct.pack('<h', idx)
+	if ('/' + name) in defined_vars:
+		vidx = defined_vars.index('/' + name)
+		return bytes([IR.LOOKUP_VAR]) + struct.pack('<h', vidx)
+	return bytes([IR.I_ENAME]) + pack_allowed(name.encode('latin1'))
+
+def _emit_number_token(val: str) -> bytes:
+	if '.' in val:
+		try:
+			intpart, frac = val.split('.', 1)
+			intpart = max(0, min(0xFFFF, int(intpart or '0')))
+			frac = ''.join(ch for ch in frac if ch.isdigit()) or '0'
+			frac = max(0, min(0xFFFF, int(frac)))
+		except Exception:
+			intpart, frac = 0, 0
+		u = (intpart << 16) | frac
+		return bytes([IR.I_REAL32]) + IR.varint_encode(IR.zz_encode(u))
+	else:
+		return bytes([IR.I_INT]) + IR.varint_encode(IR.zz_encode(int(val)))
+
+def _clean_hex(s: str) -> str:
+	o = ""
+	for c in s:
+		if c in HEX_CHARS:
+			o += c
+	return o
+
+def _emit_hex_or_dict(val: str, defined_vars: List[str]) -> bytes:
+	if val.startswith('<<'):
+		# Keep as empty dict placeholder for now
+		# return bytes([IR.DICT_S]) + bytes([IR.DICT_E])
+		# Parse the inner tokens and keep them
+		inner = val[2:-2]
+		out = bytearray([IR.DICT_S])
+		inner_toks = _tokenize_expr(inner)
+		encode_tokens(inner_toks, defined_vars, out)
+		out.append(IR.DICT_E)
+		return bytes(out)
+	else:
+		# hexstring
+		s = val[1:-1].strip()
+		# Just throw out all non-hex characters...
+		s = _clean_hex(s)
+		# Maybe we should actually check like this here:
+		# if len(s) % 2 == 1:
+		# 	s = s + "0"
+		if len(s) % 2 == 1:
+			s = s[:-1] + "0" + s[-1]
+		dprint("s: "+str(s))
+		hexbytes = bytes.fromhex(s)
+		return bytes([IR.I_HEX]) + pack_raw(hexbytes)
+
+def encode_tokens(toks: List[Tuple[str, str]], defined_vars: List[str], out: bytearray) -> None:
+	"""
+	Recursively encode a token list into IR.
+	Handles nested ARRAY and PROC (and HEXDICT) anywhere.
+	"""
+	for kind, val in toks:
+		if kind == 'NUM':
+			out += _emit_number_token(val)
+		elif kind == 'LNAME':
+			defined_vars.append('/' + val)
+			out += bytes([IR.I_LNAME]) + pack_allowed(val.encode('latin1'))
+		elif kind == 'ENAME':
+			out += _emit_name(val, defined_vars)
+		elif kind == 'STRING':
+			body = val[1:-1]
+			out += bytes([IR.I_STRING]) + pack_allowed(body.encode('latin1'))
+		elif kind == 'BOOL':
+			out += bytes([IR.I_BOOL]) + bytes([val])  # val already 0/1
+		elif kind == 'HEXDICT':
+			out += _emit_hex_or_dict(val, defined_vars)
+		elif kind == 'ARRAY':
+			out += bytes([IR.ARR_S])
+			inner = val[1:-1]
+			inner_toks = _tokenize_expr(inner)
+			encode_tokens(inner_toks, defined_vars, out)
+			out += bytes([IR.ARR_E])
+		elif kind == 'PROC':
+			out += bytes([IR.PROC_S])
+			inner = val[1:-1]
+			inner_toks = _tokenize_expr(inner)
+			encode_tokens(inner_toks, defined_vars, out)
+			out += bytes([IR.PROC_E])
+		elif kind == 'END_EXPR':
+			out += bytes([IR.END_EXPR])
+		else:
+			# unknown token kinds are ignored
+			pass
+
+def ps_to_ir(ps_text: str) -> bytes:
+	dprint("Called ps_to_ir...")
+	defined_vars: List[str] = []
+	out = bytearray()
+	exprs = _split_expressions(ps_text)
+	dprint("exprs: "+str(exprs))
+	for line in exprs:
+		toks = _tokenize_expr(line)
+		encode_tokens(toks, defined_vars, out)
+		out += bytes([IR.END_EXPR])
+	return bytes(out)
+
+import sys
+
+def test():
+	if len(sys.argv) != 2:
+		ps = r"""/boxsize
+		  inwidth inheight gt
+		  { pagewidth inwidth truncate 1 .max div }
+		  { pageheight inheight truncate 1 .max div }
+		  ifelse
+		def
+		1 1 add
+		"""
+	else:
+		fh = open(sys.argv[1], "r")
+		ps = fh.read()
+		fh.close()
+
+	blob = ps_to_ir(ps)
+	fh = open("output.bin", "wb")
+	fh.write(blob)
+	fh.close()
+	print("Forward....")
+	# print(IR.ir_to_postscript(blob).decode('latin1'))
+
+	stuff = IR.ir_to_postscript(blob).decode('latin1')
+	print(stuff)
+	fh = open("roundtrip.ps", "w")
+	fh.write(stuff)
+	fh.close()
+	return
+
+if __name__=="__main__":
+	test()
+	exit(0)
+
+```
+
+which should preserve the stuff and now this here:
+
+```
+/S 80 string def
+108 480 moveto
+/Helvetica 12 selectfont
+ { currentfile S readline pop dup (%END) eq { pop exit } if
+   gsave show grestore 0 -15 rmoveto
+ } loop
+Let the distance in inches from the left edge of the page to
+the vertical line be H, and from the bottom edge to the
+horizontal line be V; let the lengths of the gaps at the top
+and bottom of the vertical line be T and B respectively
+%END
+/res currentpagedevice /HWResolution get def
+(        x = (1 - H) * ) show res 0 get =string cvs show
+(, y = (V - 1) * ) show res 1 get =string cvs show
+
+showpage
+```
+
+roundtrips correctly. Before the lines were joined together which lead to crashes...
+
+Now when running my corpus of over a thousand files it doesn't encounter any crash after roundtrip after running the thing. This does not mean that our corpus generator is perfect since there are functions which start with a percent sign and such function calls, but it is good enough for our purposes. I will of course improve upon this further...
+
+## Starting fuzzing campaign number 2
+
+Ok, so I started fuzzing again with a slightly improved corpus and some modifications...
+
+## Getting an even better corpus
+
+So my problem is that there is a bad corpus which doesn't exercise the majority of the stuff. Therefore I am thinking of getting a better corpus. I found this here:  https://labs.pdfa.org/stressful-corpus/ which seems
+
+... an hour later ...
+
+ok so that corpus didn't really have any interesting inputs in it, so I just decided to manually download some of the bugs out of the public bug tracker and just be done with it.
+
+## Results???
 
 
 
