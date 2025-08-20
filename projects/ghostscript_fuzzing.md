@@ -3476,13 +3476,320 @@ ok so that corpus didn't really have any interesting inputs in it, so I just dec
 
 ## Results???
 
+Ok, so while that is actually running, I am going to compile a pdf fuzzer. I am going to use the oss-fuzz stuff as a base and then branch from there...
+
+## Fuzzing actual PDF files...
+
+Ok, so there are plenty of devices and stuff which I can try to fuzz and let's see how I can do that...
+
+Looking at the oss-fuzz stuff initially:
+
+```
+oof@elskun-lppri:~/ghostscript_mutator/pdf_fuzzing/original$ ls -lhS
+total 96K
+-rwxr-xr-x 1 oof oof 5.1K Aug 20 03:19 build.sh
+-rw-r--r-- 1 oof oof 3.6K Aug 20 03:19 gs_fuzzlib.h
+-rw-r--r-- 1 oof oof 1.4K Aug 20 03:19 gstoraster_ps_fuzzer.cc
+-rw-r--r-- 1 oof oof 1.3K Aug 20 03:19 Dockerfile
+-rw-r--r-- 1 oof oof 1.2K Aug 20 03:19 gstoraster_pdf_fuzzer.cc
+-rw-r--r-- 1 oof oof 1014 Aug 20 03:19 gstoraster_fuzzer_all_colors.cc
+-rw-r--r-- 1 oof oof  900 Aug 20 03:19 gs_device_pdfwrite_opts_fuzzer.cc
+-rw-r--r-- 1 oof oof  868 Aug 20 03:19 gs_device_tiffsep1_fuzzer.cc
+-rw-r--r-- 1 oof oof  856 Aug 20 03:19 gstoraster_fuzzer.cc
+-rw-r--r-- 1 oof oof  732 Aug 20 03:19 gs_device_eps2write_fuzzer.cc
+-rw-r--r-- 1 oof oof  731 Aug 20 03:19 gs_device_pdfwrite_fuzzer.cc
+-rw-r--r-- 1 oof oof  731 Aug 20 03:19 gs_device_ps2write_fuzzer.cc
+-rw-r--r-- 1 oof oof  731 Aug 20 03:19 gs_device_pxlcolor_fuzzer.cc
+-rw-r--r-- 1 oof oof  731 Aug 20 03:19 gs_device_xpswrite_fuzzer.cc
+-rw-r--r-- 1 oof oof  730 Aug 20 03:19 gs_device_bmpmono_fuzzer.cc
+-rw-r--r-- 1 oof oof  730 Aug 20 03:19 gs_device_psdcmyk_fuzzer.cc
+-rw-r--r-- 1 oof oof  730 Aug 20 03:19 gs_device_pxlmono_fuzzer.cc
+-rw-r--r-- 1 oof oof  729 Aug 20 03:19 gs_device_pgmraw_fuzzer.cc
+-rw-r--r-- 1 oof oof  729 Aug 20 03:19 gs_device_png16m_fuzzer.cc
+-rw-r--r-- 1 oof oof  728 Aug 20 03:19 gs_device_faxg3_fuzzer.cc
+-rw-r--r-- 1 oof oof  537 Aug 20 03:19 project.yaml
+-rw-r--r-- 1 oof oof   43 Aug 20 03:19 gstoraster_ps_fuzzer.options
+-rw-r--r-- 1 oof oof   28 Aug 20 03:19 gstoraster_fuzzer_all_colors.options
+```
+
+those device files are basically for different target devices, but there are a lot of them missing. Here is a full list:
+
+```
+[/npdl /itk24i /appledmp /jpeg /lp9400 /hpdj340 /tiffgray /bmp16 /pnggray /lp7500 /epl5800 /ppm /rpdl /lj250 /cdj970 /pdfimage8 /oce9050 /itk38 /atx23 /jpegcmyk /lp9500c /hpdj400 /tifflzw /bmp16m /pngmono /lp7700 /epl5900 /ppmraw /samsunggdi /lj3100sw /cdjcolor /pgm /oki182 /iwhi /atx24 /jpeggray /lp9600 /hpdj500 /tiffpack /bmp256 /pngmonod /lp7900 /epl6100 /ps2write /sj48 /lj4dith /cdjmono /pgmraw /oki4w /iwlo /atx38 /mgr4 /lp9600s /hpdj500c /tiffscaled /bmp32b /ocr /lp8000 /epl6200 /pdfwrite /display /st800 /lj4dithp /cdnj500 /pgnm /okiibm /iwlq /bj10e /mgr8 /lp9800c /hpdj510 /tiffscaled24 /bmpgray /hocr /lp8000c /eplcolor /psdcmyk /x11 /stcolor /lj5gray /chp2200 /pgnmraw /oprp /jetp3852 /bj10v /mgrgray2 /lps4500 /hpdj520 /tiffscaled32 /bmpmono /pdfocr8 /lp8100 /eplmono /psdcmyk16 /x11alpha /t4693d2 /lj5mono /cljet5 /pkm /opvp /jj100 /bj10vh /mgrgray4 /lps6500 /hpdj540 /tiffscaled4 /bmpsep1 /pdfocr24 /lp8200c /eps9high /psdcmykog /x11cmyk /t4693d4 /ljet2p /cljet5c /pkmraw /paintjet /la50 /bj200 /mgrgray8 /lq850 /hpdj550c /tiffscaled8 /bmpsep8 /pdfocr32 /lp8300c /eps9mid /psdcmyktags /x11cmyk2 /t4693d8 /ljet3 /cljet5pr /pksm /pcl3 /la70 /bjc600 /mgrmono /lxm3200 /hpdj560c /tiffsep /ccr /nullpage /lp8300f /epson /psdcmyktags16 /x11cmyk4 /tek4696 /ljet3d /coslw2p /pksmraw /photoex /la75 /bjc800 /miff24 /lxm5700m /hpdj600 /tiffsep1 /cfax /lp8400f /epsonc /psdrgb /x11cmyk8 /uniprint /ljet4 /coslwxl /plan /picty180 /la75plus /bjc880j /pam /m8510 /hpdj660c /txtwrite /cif /lp8500c /escp /psdrgb16 /x11gray2 /xes /ljet4d /declj250 /plan9bm /pj /laserjet /bjccmyk /pamcmyk32 /md1xMono /hpdj670c /xcf /devicen /lp8600 /escpage /psdrgbtags /x11gray4 /appleraster /ljet4pjl /deskjet /planc /pjetxl /lbp310 /bjccolor /pamcmyk4 /md2k /hpdj680c /xcfcmyk /dfaxhigh /lp8600f /fmlbp /spotcmyk /x11mono /cups /ljetplus /dj505j /plang /pjxl /lbp320 /bjcgray /pbm /md50Eco /hpdj690c /xpswrite /dfaxlow /lp8700 /fmpr /tiff12nc /x11rg16x /pwgraster /ln03 /djet500 /plank /pjxl300 /lbp8 /bjcmono /pbmraw /md50Mono /hpdj850c /alc1900 /eps2write /lp8800c /fs600 /tiff24nc /x11rg32x /urf /lp1800 /djet500c /planm /pr1000 /lex2050 /cdeskjet /pcx16 /md5k /hpdj855c /alc2000 /faxg3 /lp8900 /gdi /tiff32nc /pclm /ijs /lp1900 /dl2100 /plib /pr1000_4 /lex3200 /cdj1600 /pcx24b /mj500c /hpdj870c /alc4000 /faxg32d /lp9000b /hl1240 /tiff48nc /pclm8 /png16 /lp2000 /dnj650c /plibc /pr150 /lex5700 /cdj500 /pcx256 /mj6000c /hpdj890c /alc4100 /faxg4 /lp9000c /hl1250 /tiff64nc /bbox /png16m /lp2200 /epl2050 /plibg /pr201 /lex7000 /cdj550 /pcxcmyk /mj700v2c /hpdjplus /alc8500 /fpng /lp9100 /hl7x0 /tiffcrle /bit /png16malpha /lp2400 /epl2050p /plibk /pxlcolor /lips2p /cdj670 /pcxgray /mj8000c /hpdjportable /alc8600 /inferno /lp9200b /hpdj1120c /tiffg3 /bitcmyk /png256 /lp2500 /epl2120 /plibm /pxlmono /lips3 /cdj850 /pcxmono /ml600 /ibmpro /alc9100 /ink_cov /lp9200c /hpdj310 /tiffg32d /bitrgb /png48 /lp2563 /epl2500 /pnm /r4081 /lips4 /cdj880 /pdfimage24 /necp6 /imagen /ap3250 /inkcov /lp9300 /hpdj320 /tiffg4 /bitrgbtags /pngalpha /lp3000c /epl2750 /pnmraw /rinkj /lips4v /cdj890 /pdfimage32]
+```
+
+and there are plenty of them there, so I am basically wondering how can I fuzz all of these different devices. First idea is to just use the first byte as the target device.
+
+Looking at the other files, there is also the all colours..
+
+Here:
+
+```
+#include "gs_fuzzlib.h"
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+        if (size == 0) {
+                return 0;
+        }
+        // Modulo the possibilities: https://github.com/ArtifexSoftware/ghostpdl/blob/8c97d5adce0040ac38a1fb4d7954499c65f582ff/cups/libs/cups/raster.h#L102
+        // This enables the fuzzer to explore all color schemes
+        int color_scheme = ((int)data[0] % 63);
+        data++;
+        size--;
+
+        gs_to_raster_fuzz(data, size, color_scheme);
+        return 0;
+}
+```
+
+so I am thinking of just doing one which fuzzes all of the target devices maybe????
+
+This is something which I came up with:
+
+```
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include "psi/iapi.h"
+#include "psi/interp.h"
+#include "psi/iminst.h"
+#include "base/gserrors.h"
+
+#include <signal.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+
+#include <pthread.h>
+#include <stdatomic.h>
+#include <limits.h>
+
+static const unsigned char *g_data;
+static size_t g_size;
+
+
+#define min(x, y) ((x) < (y) ? (x) : (y))
+
+static int gs_stdin(void *inst, char *buf, int len)
+{
+    size_t to_copy = min(len, g_size);
+    to_copy = min(INT_MAX, to_copy);
+
+    memcpy(buf, g_data, to_copy);
+
+    g_data += to_copy;
+    g_size -= to_copy;
+
+    return to_copy;
+}
+
+static int gs_stdnull(void *inst, const char *buf, int len)
+{
+    /* Just discard everything. */
+    return len;
+}
+
+int fuzz_gs_device(
+    const unsigned char *buf,
+    size_t size,
+    int color_scheme,
+    const char *device_target,
+    const char *output_file,
+    int do_interpolation
+)
+{
+    int ret;
+    void *gs = NULL;
+    char color_space[50];
+    char gs_device[50];
+    char gs_o[100];
+    char opt_interpolation[50];
+    /*
+     * We are expecting color_scheme to be in the [0:62] interval.
+     * This corresponds to the color schemes defined here:
+     * https://github.com/ArtifexSoftware/ghostpdl/blob/8c97d5adce0040ac38a1fb4d7954499c65f582ff/cups/libs/cups/raster.h#L102
+     */
+    sprintf(color_space, "-dcupsColorSpace=%d", color_scheme);
+    sprintf(gs_device, "-sDEVICE=%s", device_target);
+    sprintf(gs_o, "-sOutputFile=%s", output_file);
+    if (do_interpolation) {
+        sprintf(opt_interpolation, "-dDOINTERPOLATE");
+    }
+    else {
+        sprintf(opt_interpolation, "-dNOINTERPOLATE");
+    }
+    /* Mostly stolen from cups-filters gstoraster. */
+    char *args[] = {
+        "gs",
+        "-K1048576",
+        "-r200x200",
+        "-sBandListStorage=memory",
+        "-dMaxBitmap=0",
+        "-dBufferSpace=450k",
+        "-dMediaPosition=1",
+        color_space,
+        "-dQUIET",
+        "-dSAFER",
+        "-dNOPAUSE",
+        "-dBATCH",
+        opt_interpolation,
+        "-dNOMEDIAATTRS",
+        "-sstdout=%%stderr",
+        gs_o,
+        gs_device,
+        "-_",
+    };
+    int argc = sizeof(args) / sizeof(args[0]);
+
+    /* Stash buffers globally, for gs_stdin(). */
+    g_data = buf;
+    g_size = size;
+
+    ret = gsapi_new_instance(&gs, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "gsapi_new_instance: error %d\n", ret);
+        return ret;
+    }
+
+    gsapi_set_stdio(gs, gs_stdin, gs_stdnull, gs_stdnull);
+    ret = gsapi_set_arg_encoding(gs, GS_ARG_ENCODING_UTF8);
+    if (ret < 0) {
+        fprintf(stderr, "gsapi_set_arg_encoding: error %d\n", ret);
+        gsapi_delete_instance(gs);
+        return ret;
+    }
+
+    ret = gsapi_init_with_args(gs, argc, args);
+    if (ret && ret != gs_error_Quit)
+        /* Just keep going, to cleanup. */
+        fprintf(stderr, "gsapi_init_with_args: error %d\n", ret);
+
+    ret = gsapi_exit(gs);
+    if (ret < 0 && ret != gs_error_Quit) {
+        fprintf(stderr, "gsapi_exit: error %d\n", ret);
+        return ret;
+    }
+
+    gsapi_delete_instance(gs);
+
+    return 0;
+}
 
 
 
+/* Pick target device from this list (no leading '/'). Got from "gs -h" */
+static const char *k_devices[] = {
+    "npdl","itk24i","appledmp","jpeg","lp9400","hpdj340","tiffgray","bmp16",
+    "pnggray","lp7500","epl5800","ppm","rpdl","lj250","cdj970","pdfimage8",
+    "oce9050","itk38","atx23","jpegcmyk","lp9500c","hpdj400","tifflzw",
+    "bmp16m","pngmono","lp7700","epl5900","ppmraw","samsunggdi","lj3100sw",
+    "cdjcolor","pgm","oki182","iwhi","atx24","jpeggray","lp9600","hpdj500",
+    "tiffpack","bmp256","pngmonod","lp7900","epl6100","ps2write","sj48",
+    "lj4dith","cdjmono","pgmraw","oki4w","iwlo","atx38","mgr4","lp9600s",
+    "hpdj500c","tiffscaled","bmp32b","ocr","lp8000","epl6200","pdfwrite",
+    "display","st800","lj4dithp","cdnj500","pgnm","okiibm","iwlq","bj10e",
+    "mgr8","lp9800c","hpdj510","tiffscaled24","bmpgray","hocr","lp8000c",
+    "eplcolor","psdcmyk","x11","stcolor","lj5gray","chp2200","pgnmraw",
+    "oprp","jetp3852","bj10v","mgrgray2","lps4500","hpdj520","tiffscaled32",
+    "bmpmono","pdfocr8","lp8100","eplmono","psdcmyk16","x11alpha","t4693d2",
+    "lj5mono","cljet5","pkm","opvp","jj100","bj10vh","mgrgray4","lps6500",
+    "hpdj540","tiffscaled4","bmpsep1","pdfocr24","lp8200c","eps9high",
+    "psdcmykog","x11cmyk","t4693d4","ljet2p","cljet5c","pkmraw","paintjet",
+    "la50","bj200","mgrgray8","lq850","hpdj550c","tiffscaled8","bmpsep8",
+    "pdfocr32","lp8300c","eps9mid","psdcmyktags","x11cmyk2","t4693d8",
+    "ljet3","cljet5pr","pksm","pcl3","la70","bjc600","mgrmono","lxm3200",
+    "hpdj560c","tiffsep","ccr","nullpage","lp8300f","epson","psdcmyktags16",
+    "x11cmyk4","tek4696","ljet3d","coslw2p","pksmraw","photoex","la75",
+    "bjc800","miff24","lxm5700m","hpdj600","tiffsep1","cfax","lp8400f",
+    "epsonc","psdrgb","x11cmyk8","uniprint","ljet4","coslwxl","plan",
+    "picty180","la75plus","bjc880j","pam","m8510","hpdj660c","txtwrite",
+    "cif","lp8500c","escp","psdrgb16","x11gray2","xes","ljet4d","declj250",
+    "plan9bm","pj","laserjet","bjccmyk","pamcmyk32","md1xMono","hpdj670c",
+    "xcf","devicen","lp8600","escpage","psdrgbtags","x11gray4","appleraster",
+    "ljet4pjl","deskjet","planc","pjetxl","lbp310","bjccolor","pamcmyk4",
+    "md2k","hpdj680c","xcfcmyk","dfaxhigh","lp8600f","fmlbp","spotcmyk",
+    "x11mono","cups","ljetplus","dj505j","plang","pjxl","lbp320","bjcgray",
+    "pbm","md50Eco","hpdj690c","xpswrite","dfaxlow","lp8700","fmpr",
+    "tiff12nc","x11rg16x","pwgraster","ln03","djet500","plank","pjxl300",
+    "lbp8","bjcmono","pbmraw","md50Mono","hpdj850c","alc1900","eps2write",
+    "lp8800c","fs600","tiff24nc","x11rg32x","urf","lp1800","djet500c",
+    "planm","pr1000","lex2050","cdeskjet","pcx16","md5k","hpdj855c",
+    "alc2000","faxg3","lp8900","gdi","tiff32nc","pclm","ijs","lp1900",
+    "dl2100","plib","pr1000_4","lex3200","cdj1600","pcx24b","mj500c",
+    "hpdj870c","alc4000","faxg32d","lp9000b","hl1240","tiff48nc","pclm8",
+    "png16","lp2000","dnj650c","plibc","pr150","lex5700","cdj500","pcx256",
+    "mj6000c","hpdj890c","alc4100","faxg4","lp9000c","hl1250","tiff64nc",
+    "bbox","png16m","lp2200","epl2050","plibg","pr201","lex7000","cdj550",
+    "pcxcmyk","mj700v2c","hpdjplus","alc8500","fpng","lp9100","hl7x0",
+    "tiffcrle","bit","png16malpha","lp2400","epl2050p","plibk","pxlcolor",
+    "lips2p","cdj670","pcxgray","mj8000c","hpdjportable","alc8600","inferno",
+    "lp9200b","hpdj1120c","tiffg3","bitcmyk","png256","lp2500","epl2120",
+    "plibm","pxlmono","lips3","cdj850","pcxmono","ml600","ibmpro","alc9100",
+    "ink_cov","lp9200c","hpdj310","tiffg32d","bitrgb","png48","lp2563",
+    "epl2500","pnm","r4081","lips4","cdj880","pdfimage24","necp6","imagen",
+    "ap3250","inkcov","lp9300","hpdj320","tiffg4","bitrgbtags","pngalpha",
+    "lp3000c","epl2750","pnmraw","rinkj","lips4v","cdj890","pdfimage32"
+};
+
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    if (!data || size == 0) return 0;
+
+    /* Need at least 3 bytes: color, interpolation, device index. */
+    if (size < 3) return 0;
+
+    /* Consume option bytes. */
+    uint8_t color_byte = data[0];
+    uint8_t interp_byte = data[1];
+    uint8_t dev_byte = data[2];
+
+    int color_scheme = (int)(color_byte % 63);          /* [0..62] */
+    int do_interpolation = (interp_byte != 0);          /* any nonzero -> true */
+
+    /* Pick device from list. */
+    size_t dev_count = sizeof(k_devices) / sizeof(k_devices[0]);
+    const char *device_target = k_devices[dev_byte % dev_count];
+
+    /* Remaining bytes are the PDF stream. */
+    const unsigned char *pdf_data = (const unsigned char *)(data + 3);
+    size_t pdf_size = size - 3;
+
+    /* Always write to /dev/null. */
+    (void)fuzz_gs_device(pdf_data, pdf_size,
+                         color_scheme,
+                         device_target,
+                         "/dev/null",
+                         do_interpolation);
+    return 0;
+}
 
 
 
+#ifdef USE_AFL
 
+__AFL_FUZZ_INIT();
+
+int main(int argc, char **argv) {
+    // LLVMFuzzerInitialize(&argc, &argv); // No initializati
+    __AFL_INIT();
+    const uint8_t *buf = __AFL_FUZZ_TESTCASE_BUF;
+    while (__AFL_LOOP(100000)) {
+        int len = __AFL_FUZZ_TESTCASE_LEN;
+        LLVMFuzzerTestOneInput(buf, (size_t)len);
+    }
+    return 0;
+}
+
+#endif
+
+```
+
+now, I need to gather a corpus for this which just sets the first bytes to default values for each pdf file, because then our corpus actually does something...
 
 
 
