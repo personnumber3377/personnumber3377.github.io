@@ -6555,8 +6555,660 @@ So now I think it is time to finally improve the speed of our fuzzer. Currently 
 
 Ok, so I did some testing and it appears that the initialization cost of the fuzzer is negligible so it doesn't really matter...
 
+## Improving fuzzer performance further
+
+So first of all, I am compiling the fuzzer in debug mode, which limits performance significantly... after that I am going to take a good corpus of pdf files and I now have this here:
+
+```
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total
+ time   seconds   seconds    calls  ms/call  ms/call  name
+  9.73     25.68    25.68 254659938     0.00     0.00  gx_render_device_DeviceN
+  6.23     42.14    16.46   718125     0.02     0.21  image_render_color_DeviceN
+  5.98     57.94    15.80 254762127     0.00     0.00  gx_remap_ICC_with_link
+  4.49     69.80    11.86 254658790     0.00     0.00  cmap_rgb_halftoned
+  4.14     80.72    10.92   496962     0.02     0.02  ycc_rgb_convert
+  3.59     90.19     9.47 27040951     0.00     0.00  jpeg_idct_islow
+  3.12     98.42     8.23 69652945     0.00     0.00  gx_dc_ht_colored_fill_rectangle
+  2.98    106.28     7.86     2555     3.08     3.08  cmsReverseToneCurveEx
+  2.55    113.02     6.74 613729773     0.00     0.00  cups_encode_color
+  2.36    119.25     6.23 69573640     0.00     0.00  set_color_ht_le_4
+  1.76    123.90     4.65    36634     0.13     3.05  clist_playback_band
+  1.60    128.13     4.23     5166     0.82    50.46  gs_call_interp
+  1.56    132.25     4.12 69548906     0.00     0.00  set_ht_colors_le_4
+  1.54    136.31     4.06   243449     0.02     0.02  bits_replicate_horizontally
+  1.34    139.85     3.54 254660810     0.00     0.00  cups_map_cmyk
+  1.34    143.39     3.54 208646718     0.00     0.00  set_plane_color
+  1.27    146.75     3.36 50634102     0.00     0.00  clist_copy_color
+  1.16    149.81     3.06 203874161     0.00     0.00  gx_dc_ht_colored_read
+  1.09    152.68     2.87   500219     0.01     0.01  inflate_fast
+  0.94    155.15     2.47 203632351     0.00     0.00  gx_render_ht_default
+  0.91    157.54     2.39 47591567     0.00     0.00  clip_copy_color
+  0.83    159.73     2.19 47721209     0.00     0.00  clip_call_copy_color
+  0.80    161.85     2.12  5141099     0.00     0.00  decode_mcu
+  0.77    163.87     2.02 23120770     0.00     0.00  names_ref
+  0.70    165.73     1.86 10406907     0.00     0.00  gs_scan_token
+  0.70    167.57     1.84 254658790     0.00     0.00  cups_map_rgb
+  0.70    169.41     1.84   194699     0.01     0.01  gx_build_blended_image_row
+  0.69    171.22     1.81 69768502     0.00     0.00  mem_mono_copy_mono
+  0.67    173.00     1.78  8297581     0.00     0.00  mark_fill_rect_add3_common
+```
+
+so there are a couple of functions which take the most amount of time. Here is one:
+
+```
+int
+gx_render_device_DeviceN(frac * pcolor,
+        gx_device_color * pdevc, gx_device * dev,
+        gx_device_halftone * pdht, const gs_int_point * ht_phase)
+{
+    uint max_value[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    frac dither_check = 0;
+    uint int_color[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    gx_color_value vcolor[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    int i;
+    int num_colors = dev->color_info.num_components;
+    uint l_color[GS_CLIENT_COLOR_MAX_COMPONENTS];
+
+    for (i=0; i<num_colors; i++) {
+        max_value[i] = (dev->color_info.gray_index == i) ?
+             dev->color_info.dither_grays - 1 :
+             dev->color_info.dither_colors - 1;
+    }
+
+    for (i = 0; i < num_colors; i++) {
+        unsigned long hsize = pdht && i <= pdht->num_comp ?
+                (unsigned) pdht->components[i].corder.num_levels
+                : 1;
+        unsigned long nshades = hsize * max_value[i] + 1;
+        long shade = pcolor[i] * nshades / (frac_1_long + 1);
+        int_color[i] = shade / hsize;
+        l_color[i] = shade % hsize;
+        if (max_value[i] < MIN_CONTONE_LEVELS)
+            dither_check |= l_color[i];
+    }
+
+#ifdef DEBUG
+    if (gs_debug_c('c')) {
+        dmlprintf1(dev->memory, "[c]ncomp=%d ", num_colors);
+        for (i = 0; i < num_colors; i++)
+            dmlprintf1(dev->memory, "0x%x, ", pcolor[i]);
+        dmlprintf(dev->memory, "-->   ");
+        for (i = 0; i < num_colors; i++)
+            dmlprintf2(dev->memory, "%x+0x%x, ", int_color[i], l_color[i]);
+        dmlprintf(dev->memory, "\n");
+    }
+#endif
+
+    /* Check for no dithering required */
+    if (!dither_check) {
+        for (i = 0; i < num_colors; i++)
+            vcolor[i] = fractional_color(int_color[i], max_value[i]);
+        color_set_pure(pdevc, dev_proc(dev, encode_color)(dev, vcolor));
+        return 0;
+    }
+
+    /* Use the slow, general colored halftone algorithm. */
+
+    for (i = 0; i < num_colors; i++)
+        _color_set_c(pdevc, i, int_color[i], l_color[i]);
+    gx_complete_halftone(pdevc, num_colors, pdht);
+
+    if (pdht)
+        color_set_phase_mod(pdevc, ht_phase->x, ht_phase->y,
+                            pdht->lcm_width, pdht->lcm_height);
+
+    /* Determine if we are using only one component */
+    if (!(pdevc->colors.colored.plane_mask &
+         (pdevc->colors.colored.plane_mask - 1))) {
+        /* We can reduce this color to a binary halftone or pure color. */
+        return gx_devn_reduce_colored_halftone(pdevc, dev);
+    }
+
+    return 1;
+}
+```
+
+this loop here is maybe to blame???
+
+```
+
+    for (i=0; i<num_colors; i++) {
+        max_value[i] = (dev->color_info.gray_index == i) ?
+             dev->color_info.dither_grays - 1 :
+             dev->color_info.dither_colors - 1;
+    }
+
+    for (i = 0; i < num_colors; i++) {
+        unsigned long hsize = pdht && i <= pdht->num_comp ?
+                (unsigned) pdht->components[i].corder.num_levels
+                : 1;
+        unsigned long nshades = hsize * max_value[i] + 1;
+        long shade = pcolor[i] * nshades / (frac_1_long + 1);
+        int_color[i] = shade / hsize;
+        l_color[i] = shade % hsize;
+        if (max_value[i] < MIN_CONTONE_LEVELS)
+            dither_check |= l_color[i];
+    }
+
+```
+
+Let's just try to modify that a bit and see what happens...
+
+Here is the patched version:
+
+```
+/*
+ * Render DeviceN possibly by halftoning.
+ *  pcolors = pointer to an array color values (as fracs)
+ *  pdevc - pointer to device color structure
+ *  dev = pointer to device data structure
+ *  pht = pointer to halftone data structure
+ *  ht_phase  = halftone phase
+ *  gray_colorspace = true -> current color space is DeviceGray.
+ *  This is part of a kludge to minimize differences in the
+ *  regression testing.
+ */
+int
+gx_render_device_DeviceN(frac * pcolor,
+        gx_device_color * pdevc, gx_device * dev,
+        gx_device_halftone * pdht, const gs_int_point * ht_phase)
+{
+    uint max_value[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    frac dither_check = 0;
+    uint int_color[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    gx_color_value vcolor[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    int i;
+    int num_colors = dev->color_info.num_components;
+    uint l_color[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    /*
+    for (i=0; i<num_colors; i++) {
+        max_value[i] = (dev->color_info.gray_index == i) ?
+             dev->color_info.dither_grays - 1 :
+             dev->color_info.dither_colors - 1;
+    }
+    */
+
+    for (i=0; i<num_colors; i++) {
+        max_value[i] = 1;
+    }
+
+    /*
+    for (i = 0; i < num_colors; i++) {
+        unsigned long hsize = pdht && i <= pdht->num_comp ?
+                (unsigned) pdht->components[i].corder.num_levels
+                : 1;
+        unsigned long nshades = hsize * max_value[i] + 1;
+        long shade = pcolor[i] * nshades / (frac_1_long + 1);
+        int_color[i] = shade / hsize;
+        l_color[i] = shade % hsize;
+        if (max_value[i] < MIN_CONTONE_LEVELS)
+            dither_check |= l_color[i];
+    }
+
+    */
+
+    for (i = 0; i < num_colors; i++) {
+        int_color[i] = 1;
+        l_color[i] = 1;
+        /*
+        if (max_value[i] < MIN_CONTONE_LEVELS)
+            dither_check |= l_color[i];
+        */
+    }
 
 
+    /* Check for no dithering required */
+    if (!dither_check) {
+        for (i = 0; i < num_colors; i++)
+            vcolor[i] = fractional_color(int_color[i], max_value[i]);
+        color_set_pure(pdevc, dev_proc(dev, encode_color)(dev, vcolor));
+        return 0;
+    }
+```
+
+Ok, so I just patched that out and now it is slightly faster. I also think that just disabling sanitization in performance critical functions should be good, because asan adds overhead...
+
+```
+
+int
+gx_render_device_DeviceN(frac * pcolor,
+        gx_device_color * pdevc, gx_device * dev,
+        gx_device_halftone * pdht, const gs_int_point * ht_phase)
+{
+    uint max_value[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    frac dither_check = 0;
+    uint int_color[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    gx_color_value vcolor[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    int i;
+    int num_colors = dev->color_info.num_components;
+    uint l_color[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    /*
+    for (i=0; i<num_colors; i++) {
+        max_value[i] = (dev->color_info.gray_index == i) ?
+             dev->color_info.dither_grays - 1 :
+             dev->color_info.dither_colors - 1;
+    }
+    */
+
+    for (i=0; i<num_colors; i++) {
+        max_value[i] = 1;
+    }
+
+    /*
+    for (i = 0; i < num_colors; i++) {
+        unsigned long hsize = pdht && i <= pdht->num_comp ?
+                (unsigned) pdht->components[i].corder.num_levels
+                : 1;
+        unsigned long nshades = hsize * max_value[i] + 1;
+        long shade = pcolor[i] * nshades / (frac_1_long + 1);
+        int_color[i] = shade / hsize;
+        l_color[i] = shade % hsize;
+        if (max_value[i] < MIN_CONTONE_LEVELS)
+            dither_check |= l_color[i];
+    }
+
+    */
+
+    for (i = 0; i < num_colors; i++) {
+        int_color[i] = 1;
+        l_color[i] = 1;
+        /*
+        if (max_value[i] < MIN_CONTONE_LEVELS)
+            dither_check |= l_color[i];
+        */
+    }
+
+
+    /* Check for no dithering required */
+    if (!dither_check) {
+        //for (i = 0; i < num_colors; i++)
+        //    vcolor[i] = fractional_color(int_color[i], max_value[i]);
+        memset(vcolor, 0, sizeof(vcolor))
+        color_set_pure(pdevc, dev_proc(dev, encode_color)(dev, vcolor));
+        return 0;
+    }
+
+    /* Use the slow, general colored halftone algorithm. */
+
+    for (i = 0; i < num_colors; i++)
+        _color_set_c(pdevc, i, int_color[i], l_color[i]);
+    gx_complete_halftone(pdevc, num_colors, pdht);
+
+    if (pdht)
+        color_set_phase_mod(pdevc, ht_phase->x, ht_phase->y,
+                            pdht->lcm_width, pdht->lcm_height);
+
+    /* Determine if we are using only one component */
+    if (!(pdevc->colors.colored.plane_mask &
+         (pdevc->colors.colored.plane_mask - 1))) {
+        /* We can reduce this color to a binary halftone or pure color. */
+        return gx_devn_reduce_colored_halftone(pdevc, dev);
+    }
+
+    return 1;
+}
+
+
+```
+
+
+the original is here:
+
+```
+
+/*
+ * Render DeviceN possibly by halftoning.
+ *  pcolors = pointer to an array color values (as fracs)
+ *  pdevc - pointer to device color structure
+ *  dev = pointer to device data structure
+ *  pht = pointer to halftone data structure
+ *  ht_phase  = halftone phase
+ *  gray_colorspace = true -> current color space is DeviceGray.
+ *  This is part of a kludge to minimize differences in the
+ *  regression testing.
+ */
+int
+gx_render_device_DeviceN(frac * pcolor,
+        gx_device_color * pdevc, gx_device * dev,
+        gx_device_halftone * pdht, const gs_int_point * ht_phase)
+{
+    uint max_value[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    frac dither_check = 0;
+    uint int_color[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    gx_color_value vcolor[GS_CLIENT_COLOR_MAX_COMPONENTS];
+    int i;
+    int num_colors = dev->color_info.num_components;
+    uint l_color[GS_CLIENT_COLOR_MAX_COMPONENTS];
+
+    for (i=0; i<num_colors; i++) {
+        max_value[i] = (dev->color_info.gray_index == i) ?
+             dev->color_info.dither_grays - 1 :
+             dev->color_info.dither_colors - 1;
+    }
+
+    for (i = 0; i < num_colors; i++) {
+        unsigned long hsize = pdht && i <= pdht->num_comp ?
+                (unsigned) pdht->components[i].corder.num_levels
+                : 1;
+        unsigned long nshades = hsize * max_value[i] + 1;
+        long shade = pcolor[i] * nshades / (frac_1_long + 1);
+        int_color[i] = shade / hsize;
+        l_color[i] = shade % hsize;
+        if (max_value[i] < MIN_CONTONE_LEVELS)
+            dither_check |= l_color[i];
+    }
+
+#ifdef DEBUG
+    if (gs_debug_c('c')) {
+        dmlprintf1(dev->memory, "[c]ncomp=%d ", num_colors);
+        for (i = 0; i < num_colors; i++)
+            dmlprintf1(dev->memory, "0x%x, ", pcolor[i]);
+        dmlprintf(dev->memory, "-->   ");
+        for (i = 0; i < num_colors; i++)
+            dmlprintf2(dev->memory, "%x+0x%x, ", int_color[i], l_color[i]);
+        dmlprintf(dev->memory, "\n");
+    }
+#endif
+
+    /* Check for no dithering required */
+    if (!dither_check) {
+        for (i = 0; i < num_colors; i++)
+            vcolor[i] = fractional_color(int_color[i], max_value[i]);
+        color_set_pure(pdevc, dev_proc(dev, encode_color)(dev, vcolor));
+        return 0;
+    }
+
+    /* Use the slow, general colored halftone algorithm. */
+
+    for (i = 0; i < num_colors; i++)
+        _color_set_c(pdevc, i, int_color[i], l_color[i]);
+    gx_complete_halftone(pdevc, num_colors, pdht);
+
+    if (pdht)
+        color_set_phase_mod(pdevc, ht_phase->x, ht_phase->y,
+                            pdht->lcm_width, pdht->lcm_height);
+
+    /* Determine if we are using only one component */
+    if (!(pdevc->colors.colored.plane_mask &
+         (pdevc->colors.colored.plane_mask - 1))) {
+        /* We can reduce this color to a binary halftone or pure color. */
+        return gx_devn_reduce_colored_halftone(pdevc, dev);
+    }
+
+    return 1;
+}
+
+```
+
+so it looks like if you just return 0 from that function instead of 1, then it skips some stuff maybe???
+
+So I did some digging and the call to that function does something called halftoning:
+
+```
+static void
+cmapper_transfer_halftone_add(gx_cmapper_t *data)
+{
+    gx_color_value *pconc = &data->conc[0];
+    const gs_gstate * pgs = data->pgs;
+    gx_device * dev = data->dev;
+    gs_color_select_t select = data->select;
+    uchar ncomps = dev->color_info.num_components;
+    frac frac_value;
+    uchar i;
+    frac cv_frac[GX_DEVICE_COLOR_MAX_COMPONENTS];
+
+    /* apply the transfer function(s) */
+    for (i = 0; i < ncomps; i++) {
+        frac_value = cv2frac(pconc[i]);
+        cv_frac[i] = gx_map_color_frac(pgs, frac_value, effective_transfer[i]);
+    }
+    /* Halftoning */
+    if (gx_render_device_DeviceN(&(cv_frac[0]), &data->devc, dev,
+                    gx_select_dev_ht(pgs), &pgs->screen_phase[select]) == 1)
+        gx_color_load_select(&data->devc, pgs, dev, select);
+}
+```
+
+So disabling that to always return 0 instead is actually the way to go maybe???
+
+## Other notes...
+
+When looking at the coverage which the fuzzer found, there appears to be this interesting looking section:
+
+```
+     375              : /******************************************************************************
+     376              :
+     377              :   Function: eprn_read_media_data
+     378              :
+     379              :   This function reads a media configuration file and stores the result in
+     380              :   '*eprn'.  The file name must already have been stored in 'eprn->media_file',
+     381              :   'eprn->media_overrides' should be NULL.
+     382              :
+     383              :   The function returns zero on success and a non-zero ghostscript error value
+     384              :   otherwise. In the latter case, an error message will have been issued.
+     385              :
+     386              : ******************************************************************************/
+     387              :
+     388              : #define BUFFER_SIZE     200
+     389              :   /* should be large enough for a single line */
+     390              :
+     391              : #define cleanup()       (free(list), gp_fclose(f))
+     392              :
+     393            0 : static int eprn_read_media_data(mediasize_table *tables, eprn_Eprn *eprn, gs_memory_t *memory)
+     394              : {
+     395            0 :   char buffer[BUFFER_SIZE];
+     396            0 :   const char
+     397            0 :     *epref = eprn->CUPS_messages? CUPS_ERRPREF: "",
+     398            0 :     *wpref = eprn->CUPS_messages? CUPS_WARNPREF: "";
+     399            0 :   gp_file *f;
+     400            0 :   float conversion_factor = BP_PER_IN;
+     401              :     /* values read have to be multiplied by this value to obtain bp */
+     402            0 :   int
+     403            0 :     line = 0,   /* line number */
+     404            0 :     read = 0;   /* number of entries read so far */
+     405            0 :   eprn_PageDescription *list = NULL;
+     406              :
+     407              :   /* Open the file */
+     408            0 :   if ((f = gp_fopen(memory, eprn->media_file, "r")) == NULL) {
+     409            0 :     eprintf5("%s" ERRPREF "Error opening the media configuration file\n"
+     410              :       "%s    `%s'\n%s  for reading: %s.\n",
+     411              :       epref, epref, eprn->media_file, epref, strerror(errno));
+     412            0 :     return_error(gs_error_invalidfileaccess);
+     413              :   }
+     414              :
+     415              :   /* Loop over input lines */
+     416            0 :   while (gp_fgets(buffer, BUFFER_SIZE, f) != NULL) {
+     417            0 :     char *s, *t;
+     418            0 :     eprn_PageDescription *current;
+     419            0 :     int chars_read;
+     420              :
+     421            0 :     line++;
+     422              :
+     423              :     /* Check for buffer overflow */
+     424            0 :     if ((s = strchr(buffer, '\n')) == NULL && gp_fgetc(f) != EOF) {
+     425            0 :       eprintf5("%s" ERRPREF "Exceeding line length %d in "
+     426              :           "media configuration file\n%s  %s, line %d.\n",
+     427              :         epref, BUFFER_SIZE - 2 /* '\n'+'\0' */, epref, eprn->media_file, line);
+     428            0 :       cleanup();
+     429            0 :       return_error(gs_error_limitcheck);
+     430              :     }
+     431              :
+     432              :     /* Eliminate the newline character */
+     433            0 :     if (s != NULL) *s = '\0';
+     434              :
+     435              :     /*  Originally, I did nothing further at this point and used a
+     436              :         "%g %g %g %g %n" format in the sscanf() call below to skip trailing
+     437              :         blanks. This does not work with Microsoft Visual C up to at least
+     438              :         version 6 (_MSC_VER is 1200) because the variable for %n will never be
+     439              :         set. If one drops the blank, it will be set, also if there are
+     440              :         additional directives after %n. In addition, Cygwin does not (as of
+     441              :         early 2001) set the %n variable if there is trailing white space in the
+     442              :         string scanned. I don't want to know what's going on there, I just
+     443              :         foil these bugs by removing all trailing white space from the input
+     444              :         line which means I don't have to scan it afterwards.
+     445              :     */
+     446            0 :     if (s == NULL) s = strchr(buffer, '\0');
+     447            0 :     while (buffer < s && isspace(*(s-1))) s--;
+     448            0 :     *s = '\0';
+     449              :
+     450              :     /* Ignore blank and comment lines */
+     451            0 :     s = buffer;
+     452            0 :     while (isspace(*s)) s++;
+     453            0 :     if (*s == '\0' || *s == '#') continue;
+     454              :
+     455              :     /* Check for unit specification */
+     456            0 :     if (is_word(s, "unit")) {
+     457            0 :       char *unit_name = next_word(s);
+     458            0 :       if (unit_name != NULL) {
+     459            0 :         s = next_word(unit_name);
+     460            0 :         if (s == NULL) {
+     461            0 :           if (is_word(unit_name, "in")) {
+     462            0 :             conversion_factor = BP_PER_IN;
+     463            0 :             continue;
+     464              :           }
+     465            0 :           if (is_word(unit_name, "mm")) {
+     466            0 :             conversion_factor = BP_PER_MM;
+     467            0 :             continue;
+     468              :           }
+     469              :         }
+     470              :         /* If 's' is not NULL or the unit is not recognized, the error message
+     471              :            will be generated when the attempt to read the whole line as a media
+     472              :            specification will fail because there is no media size called
+     473              :            "unit". */
+     474              :       }
+     475              :     }
+     476              :
+     477              :     /* Extend the list */
+     478              :     {
+     479            0 :       eprn_PageDescription *new_list;
+     480            0 :       new_list = (eprn_PageDescription *)
+     481            0 :         realloc(list, ((size_t)read+1)*sizeof(eprn_PageDescription));
+     482            0 :       if (new_list == NULL) {
+     483            0 :         eprintf2("%s" ERRPREF
+     484              :           "Memory allocation failure in eprn_read_media_data(): %s.\n",
+     485              :           epref, strerror(errno));
+     486            0 :         cleanup();
+     487            0 :         return_error(gs_error_VMerror);
+     488              :       }
+     489            0 :       list = new_list;
+     490              :     }
+     491              :
+     492              :     /* Set 'current' on the new entry */
+     493            0 :     current = list + read;
+     494              :
+     495              :     /* Isolate and identify the media size name */
+     496            0 :     s = buffer;
+     497            0 :     while (isspace(*s)) s++;
+     498            0 :     t = s + 1;  /* we checked above that the line is not empty */
+     499            0 :     while (*t != '\0' && !isspace(*t)) t++;
+     500            0 :     if (*t != '\0') {
+     501            0 :       *t = '\0';
+     502            0 :       t++;
+     503              :     }
+     504              :     {
+     505            0 :       ms_MediaCode code = ms_find_code_from_name(tables, s, eprn->flag_desc);
+     506            0 :       if (code == ms_none) {
+     507            0 :         eprintf5("%s" ERRPREF "Unknown media name (%s) in "
+     508              :             "media configuration file\n%s  %s, line %d.\n",
+     509              :           epref, s, epref, eprn->media_file, line);
+     510            0 :         cleanup();
+     511            0 :         return_error(gs_error_rangecheck);
+     512              :       }
+     513            0 :       if (code & MS_ROTATED_FLAG) {
+     514            0 :         eprintf5("%s" ERRPREF "Invalid substring \"" MS_ROTATED_STRING
+     515              :             "\" in media name (%s)\n"
+     516              :           "%s  in media configuration file %s, line %d.\n",
+     517              :           epref, s, epref, eprn->media_file, line);
+     518            0 :         cleanup();
+     519            0 :         return_error(gs_error_rangecheck);
+     520              :       }
+     521            0 :       current->code = code;
+     522              :     }
+     523              :
+     524              :     /* Look for margins */
+     525            0 :     if (sscanf(t, "%g %g %g %g%n", &current->left,
+     526            0 :           &current->bottom, &current->right, &current->top, &chars_read) != 4 ||
+     527            0 :         t[chars_read] != '\0') {
+     528            0 :       if (*t != '\0') *(t-1) = ' ';     /* remove NUL after media name */
+     529            0 :       eprintf5("%s" ERRPREF
+     530              :         "Syntax error in media configuration file %s, line %d:\n%s    %s\n",
+     531              :         epref, eprn->media_file, line, epref, buffer);
+     532            0 :       cleanup();
+     533            0 :       return_error(gs_error_rangecheck);
+     534              :     }
+     535              :
+     536              :     /* Check for sign */
+     537            0 :     if (current->left < 0 || current->bottom < 0 || current->right < 0 ||
+     538            0 :         current->top < 0) {
+     539            0 :       eprintf4("%s" ERRPREF
+     540              :         "Ghostscript does not support negative margins (line %d in the\n"
+     541              :         "%s  media configuration file %s).\n",
+     542              :         epref, line, epref, eprn->media_file);
+     543            0 :       cleanup();
+     544            0 :       return_error(gs_error_rangecheck);
+     545              :     }
+     546              :
+     547            0 :     read++;
+     548              :
+     549              :     /* Convert to bp */
+     550            0 :     current->left   *= conversion_factor;
+     551            0 :     current->bottom *= conversion_factor;
+     552            0 :     current->right  *= conversion_factor;
+     553            0 :     current->top    *= conversion_factor;
+     554              :
+     555              :     /* A margin for custom page sizes without the corresponding capability in
+     556              :        the printer is useless although it would not lead to a failure of eprn.
+     557              :        The user might not notice the reason without help, hence we check. */
+     558            0 :     if (ms_without_flags(current->code) == ms_CustomPageSize &&
+     559            0 :         eprn->cap->custom == NULL)
+     560            0 :       eprintf6("%s" WARNPREF "The media configuration file %s\n"
+     561              :         "%s    contains a custom page size entry in line %d, "
+     562              :           "but custom page sizes\n"
+     563              :         "%s    are not supported by the %s.\n",
+     564              :         wpref, eprn->media_file, wpref, line, wpref, eprn->cap->name);
+     565              :   }
+     566            0 :   if (gp_ferror(f)) {
+     567            0 :     eprintf2("%s" ERRPREF
+     568              :       "Unidentified system error while reading `%s'.\n",
+     569              :       epref, eprn->media_file);
+     570            0 :     cleanup();
+     571            0 :     return_error(gs_error_invalidfileaccess);
+     572              :   }
+     573            0 :   gp_fclose(f);
+     574              :
+     575              :   /* Was the file empty? */
+     576            0 :   if (read == 0) {
+     577            0 :     eprintf3("%s" ERRPREF "The media configuration file %s\n"
+     578              :       "%s  does not contain any media information.\n",
+     579              :       epref, eprn->media_file, epref);
+     580            0 :     return_error(gs_error_rangecheck);
+     581              :   }
+     582              :
+     583              :   /* Create a list in the device structure */
+     584            0 :   eprn->media_overrides = (eprn_PageDescription *) gs_malloc(memory, read + 1,
+     585              :     sizeof(eprn_PageDescription), "eprn_read_media_data");
+     586            0 :   if (eprn->media_overrides == NULL) {
+     587            0 :     eprintf1("%s" ERRPREF
+     588              :       "Memory allocation failure from gs_malloc() in eprn_read_media_data().\n",
+     589              :       epref);
+     590            0 :     free(list);
+     591            0 :     return_error(gs_error_VMerror);
+     592              :   }
+     593              :
+     594              :   /* Copy the list and set the sentinel entry */
+     595            0 :   memcpy(eprn->media_overrides, list, read*sizeof(eprn_PageDescription));
+     596            0 :   eprn->media_overrides[read].code = ms_none;
+     597              :
+     598              :   /* Cleanup */
+     599            0 :   free(list);
+     600              :
+     601            0 :   return 0;
+     602              : }
+     603              :
+```
+
+which has zero coverage...
 
 ## TODO
 
