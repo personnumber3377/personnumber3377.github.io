@@ -6972,6 +6972,28 @@ cmapper_transfer_halftone_add(gx_cmapper_t *data)
 
 So disabling that to always return 0 instead is actually the way to go maybe???
 
+Here is the current thing:
+
+```
+ time   seconds   seconds    calls  ms/call  ms/call  name
+  8.77      8.26     8.26     8199     1.01    10.61  gs_call_interp
+  6.44     14.32     6.06     1205     5.03     5.03  cmsReverseToneCurveEx
+  4.96     18.99     4.67 16572991     0.00     0.00  gs_scan_token
+  4.50     23.23     4.24 29331453     0.00     0.00  names_ref
+  2.72     25.79     2.56 137189931     0.00     0.00  LinLerp1D
+  2.59     28.23     2.44 142897875     0.00     0.00  cmsEvalToneCurveFloat
+  2.44     30.53     2.30 11170758     0.00     0.00  Eval4Inputs
+  2.37     32.76     2.23 50402727     0.00     0.00  EvaluateMatrix
+  2.25     34.88     2.12 32172546     0.00     0.00  dstack_find_name_by_index
+  1.88     36.65     1.77    17720     0.10     0.10  inflate_fast
+  1.81     38.35     1.70 25899657     0.00     0.00  dict_find
+  1.68     39.93     1.58 21654981     0.00     0.00  _LUTevalFloat
+  1.67     41.50     1.57     3063     0.51     5.95  cmsStageSampleCLut16bit
+  1.58     42.99     1.49 12056886     0.00     0.00  igc_reloc_ref_ptr_nocheck
+```
+
+maybe I can disable the address sanitization from the gs_call_interp
+
 ## Other notes...
 
 When looking at the coverage which the fuzzer found, there appears to be this interesting looking section:
