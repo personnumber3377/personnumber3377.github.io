@@ -3791,6 +3791,2785 @@ int main(int argc, char **argv) {
 
 now, I need to gather a corpus for this which just sets the first bytes to default values for each pdf file, because then our corpus actually does something...
 
+## Improving our fuzzer
+
+Ok, so I now have this fuzzer here:
+
+```
+
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include "psi/iapi.h"
+#include "psi/interp.h"
+#include "psi/iminst.h"
+#include "base/gserrors.h"
+
+#include <signal.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+
+#include <pthread.h>
+#include <stdatomic.h>
+#include <limits.h>
+
+static const unsigned char *g_data;
+static size_t g_size;
+
+
+
+#define min(x, y) ((x) < (y) ? (x) : (y))
+
+static int gs_stdin(void *inst, char *buf, int len)
+{
+    size_t to_copy = min(len, g_size);
+    to_copy = min(INT_MAX, to_copy);
+
+    memcpy(buf, g_data, to_copy);
+
+    g_data += to_copy;
+    g_size -= to_copy;
+
+    return to_copy;
+}
+
+static int gs_stdnull(void *inst, const char *buf, int len)
+{
+
+    /* Just discard everything. */
+    // return len;
+
+
+    int written = fwrite(buf, 1, len, stdout);
+    fflush(stdout);  // flush immediately if you want streaming behavior
+    return written;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+// Debugging...
+
+struct capbuf { char *p; size_t n; };
+
+static int stdin_empty(void *ctx, char *buf, int len) { return 0; }
+
+static int cap_write(void *ctx, const char *buf, int len) {
+    struct capbuf *c = (struct capbuf *)ctx;
+    if (len <= 0) return 0;
+    char *np = (char *)realloc(c->p, c->n + (size_t)len + 1);
+    if (!np) return 0;
+    c->p = np;
+    memcpy(c->p + c->n, buf, (size_t)len);
+    c->n += (size_t)len;
+    c->p[c->n] = '\0';
+    return len;
+}
+
+/* Call this at startup to enumerate available devices. */
+int gs_list_devices(char ***names_out, int *count_out) {
+    void *gs = NULL;
+    int code, ecode;
+    struct capbuf cap = {0};
+    *names_out = NULL; *count_out = 0;
+
+    /* Create instance; pass cap as the "caller_handle" so we can access it in callbacks */
+    code = gsapi_new_instance(&gs, &cap);
+    if (code < 0) return code;
+
+    // gsapi_set_stdio(gs, stdin_empty, cap_write, cap_write);
+    gsapi_set_stdio(gs, gs_stdin, gs_stdnull, gs_stdnull);
+    gsapi_set_arg_encoding(gs, GS_ARG_ENCODING_UTF8);
+
+    /* NODISPLAY, quiet, safe, and a null device to avoid side-effects */
+    const char *args[] = {
+        "gs",
+        "-sICCProfilesDir=/usr/share/ghostscript/10.02.1/iccprofiles/",
+        "-sGenericResourceDir=/usr/share/ghostscript/10.02.1/Resource/",
+        "-I/tmp/gsinit_override/",
+        "-dBATCH", "-dNOPAUSE",
+        "-dSAFER",
+        "-sDEVICE=nullpage", "-sOutputFile=/dev/null"
+    };
+    code = gsapi_init_with_args(gs, (int)(sizeof(args)/sizeof(args[0])), (char**)args);
+    if (code < 0 && code != gs_error_Quit) { gsapi_delete_instance(gs); return code; }
+
+    /* Print each device on its own line */
+    const char *ps = "devicenames { dup =only (\\n) print } forall flush\n";
+    code = gsapi_run_string(gs, ps, 0, &ecode);
+    (void)ecode;
+
+    gsapi_exit(gs);
+    gsapi_delete_instance(gs);
+
+    if (!cap.p) return 0;
+
+    /* Split lines into a string array */
+    int cap_count = 0;
+    for (char *s = cap.p; *s; ++s) if (*s == '\n') cap_count++;
+    char **names = (char**)calloc((size_t)cap_count, sizeof(char*));
+    if (!names) { free(cap.p); return -1; }
+
+    int idx = 0;
+    char *save = NULL;
+    for (char *line = strtok_r(cap.p, "\r\n", &save); line; line = strtok_r(NULL, "\r\n", &save)) {
+        if (*line == 0) continue;
+        names[idx++] = strdup(line);
+    }
+    *names_out = names;
+    *count_out = idx;
+    free(cap.p);
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int fuzz_gs_device(
+    const unsigned char *buf,
+    size_t size,
+    int color_scheme,
+    const char *device_target,
+    const char *output_file,
+    int do_interpolation
+)
+{
+
+    /*
+    char **devs = NULL;
+    int ndev = 0;
+    if (gs_list_devices(&devs, &ndev) == 0) {
+        fprintf(stderr, "libgs has %d devices\n", ndev);
+        for (int i = 0; i < ndev; i++) fprintf(stderr, "  %s\n", devs[i]);
+
+    }
+    */
+    // return 0;
+
+    int ret;
+    void *gs = NULL;
+    char color_space[50];
+    char gs_device[50];
+    char gs_o[100];
+    char opt_interpolation[50];
+    /*
+     * We are expecting color_scheme to be in the [0:62] interval.
+     * This corresponds to the color schemes defined here:
+     * https://github.com/ArtifexSoftware/ghostpdl/blob/8c97d5adce0040ac38a1fb4d7954499c65f582ff/cups/libs/cups/raster.h#L102
+     */
+    sprintf(color_space, "-dcupsColorSpace=%d", color_scheme);
+    sprintf(gs_device, "-sDEVICE=%s", device_target);
+    sprintf(gs_o, "-sOutputFile=%s", output_file);
+    if (do_interpolation) {
+        sprintf(opt_interpolation, "-dDOINTERPOLATE");
+    }
+    else {
+        sprintf(opt_interpolation, "-dNOINTERPOLATE");
+    }
+    /* Mostly stolen from cups-filters gstoraster. */
+    char *args[] = {
+        "gs",
+        // "-q",
+        "-sICCProfilesDir=/usr/share/ghostscript/10.02.1/iccprofiles/",
+        "-sGenericResourceDir=/usr/share/ghostscript/10.02.1/Resource/",
+        "-I/tmp/gsinit_override/",
+        "-K1048576",
+        "-r200x200",
+        "-sBandListStorage=memory",
+        "-dMaxBitmap=0",
+        "-dBufferSpace=450k",
+        "-dMediaPosition=1",
+        color_space,
+        //"-dQUIET",
+        "-dSAFER",
+        "-dNOPAUSE",
+        "-dBATCH",
+        opt_interpolation,
+        // "-dNOMEDIAATTRS",
+        //"-sstdout=%%stderr",
+        gs_o,
+        gs_device,
+        "-_",
+    };
+    int argc = sizeof(args) / sizeof(args[0]);
+
+    /* Stash buffers globally, for gs_stdin(). */
+    g_data = buf;
+    g_size = size;
+
+    ret = gsapi_new_instance(&gs, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "gsapi_new_instance: error %d\n", ret);
+        return ret;
+    }
+
+    gsapi_set_stdio(gs, gs_stdin, gs_stdnull, gs_stdnull);
+    ret = gsapi_set_arg_encoding(gs, GS_ARG_ENCODING_UTF8);
+    if (ret < 0) {
+        fprintf(stderr, "gsapi_set_arg_encoding: error %d\n", ret);
+        gsapi_delete_instance(gs);
+        return ret;
+    }
+
+    ret = gsapi_init_with_args(gs, argc, args);
+    if (ret && ret != gs_error_Quit)
+        /* Just keep going, to cleanup. */
+        fprintf(stderr, "gsapi_init_with_args: error %d\n", ret);
+
+    ret = gsapi_exit(gs);
+    if (ret < 0 && ret != gs_error_Quit) {
+        fprintf(stderr, "gsapi_exit: error %d\n", ret);
+        return ret;
+    }
+
+    gsapi_delete_instance(gs);
+
+    return 0;
+}
+
+
+
+/* Pick target device from this list (no leading '/'). Got from "gs -h" */
+static const char *devices[] = {
+    "npdl","itk24i","appledmp","jpeg","lp9400","hpdj340","tiffgray","bmp16",
+    "pnggray","lp7500","epl5800","ppm","rpdl","lj250","cdj970","pdfimage8",
+    "oce9050","itk38","atx23","jpegcmyk","lp9500c","hpdj400","tifflzw",
+    "bmp16m","pngmono","lp7700","epl5900","ppmraw","samsunggdi","lj3100sw",
+    "cdjcolor","pgm","oki182","iwhi","atx24","jpeggray","lp9600","hpdj500",
+    "tiffpack","bmp256","pngmonod","lp7900","epl6100","ps2write","sj48",
+    "lj4dith","cdjmono","pgmraw","oki4w","iwlo","atx38","mgr4","lp9600s",
+    "hpdj500c","tiffscaled","bmp32b","ocr","lp8000","epl6200","pdfwrite",
+    "display","st800","lj4dithp","cdnj500","pgnm","okiibm","iwlq","bj10e",
+    "mgr8","lp9800c","hpdj510","tiffscaled24","bmpgray","hocr","lp8000c",
+    "eplcolor","psdcmyk","x11","stcolor","lj5gray","chp2200","pgnmraw",
+    "oprp","jetp3852","bj10v","mgrgray2","lps4500","hpdj520","tiffscaled32",
+    "bmpmono","pdfocr8","lp8100","eplmono","psdcmyk16","x11alpha","t4693d2",
+    "lj5mono","cljet5","pkm","opvp","jj100","bj10vh","mgrgray4","lps6500",
+    "hpdj540","tiffscaled4","bmpsep1","pdfocr24","lp8200c","eps9high",
+    "psdcmykog","x11cmyk","t4693d4","ljet2p","cljet5c","pkmraw","paintjet",
+    "la50","bj200","mgrgray8","lq850","hpdj550c","tiffscaled8","bmpsep8",
+    "pdfocr32","lp8300c","eps9mid","psdcmyktags","x11cmyk2","t4693d8",
+    "ljet3","cljet5pr","pksm","pcl3","la70","bjc600","mgrmono","lxm3200",
+    "hpdj560c","tiffsep","ccr","nullpage","lp8300f","epson","psdcmyktags16",
+    "x11cmyk4","tek4696","ljet3d","coslw2p","pksmraw","photoex","la75",
+    "bjc800","miff24","lxm5700m","hpdj600","tiffsep1","cfax","lp8400f",
+    "epsonc","psdrgb","x11cmyk8","uniprint","ljet4","coslwxl","plan",
+    "picty180","la75plus","bjc880j","pam","m8510","hpdj660c","txtwrite",
+    "cif","lp8500c","escp","psdrgb16","x11gray2","xes","ljet4d","declj250",
+    "plan9bm","pj","laserjet","bjccmyk","pamcmyk32","md1xMono","hpdj670c",
+    "xcf","devicen","lp8600","escpage","psdrgbtags","x11gray4","appleraster",
+    "ljet4pjl","deskjet","planc","pjetxl","lbp310","bjccolor","pamcmyk4",
+    "md2k","hpdj680c","xcfcmyk","dfaxhigh","lp8600f","fmlbp","spotcmyk",
+    "x11mono","cups","ljetplus","dj505j","plang","pjxl","lbp320","bjcgray",
+    "pbm","md50Eco","hpdj690c","xpswrite","dfaxlow","lp8700","fmpr",
+    "tiff12nc","x11rg16x","pwgraster","ln03","djet500","plank","pjxl300",
+    "lbp8","bjcmono","pbmraw","md50Mono","hpdj850c","alc1900","eps2write",
+    "lp8800c","fs600","tiff24nc","x11rg32x","urf","lp1800","djet500c",
+    "planm","pr1000","lex2050","cdeskjet","pcx16","md5k","hpdj855c",
+    "alc2000","faxg3","lp8900","gdi","tiff32nc","pclm","ijs","lp1900",
+    "dl2100","plib","pr1000_4","lex3200","cdj1600","pcx24b","mj500c",
+    "hpdj870c","alc4000","faxg32d","lp9000b","hl1240","tiff48nc","pclm8",
+    "png16","lp2000","dnj650c","plibc","pr150","lex5700","cdj500","pcx256",
+    "mj6000c","hpdj890c","alc4100","faxg4","lp9000c","hl1250","tiff64nc",
+    "bbox","png16m","lp2200","epl2050","plibg","pr201","lex7000","cdj550",
+    "pcxcmyk","mj700v2c","hpdjplus","alc8500","fpng","lp9100","hl7x0",
+    "tiffcrle","bit","png16malpha","lp2400","epl2050p","plibk","pxlcolor",
+    "lips2p","cdj670","pcxgray","mj8000c","hpdjportable","alc8600","inferno",
+    "lp9200b","hpdj1120c","tiffg3","bitcmyk","png256","lp2500","epl2120",
+    "plibm","pxlmono","lips3","cdj850","pcxmono","ml600","ibmpro","alc9100",
+    "ink_cov","lp9200c","hpdj310","tiffg32d","bitrgb","png48","lp2563",
+    "epl2500","pnm","r4081","lips4","cdj880","pdfimage24","necp6","imagen",
+    "ap3250","inkcov","lp9300","hpdj320","tiffg4","bitrgbtags","pngalpha",
+    "lp3000c","epl2750","pnmraw","rinkj","lips4v","cdj890","pdfimage32"
+};
+
+int n_devices = 362; // The number of devices...
+
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    /* Bail early if the header isn't present */
+    if (size < 4) return 0;
+
+    /* Consume option bytes. */
+    uint8_t  color_byte  = data[0];
+    uint8_t  interp_byte = data[1];
+    uint16_t dev_word    = (uint16_t)data[2] | ((uint16_t)data[3] << 8);  /* LE */
+
+    /* Map to params */
+    int color_scheme     = (int)(color_byte % 63);     /* [0..62] */
+    int do_interpolation = (interp_byte != 0);         /* any nonzero -> true */
+
+    /* Use the 16-bit device index (modulo the number of compiled-in devices) */
+    int dev_index = (int)(dev_word % n_devices);       /* n_devices = array length */
+    const char *device_target = devices[dev_index];
+
+    /* The rest is the PDF payload */
+    const uint8_t *pdf_data = data + 4;
+    size_t         pdf_size = size - 4;
+
+    /* Always write to /dev/null. */
+    (void)fuzz_gs_device(pdf_data, pdf_size,
+                         color_scheme,
+                         device_target,
+                         "/dev/null",
+                         do_interpolation);
+    return 0;
+}
+
+
+
+#ifdef USE_AFL
+
+__AFL_FUZZ_INIT();
+
+int main(int argc, char **argv) {
+    // LLVMFuzzerInitialize(&argc, &argv); // No initializati
+    __AFL_INIT();
+    const uint8_t *buf = __AFL_FUZZ_TESTCASE_BUF;
+    while (__AFL_LOOP(100000)) {
+        int len = __AFL_FUZZ_TESTCASE_LEN;
+        LLVMFuzzerTestOneInput(buf, (size_t)len);
+    }
+    return 0;
+}
+
+#endif
+
+
+```
+
+but there are some certain problems with it. First of all, it doesn't reuse the instance of gs on the next iterations and instead it just does the thing... also there are still some devices still missing. I actually need to download some libraries for all of the output devices to be installed correctly, so I need to do that.
+
+Here are the libraries which I need:
+
+```
+configure expects:
+ghostpdl/extract
+ghostpdl/leptonica
+ghostpdl/tesseract
+```
+
+so I downloaded all of them and now I am going to try to compile again...
+
+## Fixing some stuff.
+
+I also made this script here:
+
+```
+oof@elskun-lppri:~/ghostpdlafl$ cat probe_devices.py
+#!/usr/bin/env python3
+import argparse
+import os
+import shlex
+import subprocess
+import sys
+import tempfile
+
+# Full device list (order kept; without leading slashes)
+DEVICES = [
+    "npdl","itk24i","appledmp","jpeg","lp9400","hpdj340","tiffgray","bmp16","pnggray","lp7500","epl5800","ppm","rpdl","lj250","cdj970","pdfimage8","oce9050","itk38","atx23","jpegcmyk","lp9500c","hpdj400","tifflzw","bmp16m","pngmono","lp7700","epl5900","ppmraw","samsunggdi","lj3100sw","cdjcolor","pgm","oki182","iwhi","atx24","jpeggray","lp9600","hpdj500","tiffpack","bmp256","pngmonod","lp7900","epl6100","ps2write","sj48","lj4dith","cdjmono","pgmraw","oki4w","iwlo","atx38","mgr4","lp9600s","hpdj500c","tiffscaled","bmp32b","ocr","lp8000","epl6200","pdfwrite","display","st800","lj4dithp","cdnj500","pgnm","okiibm","iwlq","bj10e","mgr8","lp9800c","hpdj510","tiffscaled24","bmpgray","hocr","lp8000c","eplcolor","psdcmyk","x11","stcolor","lj5gray","chp2200","pgnmraw","oprp","jetp3852","bj10v","mgrgray2","lps4500","hpdj520","tiffscaled32","bmpmono","pdfocr8","lp8100","eplmono","psdcmyk16","x11alpha","t4693d2","lj5mono","cljet5","pkm","opvp","jj100","bj10vh","mgrgray4","lps6500","hpdj540","tiffscaled4","bmpsep1","pdfocr24","lp8200c","eps9high","psdcmykog","x11cmyk","t4693d4","ljet2p","cljet5c","pkmraw","paintjet","la50","bj200","mgrgray8","lq850","hpdj550c","tiffscaled8","bmpsep8","pdfocr32","lp8300c","eps9mid","psdcmyktags","x11cmyk2","t4693d8","ljet3","cljet5pr","pksm","pcl3","la70","bjc600","mgrmono","lxm3200","hpdj560c","tiffsep","ccr","nullpage","lp8300f","epson","psdcmyktags16","x11cmyk4","tek4696","ljet3d","coslw2p","pksmraw","photoex","la75","bjc800","miff24","lxm5700m","hpdj600","tiffsep1","cfax","lp8400f","epsonc","psdrgb","x11cmyk8","uniprint","ljet4","coslwxl","plan","picty180","la75plus","bjc880j","pam","m8510","hpdj660c","txtwrite","cif","lp8500c","escp","psdrgb16","x11gray2","xes","ljet4d","declj250","plan9bm","pj","laserjet","bjccmyk","pamcmyk32","md1xMono","hpdj670c","xcf","devicen","lp8600","escpage","psdrgbtags","x11gray4","appleraster","ljet4pjl","deskjet","planc","pjetxl","lbp310","bjccolor","pamcmyk4","md2k","hpdj680c","xcfcmyk","dfaxhigh","lp8600f","fmlbp","spotcmyk","x11mono","cups","ljetplus","dj505j","plang","pjxl","lbp320","bjcgray","pbm","md50Eco","hpdj690c","xpswrite","dfaxlow","lp8700","fmpr","tiff12nc","x11rg16x","pwgraster","ln03","djet500","plank","pjxl300","lbp8","bjcmono","pbmraw","md50Mono","hpdj850c","alc1900","eps2write","lp8800c","fs600","tiff24nc","x11rg32x","urf","lp1800","djet500c","planm","pr1000","lex2050","cdeskjet","pcx16","md5k","hpdj855c","alc2000","faxg3","lp8900","gdi","tiff32nc","pclm","ijs","lp1900","dl2100","plib","pr1000_4","lex3200","cdj1600","pcx24b","mj500c","hpdj870c","alc4000","faxg32d","lp9000b","hl1240","tiff48nc","pclm8","png16","lp2000","dnj650c","plibc","pr150","lex5700","cdj500","pcx256","mj6000c","hpdj890c","alc4100","faxg4","lp9000c","hl1250","tiff64nc","bbox","png16m","lp2200","epl2050","plibg","pr201","lex7000","cdj550","pcxcmyk","mj700v2c","hpdjplus","alc8500","fpng","lp9100","hl7x0","tiffcrle","bit","png16malpha","lp2400","epl2050p","plibk","pxlcolor","lips2p","cdj670","pcxgray","mj8000c","hpdjportable","alc8600","inferno","lp9200b","hpdj1120c","tiffg3","bitcmyk","png256","lp2500","epl2120","plibm","pxlmono","lips3","cdj850","pcxmono","ml600","ibmpro","alc9100","ink_cov","lp9200c","hpdj310","tiffg32d","bitrgb","png48","lp2563","epl2500","pnm","r4081","lips4","cdj880","pdfimage24","necp6","imagen","ap3250","inkcov","lp9300","hpdj320","tiffg4","bitrgbtags","pngalpha","lp3000c","epl2750","pnmraw","rinkj","lips4v","cdj890","pdfimage32"
+]
+
+UNKNOWN_PATTERNS = (
+    "Unknown device:",                 # Ghostscript text
+    "gsapi_init_with_args: error -100" # often printed by your harness
+)
+
+def build_input(header_bytes, pdf_bytes):
+    return bytes(header_bytes) + pdf_bytes
+
+def main():
+    ap = argparse.ArgumentParser(description="Probe which devices are recognized by the current Ghostscript build via your pdf_fuzzer harness.")
+    ap.add_argument("pdf", help="Path to example PDF")
+    ap.add_argument("--fuzzer", default="./pdf_fuzzer", help="Path to fuzzer executable (default: ./pdf_fuzzer)")
+    ap.add_argument("--colorscheme", type=int, default=1, help="First header byte (color space id) [0..255] (default: 1)")
+    ap.add_argument("--interp", type=int, default=0, help="Third header byte (0 or 1; anything nonzero means on) (default: 0)")
+    ap.add_argument("--limit256", action="store_true",
+                    help="Only probe the first 256 devices (recommended if your harness maps device by a single byte).")
+    args = ap.parse_args()
+
+    # Basic checks
+    if not os.path.isfile(args.pdf):
+        print(f"Input file not found: {args.pdf}", file=sys.stderr)
+        sys.exit(2)
+    if not os.path.isfile(args.fuzzer) or not os.access(args.fuzzer, os.X_OK):
+        print(f"Fuzzer not executable: {args.fuzzer}", file=sys.stderr)
+        sys.exit(2)
+
+    with open(args.pdf, "rb") as f:
+        pdf_bytes = f.read()
+
+    # How many devices can we meaningfully address with a 1-byte index?
+    max_devices = min(len(DEVICES), 256) if args.limit256 else len(DEVICES)
+    ok = []
+    unknown = []
+    others = []
+
+    print(f"Probing {max_devices} devices using: {args.fuzzer}")
+    print("This may take a bit…")
+
+    for idx in range(max_devices):
+        dev_name = DEVICES[idx]
+        idx16 = idx & 0xFFFF
+        # 4-byte header: [color scheme, interpolation, device index (LE)]
+        hdr = [args.colorscheme & 0xFF,
+               args.interp & 0xFF,
+               idx16 & 0xFF,
+               (idx16 >> 8) & 0xFF]
+        payload = build_input(hdr, pdf_bytes)
+
+        # Write payload to a temp file so we can use shell redirection '<'
+        with tempfile.NamedTemporaryFile(delete=False) as tf:
+            tf.write(payload)
+            temp_path = tf.name
+
+        cmd = f"{shlex.quote(args.fuzzer)} < {shlex.quote(temp_path)}"
+        try:
+            out = subprocess.check_output(
+                cmd,
+                shell=True,
+                stderr=subprocess.STDOUT
+            )
+            text = out.decode("utf-8", errors="replace")
+            print("Text: "+str(text))
+            # If we got here, exit code was 0; still sanity-check for the “Unknown device” text
+            if any(pat in text for pat in UNKNOWN_PATTERNS):
+                unknown.append((idx, dev_name, text.strip()))
+                status = "UNKNOWN (string)"
+            else:
+                ok.append((idx, dev_name))
+                status = "OK"
+        except subprocess.CalledProcessError as e:
+            text = (e.output or b"").decode("utf-8", errors="replace")
+            if any(pat in text for pat in UNKNOWN_PATTERNS):
+                unknown.append((idx, dev_name, text.strip()))
+                status = "UNKNOWN"
+            else:
+                others.append((idx, dev_name, e.returncode, text.strip()))
+                status = f"ERR {e.returncode}"
+        finally:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+
+        print(f"[{idx:3d}] {dev_name:15s} -> {status}")
+
+    # Write results
+    with open("devices_ok.txt", "w", encoding="utf-8") as f:
+        for i, n in ok:
+            f.write(f"{i}\t{n}\n")
+    with open("devices_unknown.txt", "w", encoding="utf-8") as f:
+        for i, n, msg in unknown:
+            # keep it short
+            first_line = msg.splitlines()[0] if msg else ""
+            f.write(f"{i}\t{n}\t{first_line}\n")
+    with open("devices_other_errors.txt", "w", encoding="utf-8") as f:
+        for i, n, rc, msg in others:
+            first_line = msg.splitlines()[0] if msg else ""
+            f.write(f"{i}\t{n}\tret={rc}\t{first_line}\n")
+
+    print("\n=== Summary ===")
+    print(f"OK devices: {len(ok)}")
+    print(f"Unknown devices: {len(unknown)}")
+    print(f"Other errors: {len(others)}")
+    if ok:
+        print("\nFirst few OK devices:")
+        for i, n in ok[:10]:
+            print(f"  {i}\t{n}")
+    print("\nSaved lists:")
+    print("  devices_ok.txt")
+    print("  devices_unknown.txt")
+    print("  devices_other_errors.txt")
+
+if __name__ == "__main__":
+    main()
+```
+
+to check the different supported devices...
+
+## Fixing up the devices
+
+Ok, so I compiled the ghostpdl library with those extra libs, and now I have this here:
+
+```
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include "psi/iapi.h"
+#include "psi/interp.h"
+#include "psi/iminst.h"
+#include "base/gserrors.h"
+
+#include <signal.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+
+#include <pthread.h>
+#include <stdatomic.h>
+#include <limits.h>
+
+static const unsigned char *g_data;
+static size_t g_size;
+
+
+
+#define min(x, y) ((x) < (y) ? (x) : (y))
+
+static int gs_stdin(void *inst, char *buf, int len)
+{
+    size_t to_copy = min(len, g_size);
+    to_copy = min(INT_MAX, to_copy);
+
+    memcpy(buf, g_data, to_copy);
+
+    g_data += to_copy;
+    g_size -= to_copy;
+
+    return to_copy;
+}
+
+static int gs_stdnull(void *inst, const char *buf, int len)
+{
+
+    /* Just discard everything. */
+    // return len;
+
+
+    int written = fwrite(buf, 1, len, stdout);
+    fflush(stdout);  // flush immediately if you want streaming behavior
+    return written;
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+// Debugging...
+
+struct capbuf { char *p; size_t n; };
+
+static int stdin_empty(void *ctx, char *buf, int len) { return 0; }
+
+static int cap_write(void *ctx, const char *buf, int len) {
+    struct capbuf *c = (struct capbuf *)ctx;
+    if (len <= 0) return 0;
+    char *np = (char *)realloc(c->p, c->n + (size_t)len + 1);
+    if (!np) return 0;
+    c->p = np;
+    memcpy(c->p + c->n, buf, (size_t)len);
+    c->n += (size_t)len;
+    c->p[c->n] = '\0';
+    return len;
+}
+
+/* Call this at startup to enumerate available devices. */
+int gs_list_devices(char ***names_out, int *count_out) {
+    void *gs = NULL;
+    int code, ecode;
+    struct capbuf cap = {0};
+    *names_out = NULL; *count_out = 0;
+
+    /* Create instance; pass cap as the "caller_handle" so we can access it in callbacks */
+    code = gsapi_new_instance(&gs, &cap);
+    if (code < 0) return code;
+
+    // gsapi_set_stdio(gs, stdin_empty, cap_write, cap_write);
+    gsapi_set_stdio(gs, gs_stdin, gs_stdnull, gs_stdnull);
+    gsapi_set_arg_encoding(gs, GS_ARG_ENCODING_UTF8);
+
+    /* NODISPLAY, quiet, safe, and a null device to avoid side-effects */
+    const char *args[] = {
+        "gs",
+        "-sICCProfilesDir=/usr/share/ghostscript/10.02.1/iccprofiles/",
+        "-sGenericResourceDir=/usr/share/ghostscript/10.02.1/Resource/",
+        "-I/tmp/gsinit_override/",
+        "-dBATCH", "-dNOPAUSE",
+        "-dSAFER",
+        "-sDEVICE=nullpage", "-sOutputFile=/dev/null"
+    };
+    code = gsapi_init_with_args(gs, (int)(sizeof(args)/sizeof(args[0])), (char**)args);
+    if (code < 0 && code != gs_error_Quit) { gsapi_delete_instance(gs); return code; }
+
+    /* Print each device on its own line */
+    const char *ps = "devicenames { dup =only (\\n) print } forall flush\n";
+    code = gsapi_run_string(gs, ps, 0, &ecode);
+    (void)ecode;
+
+    gsapi_exit(gs);
+    gsapi_delete_instance(gs);
+
+    if (!cap.p) return 0;
+
+    /* Split lines into a string array */
+    int cap_count = 0;
+    for (char *s = cap.p; *s; ++s) if (*s == '\n') cap_count++;
+    char **names = (char**)calloc((size_t)cap_count, sizeof(char*));
+    if (!names) { free(cap.p); return -1; }
+
+    int idx = 0;
+    char *save = NULL;
+    for (char *line = strtok_r(cap.p, "\r\n", &save); line; line = strtok_r(NULL, "\r\n", &save)) {
+        if (*line == 0) continue;
+        names[idx++] = strdup(line);
+    }
+    *names_out = names;
+    *count_out = idx;
+    free(cap.p);
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int fuzz_gs_device(
+    const unsigned char *buf,
+    size_t size,
+    int color_scheme,
+    const char *device_target,
+    const char *output_file,
+    int do_interpolation
+)
+{
+
+    /*
+    char **devs = NULL;
+    int ndev = 0;
+    if (gs_list_devices(&devs, &ndev) == 0) {
+        fprintf(stderr, "libgs has %d devices\n", ndev);
+        for (int i = 0; i < ndev; i++) fprintf(stderr, "  %s\n", devs[i]);
+    }
+    */
+
+    // return 0;
+
+    int ret;
+    void *gs = NULL;
+    char color_space[50];
+    char gs_device[50];
+    char gs_o[100];
+    char opt_interpolation[50];
+    /*
+     * We are expecting color_scheme to be in the [0:62] interval.
+     * This corresponds to the color schemes defined here:
+     * https://github.com/ArtifexSoftware/ghostpdl/blob/8c97d5adce0040ac38a1fb4d7954499c65f582ff/cups/libs/cups/raster.h#L102
+     */
+    sprintf(color_space, "-dcupsColorSpace=%d", color_scheme);
+    sprintf(gs_device, "-sDEVICE=%s", device_target);
+    sprintf(gs_o, "-sOutputFile=%s", output_file);
+    if (do_interpolation) {
+        sprintf(opt_interpolation, "-dDOINTERPOLATE");
+    }
+    else {
+        sprintf(opt_interpolation, "-dNOINTERPOLATE");
+    }
+    /* Mostly stolen from cups-filters gstoraster. */
+    char *args[] = {
+        "gs",
+        // "-q",
+        "-sICCProfilesDir=/usr/share/ghostscript/10.02.1/iccprofiles/",
+        "-sGenericResourceDir=/usr/share/ghostscript/10.02.1/Resource/",
+        "-I/tmp/gsinit_override/",
+        "-K1048576",
+        "-r200x200",
+        "-sBandListStorage=memory",
+        "-dMaxBitmap=0",
+        "-dBufferSpace=450k",
+        "-dMediaPosition=1",
+        color_space,
+        //"-dQUIET",
+        "-dSAFER",
+        "-dNOPAUSE",
+        "-dBATCH",
+        opt_interpolation,
+        // "-dNOMEDIAATTRS",
+        //"-sstdout=%%stderr",
+        gs_o,
+        gs_device,
+        "-_",
+    };
+    int argc = sizeof(args) / sizeof(args[0]);
+
+    /* Stash buffers globally, for gs_stdin(). */
+    g_data = buf;
+    g_size = size;
+
+    ret = gsapi_new_instance(&gs, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "gsapi_new_instance: error %d\n", ret);
+        return ret;
+    }
+
+    gsapi_set_stdio(gs, gs_stdin, gs_stdnull, gs_stdnull);
+    ret = gsapi_set_arg_encoding(gs, GS_ARG_ENCODING_UTF8);
+    if (ret < 0) {
+        fprintf(stderr, "gsapi_set_arg_encoding: error %d\n", ret);
+        gsapi_delete_instance(gs);
+        return ret;
+    }
+
+    ret = gsapi_init_with_args(gs, argc, args);
+    if (ret && ret != gs_error_Quit)
+        /* Just keep going, to cleanup. */
+        fprintf(stderr, "gsapi_init_with_args: error %d\n", ret);
+
+    ret = gsapi_exit(gs);
+    if (ret < 0 && ret != gs_error_Quit) {
+        fprintf(stderr, "gsapi_exit: error %d\n", ret);
+        return ret;
+    }
+
+    gsapi_delete_instance(gs);
+
+    return 0;
+}
+
+
+
+/* Pick target device from this list (no leading '/'). Got from "gs -h" */
+static const char *devices[] = {
+    "lp9800c","hpdj550c","tiffsep1","dfaxhigh","hocr","lp8000c","eps9mid","psdrgb",
+    "x11gray4","stcolor","lj5gray","cljet5pr","plan","oprp","jetp3852","bjc600",
+    "pam","lps4500","hpdj560c","txtwrite","dfaxlow","pdfocr8","lp8100","epson",
+    "psdrgb16","x11mono","t4693d2","lj5mono","coslw2p","plan9bm","opvp","jj100",
+    "bjc800","pamcmyk32","lps6500","hpdj600","urfcmyk","display","pdfocr24","lp8200c",
+    "epsonc","psdrgbtags","x11rg16x","t4693d4","ljet2p","coslwxl","planc","paintjet",
+    "la50","bjc880j","pamcmyk4","lq850","hpdj660c","urfgray","docxwrite","pdfocr32",
+    "lp8300c","escp","spotcmyk","x11rg32x","t4693d8","ljet3","declj250","plang",
+    "pcl3","la70","bjccmyk","pbm","lxm3200","hpdj670c","urfrgb","eps2write",
+    "nullpage","lp8300f","escpage","tiff12nc","pclm","tek4696","ljet3d","deskjet",
+    "plank","photoex","la75","bjccolor","pbmraw","lxm5700m","hpdj680c","xcf",
+    "pdfwrite","lp8400f","fmlbp","tiff24nc","pclm8","uniprint","ljet4","dj505j",
+    "planm","picty180","la75plus","bjcgray","pcx16","m8510","hpdj690c","xpswrite",
+    "faxg3","lp8500c","fmpr","tiff32nc","bit","xes","ljet4d","djet500",
+    "plib","pj","laserjet","bjcmono","pcx24b","md1xMono","hpdj850c","alc1900",
+    "faxg32d","lp8600","fs600","tiff48nc","bitcmyk","appleraster","ljet4pjl","djet500c",
+    "plibc","pjetxl","lbp310","cdeskjet","pcx256","md2k","hpdj855c","alc2000",
+    "faxg4","lp8600f","gdi","tiff64nc","bitrgb","cups","ljetplus","dl2100",
+    "plibg","pjxl","lbp320","cdj1600","pcxcmyk","md50Eco","hpdj870c","alc4000",
+    "fpng","lp8700","hl1240","tiffcrle","bitrgbtags","pwgraster","ln03","dnj650c",
+    "plibk","pjxl300","lbp8","cdj500","pcxgray","md50Mono","hpdj890c","alc4100",
+    "inferno","lp8800c","hl1250","tiffg3","bmp16","urf","lp1800","epl2050",
+    "plibm","pr1000","lex2050","cdj550","pcxmono","md5k","hpdjplus","alc8500",
+    "ink_cov","lp8900","hl7x0","tiffg32d","bmp16m","ijs","lp1900","epl2050p",
+    "pnm","pr1000_4","lex3200","cdj670","pdfimage24","mj500c","hpdjportable","alc8600",
+    "inkcov","lp9000b","hpdj1120c","tiffg4","bmp256","png16","lp2000","epl2120",
+    "pnmraw","pr150","lex5700","cdj850","pdfimage32","mj6000c","ibmpro","alc9100",
+    "jpeg","lp9000c","hpdj310","tiffgray","bmp32b","png16m","lp2200","epl2500",
+    "ppm","pr201","lex7000","cdj880","pdfimage8","mj700v2c","imagen","ap3250",
+    "jpegcmyk","lp9100","hpdj320","tifflzw","bmpgray","png16malpha","lp2400","epl2750",
+    "ppmraw","bbox","pxlcolor","lips2p","cdj890","pgm","mj8000c","itk24i",
+    "appledmp","jpeggray","lp9200b","hpdj340","tiffpack","bmpmono","png256","lp2500",
+    "epl5800","pppm","x11","pxlmono","lips3","cdj970","pgmraw","ml600",
+    "itk38","atx23","mgr4","lp9200c","hpdj400","tiffscaled","bmpsep1","png48",
+    "lp2563","epl5900","ps2write","x11alpha","r4081","lips4","cdjcolor","pgnm",
+    "necp6","iwhi","atx24","mgr8","lp9300","hpdj500","tiffscaled24","bmpsep8",
+    "pngalpha","lp3000c","epl6100","psdcmyk","x11cmyk","rinkj","lips4v","cdjmono",
+    "pgnmraw","npdl","iwhic","atx38","mgrgray2","lp9400","hpdj500c","tiffscaled32",
+    "ccr","pnggray","lp7500","epl6200","psdcmyk16","x11cmyk2","rpdl","lj250",
+    "cdnj500","pkm","oce9050","iwlo","bj10e","mgrgray4","lp9500c","hpdj510",
+    "tiffscaled4","cfax","pngmono","lp7700","eplcolor","psdcmykog","x11cmyk4","samsunggdi",
+    "lj3100sw","chp2200","pkmraw","oki182","iwlow","bj10v","mgrgray8","lp9600",
+    "hpdj520","tiffscaled8","cif","pngmonod","lp7900","eplmono","psdcmyktags","x11cmyk8",
+    "sj48","lj4dith","cljet5","pksm","oki4w","iwlq","bj10vh","mgrmono",
+    "lp9600s","hpdj540","tiffsep","devicen","ocr","lp8000","eps9high","psdcmyktags16",
+    "x11gray2","st800","lj4dithp","cljet5c","pksmraw","okiibm","iwlqc","bj200",
+    "miff24"
+};
+
+int n_devices = 369; // The number of devices...
+
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    /* Bail early if the header isn't present */
+    if (size < 4) return 0;
+
+    /* Consume option bytes. */
+    uint8_t  color_byte  = data[0];
+    uint8_t  interp_byte = data[1];
+    uint16_t dev_word    = (uint16_t)data[2] | ((uint16_t)data[3] << 8);  /* LE */
+
+    /* Map to params */
+    int color_scheme     = (int)(color_byte % 63);     /* [0..62] */
+    int do_interpolation = (interp_byte != 0);         /* any nonzero -> true */
+
+    /* Use the 16-bit device index (modulo the number of compiled-in devices) */
+    int dev_index = (int)(dev_word % n_devices);       /* n_devices = array length */
+    const char *device_target = devices[dev_index];
+
+    /* The rest is the PDF payload */
+    const uint8_t *pdf_data = data + 4;
+    size_t         pdf_size = size - 4;
+
+    /* Always write to /dev/null. */
+    (void)fuzz_gs_device(pdf_data, pdf_size,
+                         color_scheme,
+                         device_target,
+                         "/dev/null",
+                         do_interpolation);
+    return 0;
+}
+
+
+
+#ifdef USE_AFL
+
+__AFL_FUZZ_INIT();
+
+int main(int argc, char **argv) {
+    // LLVMFuzzerInitialize(&argc, &argv); // No initializati
+    __AFL_INIT();
+    const uint8_t *buf = __AFL_FUZZ_TESTCASE_BUF;
+    while (__AFL_LOOP(100000)) {
+        int len = __AFL_FUZZ_TESTCASE_LEN;
+        LLVMFuzzerTestOneInput(buf, (size_t)len);
+    }
+    return 0;
+}
+
+
+
+
+
+#endif
+
+```
+
+and it compiles.
+
+I am going to investigate the devices and see what is wrong with it...
+
+Here is the current device list:
+
+```
+oof@elskun-lppri:~/ghostscript_mutator/pdf_fuzzing$ cat newest_device_output.txt | grep "\->"
+[  0] lp9800c         -> OK
+[  1] hpdj550c        -> UNKNOWN (string)
+[  2] tiffsep1        -> OK
+[  3] dfaxhigh        -> OK
+[  4] hocr            -> UNKNOWN (string)
+[  5] lp8000c         -> OK
+[  6] eps9mid         -> OK
+[  7] psdrgb          -> OK
+[  8] x11gray4        -> OK
+[  9] stcolor         -> OK
+[ 10] lj5gray         -> OK
+[ 11] cljet5pr        -> OK
+[ 12] plan            -> OK
+[ 13] oprp            -> UNKNOWN (string)
+[ 14] jetp3852        -> OK
+[ 15] bjc600          -> OK
+[ 16] pam             -> OK
+[ 17] lps4500         -> OK
+[ 18] hpdj560c        -> UNKNOWN (string)
+[ 19] txtwrite        -> OK
+[ 20] dfaxlow         -> OK
+[ 21] pdfocr8         -> OK
+[ 22] lp8100          -> OK
+[ 23] epson           -> OK
+[ 24] psdrgb16        -> OK
+[ 25] x11mono         -> OK
+[ 26] t4693d2         -> OK
+[ 27] lj5mono         -> OK
+[ 28] coslw2p         -> OK
+[ 29] plan9bm         -> OK
+[ 30] opvp            -> UNKNOWN (string)
+[ 31] jj100           -> OK
+[ 32] bjc800          -> OK
+[ 33] pamcmyk32       -> OK
+[ 34] lps6500         -> OK
+[ 35] hpdj600         -> UNKNOWN (string)
+[ 36] urfcmyk         -> OK
+[ 37] display         -> UNKNOWN (string)
+[ 38] pdfocr24        -> OK
+[ 39] lp8200c         -> OK
+[ 40] epsonc          -> OK
+[ 41] psdrgbtags      -> OK
+[ 42] x11rg16x        -> OK
+[ 43] t4693d4         -> OK
+[ 44] ljet2p          -> OK
+[ 45] coslwxl         -> OK
+[ 46] planc           -> OK
+[ 47] paintjet        -> OK
+[ 48] la50            -> OK
+[ 49] bjc880j         -> OK
+[ 50] pamcmyk4        -> OK
+[ 51] lq850           -> OK
+[ 52] hpdj660c        -> UNKNOWN (string)
+[ 53] urfgray         -> OK
+[ 54] docxwrite       -> OK
+[ 55] pdfocr32        -> OK
+[ 56] lp8300c         -> OK
+[ 57] escp            -> OK
+[ 58] spotcmyk        -> OK
+[ 59] x11rg32x        -> OK
+[ 60] t4693d8         -> OK
+[ 61] ljet3           -> OK
+[ 62] declj250        -> OK
+[ 63] plang           -> OK
+[ 64] pcl3            -> OK
+[ 65] la70            -> OK
+[ 66] bjccmyk         -> OK
+[ 67] pbm             -> OK
+[ 68] lxm3200         -> OK
+[ 69] hpdj670c        -> UNKNOWN (string)
+[ 70] urfrgb          -> OK
+[ 71] eps2write       -> OK
+[ 72] nullpage        -> OK
+[ 73] lp8300f         -> OK
+[ 74] escpage         -> OK
+[ 75] tiff12nc        -> OK
+[ 76] pclm            -> OK
+[ 77] tek4696         -> OK
+[ 78] ljet3d          -> OK
+[ 79] deskjet         -> OK
+[ 80] plank           -> OK
+[ 81] photoex         -> OK
+[ 82] la75            -> OK
+[ 83] bjccolor        -> OK
+[ 84] pbmraw          -> OK
+[ 85] lxm5700m        -> OK
+[ 86] hpdj680c        -> UNKNOWN (string)
+[ 87] xcf             -> OK
+[ 88] pdfwrite        -> OK
+[ 89] lp8400f         -> OK
+[ 90] fmlbp           -> OK
+[ 91] tiff24nc        -> OK
+[ 92] pclm8           -> OK
+[ 93] uniprint        -> OK
+[ 94] ljet4           -> OK
+[ 95] dj505j          -> OK
+[ 96] planm           -> OK
+[ 97] picty180        -> OK
+[ 98] la75plus        -> OK
+[ 99] bjcgray         -> OK
+[100] pcx16           -> OK
+[101] m8510           -> OK
+[102] hpdj690c        -> UNKNOWN (string)
+[103] xpswrite        -> OK
+[104] faxg3           -> OK
+[105] lp8500c         -> OK
+[106] fmpr            -> OK
+[107] tiff32nc        -> OK
+[108] bit             -> OK
+[109] xes             -> OK
+[110] ljet4d          -> OK
+[111] djet500         -> OK
+[112] plib            -> UNKNOWN (string)
+[113] pj              -> OK
+[114] laserjet        -> OK
+[115] bjcmono         -> OK
+[116] pcx24b          -> OK
+[117] md1xMono        -> UNKNOWN (string)
+[118] hpdj850c        -> UNKNOWN (string)
+[119] alc1900         -> OK
+[120] faxg32d         -> OK
+[121] lp8600          -> OK
+[122] fs600           -> OK
+[123] tiff48nc        -> OK
+[124] bitcmyk         -> OK
+[125] appleraster     -> OK
+[126] ljet4pjl        -> OK
+[127] djet500c        -> OK
+[128] plibc           -> UNKNOWN (string)
+[129] pjetxl          -> OK
+[130] lbp310          -> OK
+[131] cdeskjet        -> OK
+[132] pcx256          -> OK
+[133] md2k            -> UNKNOWN (string)
+[134] hpdj855c        -> UNKNOWN (string)
+[135] alc2000         -> OK
+[136] faxg4           -> OK
+[137] lp8600f         -> OK
+[138] gdi             -> OK
+[139] tiff64nc        -> OK
+[140] bitrgb          -> OK
+[141] cups            -> OK
+[142] ljetplus        -> OK
+[143] dl2100          -> OK
+[144] plibg           -> UNKNOWN (string)
+[145] pjxl            -> OK
+[146] lbp320          -> OK
+[147] cdj1600         -> OK
+[148] pcxcmyk         -> OK
+[149] md50Eco         -> UNKNOWN (string)
+[150] hpdj870c        -> UNKNOWN (string)
+[151] alc4000         -> OK
+[152] fpng            -> OK
+[153] lp8700          -> OK
+[154] hl1240          -> OK
+[155] tiffcrle        -> OK
+[156] bitrgbtags      -> OK
+[157] pwgraster       -> OK
+[158] ln03            -> OK
+[159] dnj650c         -> OK
+[160] plibk           -> UNKNOWN (string)
+[161] pjxl300         -> OK
+[162] lbp8            -> OK
+[163] cdj500          -> OK
+[164] pcxgray         -> OK
+[165] md50Mono        -> UNKNOWN (string)
+[166] hpdj890c        -> UNKNOWN (string)
+[167] alc4100         -> OK
+[168] inferno         -> OK
+[169] lp8800c         -> OK
+[170] hl1250          -> OK
+[171] tiffg3          -> OK
+[172] bmp16           -> OK
+[173] urf             -> OK
+[174] lp1800          -> OK
+[175] epl2050         -> OK
+[176] plibm           -> UNKNOWN (string)
+[177] pr1000          -> OK
+[178] lex2050         -> OK
+[179] cdj550          -> OK
+[180] pcxmono         -> OK
+[181] md5k            -> UNKNOWN (string)
+[182] hpdjplus        -> UNKNOWN (string)
+[183] alc8500         -> OK
+[184] ink_cov         -> OK
+[185] lp8900          -> OK
+[186] hl7x0           -> OK
+[187] tiffg32d        -> OK
+[188] bmp16m          -> OK
+[189] ijs             -> UNKNOWN (string)
+[190] lp1900          -> OK
+[191] epl2050p        -> OK
+[192] pnm             -> OK
+[193] pr1000_4        -> OK
+[194] lex3200         -> OK
+[195] cdj670          -> OK
+[196] pdfimage24      -> OK
+[197] mj500c          -> UNKNOWN (string)
+[198] hpdjportable    -> UNKNOWN (string)
+[199] alc8600         -> OK
+[200] inkcov          -> OK
+[201] lp9000b         -> OK
+[202] hpdj1120c       -> UNKNOWN (string)
+[203] tiffg4          -> OK
+[204] bmp256          -> OK
+[205] png16           -> OK
+[206] lp2000          -> OK
+[207] epl2120         -> OK
+[208] pnmraw          -> OK
+[209] pr150           -> OK
+[210] lex5700         -> OK
+[211] cdj850          -> OK
+[212] pdfimage32      -> OK
+[213] mj6000c         -> UNKNOWN (string)
+[214] ibmpro          -> OK
+[215] alc9100         -> OK
+[216] jpeg            -> OK
+[217] lp9000c         -> OK
+[218] hpdj310         -> UNKNOWN (string)
+[219] tiffgray        -> OK
+[220] bmp32b          -> OK
+[221] png16m          -> OK
+[222] lp2200          -> OK
+[223] epl2500         -> OK
+[224] ppm             -> OK
+[225] pr201           -> OK
+[226] lex7000         -> OK
+[227] cdj880          -> OK
+[228] pdfimage8       -> OK
+[229] mj700v2c        -> UNKNOWN (string)
+[230] imagen          -> OK
+[231] ap3250          -> OK
+[232] jpegcmyk        -> OK
+[233] lp9100          -> OK
+[234] hpdj320         -> UNKNOWN (string)
+[235] tifflzw         -> OK
+[236] bmpgray         -> OK
+[237] png16malpha     -> UNKNOWN (string)
+[238] lp2400          -> OK
+[239] epl2750         -> OK
+[240] ppmraw          -> OK
+[241] bbox            -> OK
+[242] pxlcolor        -> OK
+[243] lips2p          -> UNKNOWN (string)
+[244] cdj890          -> OK
+[245] pgm             -> OK
+[246] mj8000c         -> UNKNOWN (string)
+[247] itk24i          -> OK
+[248] appledmp        -> ERR 241
+[249] jpeggray        -> OK
+[250] lp9200b         -> OK
+[251] hpdj340         -> UNKNOWN (string)
+[252] tiffpack        -> OK
+[253] bmpmono         -> OK
+[254] png256          -> OK
+[255] lp2500          -> OK
+[256] epl5800         -> OK
+[257] pppm            -> OK
+[258] x11             -> OK
+[259] pxlmono         -> OK
+[260] lips3           -> UNKNOWN (string)
+[261] cdj970          -> OK
+[262] pgmraw          -> OK
+[263] ml600           -> OK
+[264] itk38           -> OK
+[265] atx23           -> OK
+[266] mgr4            -> OK
+[267] lp9200c         -> OK
+[268] hpdj400         -> UNKNOWN (string)
+[269] tiffscaled      -> OK
+[270] bmpsep1         -> OK
+[271] png48           -> OK
+[272] lp2563          -> OK
+[273] epl5900         -> OK
+[274] ps2write        -> OK
+[275] x11alpha        -> OK
+[276] r4081           -> OK
+[277] lips4           -> OK
+[278] cdjcolor        -> OK
+[279] pgnm            -> OK
+[280] necp6           -> OK
+[281] iwhi            -> ERR 241
+[282] atx24           -> OK
+[283] mgr8            -> OK
+[284] lp9300          -> OK
+[285] hpdj500         -> UNKNOWN (string)
+[286] tiffscaled24    -> OK
+[287] bmpsep8         -> OK
+[288] pngalpha        -> UNKNOWN (string)
+[289] lp3000c         -> OK
+[290] epl6100         -> OK
+[291] psdcmyk         -> OK
+[292] x11cmyk         -> OK
+[293] rinkj           -> OK
+[294] lips4v          -> OK
+[295] cdjmono         -> OK
+[296] pgnmraw         -> OK
+[297] npdl            -> OK
+[298] iwhic           -> ERR 241
+[299] atx38           -> OK
+[300] mgrgray2        -> OK
+[301] lp9400          -> OK
+[302] hpdj500c        -> UNKNOWN (string)
+[303] tiffscaled32    -> OK
+[304] ccr             -> OK
+[305] pnggray         -> OK
+[306] lp7500          -> OK
+[307] epl6200         -> OK
+[308] psdcmyk16       -> OK
+[309] x11cmyk2        -> OK
+[310] rpdl            -> UNKNOWN (string)
+[311] lj250           -> OK
+[312] cdnj500         -> OK
+[313] pkm             -> OK
+[314] oce9050         -> OK
+[315] iwlo            -> ERR 241
+[316] bj10e           -> OK
+[317] mgrgray4        -> OK
+[318] lp9500c         -> OK
+[319] hpdj510         -> UNKNOWN (string)
+[320] tiffscaled4     -> OK
+[321] cfax            -> OK
+[322] pngmono         -> OK
+[323] lp7700          -> OK
+[324] eplcolor        -> OK
+[325] psdcmykog       -> OK
+[326] x11cmyk4        -> OK
+[327] samsunggdi      -> OK
+[328] lj3100sw        -> OK
+[329] chp2200         -> OK
+[330] pkmraw          -> OK
+[331] oki182          -> OK
+[332] iwlow           -> ERR 241
+[333] bj10v           -> OK
+[334] mgrgray8        -> OK
+[335] lp9600          -> OK
+[336] hpdj520         -> UNKNOWN (string)
+[337] tiffscaled8     -> OK
+[338] cif             -> OK
+[339] pngmonod        -> UNKNOWN (string)
+[340] lp7900          -> OK
+[341] eplmono         -> OK
+[342] psdcmyktags     -> OK
+[343] x11cmyk8        -> OK
+[344] sj48            -> OK
+[345] lj4dith         -> OK
+[346] cljet5          -> OK
+[347] pksm            -> OK
+[348] oki4w           -> OK
+[349] iwlq            -> ERR 241
+[350] bj10vh          -> OK
+[351] mgrmono         -> OK
+[352] lp9600s         -> OK
+[353] hpdj540         -> UNKNOWN (string)
+[354] tiffsep         -> OK
+[355] devicen         -> OK
+[356] ocr             -> UNKNOWN (string)
+[357] lp8000          -> OK
+[358] eps9high        -> OK
+[359] psdcmyktags16   -> OK
+[360] x11gray2        -> OK
+[361] st800           -> OK
+[362] lj4dithp        -> OK
+[363] cljet5c         -> OK
+[364] pksmraw         -> OK
+[365] okiibm          -> ERR 1
+[366] iwlqc           -> ERR 241
+[367] bj200           -> OK
+[368] miff24          -> OK
+oof@elskun-lppri:~/ghostscript_mutator/pdf_fuzzing$
+```
+
+## Fixing output device problems
+
+So I ran the script and now I have this output here:
+
+```
+[  0] lp9800c         -> OK
+[  1] hpdj550c        -> UNKNOWN (string)
+[  2] tiffsep1        -> OK
+[  3] dfaxhigh        -> OK
+[  4] hocr            -> UNKNOWN (string)
+[  5] lp8000c         -> OK
+[  6] eps9mid         -> OK
+[  7] psdrgb          -> OK
+[  8] x11gray4        -> OK
+[  9] stcolor         -> OK
+[ 10] lj5gray         -> OK
+[ 11] cljet5pr        -> OK
+[ 12] plan            -> OK
+[ 13] oprp            -> UNKNOWN (string)
+[ 14] jetp3852        -> OK
+[ 15] bjc600          -> OK
+[ 16] pam             -> OK
+[ 17] lps4500         -> OK
+[ 18] hpdj560c        -> UNKNOWN (string)
+[ 19] txtwrite        -> OK
+[ 20] dfaxlow         -> OK
+[ 21] pdfocr8         -> OK
+[ 22] lp8100          -> OK
+[ 23] epson           -> OK
+[ 24] psdrgb16        -> OK
+[ 25] x11mono         -> OK
+[ 26] t4693d2         -> OK
+[ 27] lj5mono         -> OK
+[ 28] coslw2p         -> OK
+[ 29] plan9bm         -> OK
+[ 30] opvp            -> UNKNOWN (string)
+[ 31] jj100           -> OK
+[ 32] bjc800          -> OK
+[ 33] pamcmyk32       -> OK
+[ 34] lps6500         -> OK
+[ 35] hpdj600         -> UNKNOWN (string)
+[ 36] urfcmyk         -> OK
+[ 37] display         -> UNKNOWN (string)
+[ 38] pdfocr24        -> OK
+[ 39] lp8200c         -> OK
+[ 40] epsonc          -> OK
+[ 41] psdrgbtags      -> OK
+[ 42] x11rg16x        -> OK
+[ 43] t4693d4         -> OK
+[ 44] ljet2p          -> OK
+[ 45] coslwxl         -> OK
+[ 46] planc           -> OK
+[ 47] paintjet        -> OK
+[ 48] la50            -> OK
+[ 49] bjc880j         -> OK
+[ 50] pamcmyk4        -> OK
+[ 51] lq850           -> OK
+[ 52] hpdj660c        -> UNKNOWN (string)
+[ 53] urfgray         -> OK
+[ 54] docxwrite       -> OK
+[ 55] pdfocr32        -> OK
+[ 56] lp8300c         -> OK
+[ 57] escp            -> OK
+[ 58] spotcmyk        -> OK
+[ 59] x11rg32x        -> OK
+[ 60] t4693d8         -> OK
+[ 61] ljet3           -> OK
+[ 62] declj250        -> OK
+[ 63] plang           -> OK
+[ 64] pcl3            -> OK
+[ 65] la70            -> OK
+[ 66] bjccmyk         -> OK
+[ 67] pbm             -> OK
+[ 68] lxm3200         -> OK
+[ 69] hpdj670c        -> UNKNOWN (string)
+[ 70] urfrgb          -> OK
+[ 71] eps2write       -> OK
+[ 72] nullpage        -> OK
+[ 73] lp8300f         -> OK
+[ 74] escpage         -> OK
+[ 75] tiff12nc        -> OK
+[ 76] pclm            -> OK
+[ 77] tek4696         -> OK
+[ 78] ljet3d          -> OK
+[ 79] deskjet         -> OK
+[ 80] plank           -> OK
+[ 81] photoex         -> OK
+[ 82] la75            -> OK
+[ 83] bjccolor        -> OK
+[ 84] pbmraw          -> OK
+[ 85] lxm5700m        -> OK
+[ 86] hpdj680c        -> UNKNOWN (string)
+[ 87] xcf             -> OK
+[ 88] pdfwrite        -> OK
+[ 89] lp8400f         -> OK
+[ 90] fmlbp           -> OK
+[ 91] tiff24nc        -> OK
+[ 92] pclm8           -> OK
+[ 93] uniprint        -> OK
+[ 94] ljet4           -> OK
+[ 95] dj505j          -> OK
+[ 96] planm           -> OK
+[ 97] picty180        -> OK
+[ 98] la75plus        -> OK
+[ 99] bjcgray         -> OK
+[100] pcx16           -> OK
+[101] m8510           -> OK
+[102] hpdj690c        -> UNKNOWN (string)
+[103] xpswrite        -> OK
+[104] faxg3           -> OK
+[105] lp8500c         -> OK
+[106] fmpr            -> OK
+[107] tiff32nc        -> OK
+[108] bit             -> OK
+[109] xes             -> OK
+[110] ljet4d          -> OK
+[111] djet500         -> OK
+[112] plib            -> UNKNOWN (string)
+[113] pj              -> OK
+[114] laserjet        -> OK
+[115] bjcmono         -> OK
+[116] pcx24b          -> OK
+[117] md1xMono        -> UNKNOWN (string)
+[118] hpdj850c        -> UNKNOWN (string)
+[119] alc1900         -> OK
+[120] faxg32d         -> OK
+[121] lp8600          -> OK
+[122] fs600           -> OK
+[123] tiff48nc        -> OK
+[124] bitcmyk         -> OK
+[125] appleraster     -> OK
+[126] ljet4pjl        -> OK
+[127] djet500c        -> OK
+[128] plibc           -> UNKNOWN (string)
+[129] pjetxl          -> OK
+[130] lbp310          -> OK
+[131] cdeskjet        -> OK
+[132] pcx256          -> OK
+[133] md2k            -> UNKNOWN (string)
+[134] hpdj855c        -> UNKNOWN (string)
+[135] alc2000         -> OK
+[136] faxg4           -> OK
+[137] lp8600f         -> OK
+[138] gdi             -> OK
+[139] tiff64nc        -> OK
+[140] bitrgb          -> OK
+[141] cups            -> OK
+[142] ljetplus        -> OK
+[143] dl2100          -> OK
+[144] plibg           -> UNKNOWN (string)
+[145] pjxl            -> OK
+[146] lbp320          -> OK
+[147] cdj1600         -> OK
+[148] pcxcmyk         -> OK
+[149] md50Eco         -> UNKNOWN (string)
+[150] hpdj870c        -> UNKNOWN (string)
+[151] alc4000         -> OK
+[152] fpng            -> OK
+[153] lp8700          -> OK
+[154] hl1240          -> OK
+[155] tiffcrle        -> OK
+[156] bitrgbtags      -> OK
+[157] pwgraster       -> OK
+[158] ln03            -> OK
+[159] dnj650c         -> OK
+[160] plibk           -> UNKNOWN (string)
+[161] pjxl300         -> OK
+[162] lbp8            -> OK
+[163] cdj500          -> OK
+[164] pcxgray         -> OK
+[165] md50Mono        -> UNKNOWN (string)
+[166] hpdj890c        -> UNKNOWN (string)
+[167] alc4100         -> OK
+[168] inferno         -> OK
+[169] lp8800c         -> OK
+[170] hl1250          -> OK
+[171] tiffg3          -> OK
+[172] bmp16           -> OK
+[173] urf             -> OK
+[174] lp1800          -> OK
+[175] epl2050         -> OK
+[176] plibm           -> UNKNOWN (string)
+[177] pr1000          -> OK
+[178] lex2050         -> OK
+[179] cdj550          -> OK
+[180] pcxmono         -> OK
+[181] md5k            -> UNKNOWN (string)
+[182] hpdjplus        -> UNKNOWN (string)
+[183] alc8500         -> OK
+[184] ink_cov         -> OK
+[185] lp8900          -> OK
+[186] hl7x0           -> OK
+[187] tiffg32d        -> OK
+[188] bmp16m          -> OK
+[189] ijs             -> UNKNOWN (string)
+[190] lp1900          -> OK
+[191] epl2050p        -> OK
+[192] pnm             -> OK
+[193] pr1000_4        -> OK
+[194] lex3200         -> OK
+[195] cdj670          -> OK
+[196] pdfimage24      -> OK
+[197] mj500c          -> UNKNOWN (string)
+[198] hpdjportable    -> UNKNOWN (string)
+[199] alc8600         -> OK
+[200] inkcov          -> OK
+[201] lp9000b         -> OK
+[202] hpdj1120c       -> UNKNOWN (string)
+[203] tiffg4          -> OK
+[204] bmp256          -> OK
+[205] png16           -> OK
+[206] lp2000          -> OK
+[207] epl2120         -> OK
+[208] pnmraw          -> OK
+[209] pr150           -> OK
+[210] lex5700         -> OK
+[211] cdj850          -> OK
+[212] pdfimage32      -> OK
+[213] mj6000c         -> UNKNOWN (string)
+[214] ibmpro          -> OK
+[215] alc9100         -> OK
+[216] jpeg            -> OK
+[217] lp9000c         -> OK
+[218] hpdj310         -> UNKNOWN (string)
+[219] tiffgray        -> OK
+[220] bmp32b          -> OK
+[221] png16m          -> OK
+[222] lp2200          -> OK
+[223] epl2500         -> OK
+[224] ppm             -> OK
+[225] pr201           -> OK
+[226] lex7000         -> OK
+[227] cdj880          -> OK
+[228] pdfimage8       -> OK
+[229] mj700v2c        -> UNKNOWN (string)
+[230] imagen          -> OK
+[231] ap3250          -> OK
+[232] jpegcmyk        -> OK
+[233] lp9100          -> OK
+[234] hpdj320         -> UNKNOWN (string)
+[235] tifflzw         -> OK
+[236] bmpgray         -> OK
+[237] png16malpha     -> UNKNOWN (string)
+[238] lp2400          -> OK
+[239] epl2750         -> OK
+[240] ppmraw          -> OK
+[241] bbox            -> OK
+[242] pxlcolor        -> OK
+[243] lips2p          -> UNKNOWN (string)
+[244] cdj890          -> OK
+[245] pgm             -> OK
+[246] mj8000c         -> UNKNOWN (string)
+[247] itk24i          -> OK
+[248] appledmp        -> ERR 241
+[249] jpeggray        -> OK
+[250] lp9200b         -> OK
+[251] hpdj340         -> UNKNOWN (string)
+[252] tiffpack        -> OK
+[253] bmpmono         -> OK
+[254] png256          -> OK
+[255] lp2500          -> OK
+[256] epl5800         -> OK
+[257] pppm            -> OK
+[258] x11             -> OK
+[259] pxlmono         -> OK
+[260] lips3           -> UNKNOWN (string)
+[261] cdj970          -> OK
+[262] pgmraw          -> OK
+[263] ml600           -> OK
+[264] itk38           -> OK
+[265] atx23           -> OK
+[266] mgr4            -> OK
+[267] lp9200c         -> OK
+[268] hpdj400         -> UNKNOWN (string)
+[269] tiffscaled      -> OK
+[270] bmpsep1         -> OK
+[271] png48           -> OK
+[272] lp2563          -> OK
+[273] epl5900         -> OK
+[274] ps2write        -> OK
+[275] x11alpha        -> OK
+[276] r4081           -> OK
+[277] lips4           -> OK
+[278] cdjcolor        -> OK
+[279] pgnm            -> OK
+[280] necp6           -> OK
+[281] iwhi            -> ERR 241
+[282] atx24           -> OK
+[283] mgr8            -> OK
+[284] lp9300          -> OK
+[285] hpdj500         -> UNKNOWN (string)
+[286] tiffscaled24    -> OK
+[287] bmpsep8         -> OK
+[288] pngalpha        -> UNKNOWN (string)
+[289] lp3000c         -> OK
+[290] epl6100         -> OK
+[291] psdcmyk         -> OK
+[292] x11cmyk         -> OK
+[293] rinkj           -> OK
+[294] lips4v          -> OK
+[295] cdjmono         -> OK
+[296] pgnmraw         -> OK
+[297] npdl            -> OK
+[298] iwhic           -> ERR 241
+[299] atx38           -> OK
+[300] mgrgray2        -> OK
+[301] lp9400          -> OK
+[302] hpdj500c        -> UNKNOWN (string)
+[303] tiffscaled32    -> OK
+[304] ccr             -> OK
+[305] pnggray         -> OK
+[306] lp7500          -> OK
+[307] epl6200         -> OK
+[308] psdcmyk16       -> OK
+[309] x11cmyk2        -> OK
+[310] rpdl            -> UNKNOWN (string)
+[311] lj250           -> OK
+[312] cdnj500         -> OK
+[313] pkm             -> OK
+[314] oce9050         -> OK
+[315] iwlo            -> ERR 241
+[316] bj10e           -> OK
+[317] mgrgray4        -> OK
+[318] lp9500c         -> OK
+[319] hpdj510         -> UNKNOWN (string)
+[320] tiffscaled4     -> OK
+[321] cfax            -> OK
+[322] pngmono         -> OK
+[323] lp7700          -> OK
+[324] eplcolor        -> OK
+[325] psdcmykog       -> OK
+[326] x11cmyk4        -> OK
+[327] samsunggdi      -> OK
+[328] lj3100sw        -> OK
+[329] chp2200         -> OK
+[330] pkmraw          -> OK
+[331] oki182          -> OK
+[332] iwlow           -> ERR 241
+[333] bj10v           -> OK
+[334] mgrgray8        -> OK
+[335] lp9600          -> OK
+[336] hpdj520         -> UNKNOWN (string)
+[337] tiffscaled8     -> OK
+[338] cif             -> OK
+[339] pngmonod        -> UNKNOWN (string)
+[340] lp7900          -> OK
+[341] eplmono         -> OK
+[342] psdcmyktags     -> OK
+[343] x11cmyk8        -> OK
+[344] sj48            -> OK
+[345] lj4dith         -> OK
+[346] cljet5          -> OK
+[347] pksm            -> OK
+[348] oki4w           -> OK
+[349] iwlq            -> ERR 241
+[350] bj10vh          -> OK
+[351] mgrmono         -> OK
+[352] lp9600s         -> OK
+[353] hpdj540         -> UNKNOWN (string)
+[354] tiffsep         -> OK
+[355] devicen         -> OK
+[356] ocr             -> UNKNOWN (string)
+[357] lp8000          -> OK
+[358] eps9high        -> OK
+[359] psdcmyktags16   -> OK
+[360] x11gray2        -> OK
+[361] st800           -> OK
+[362] lj4dithp        -> OK
+[363] cljet5c         -> OK
+[364] pksmraw         -> OK
+[365] okiibm          -> ERR 1
+[366] iwlqc           -> ERR 241
+[367] bj200           -> OK
+[368] miff24          -> OK
+```
+
+so we essentially have to go through each of these and try to solve the problems in each of the failing output devices. Usually the error occurs because that output device needs a specific command line parameter to work and I do not have that.
+
+Here is an example:
+
+```
+oof@elskun-lppri:~/ghostpdlafl$ ./debug_fuzzer md1xMono < sample_pdf/sample.pdf
+base/scommon.h:127:31: runtime error: index -1 out of bounds for type 'byte[1]' (aka 'unsigned char[1]')
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/scommon.h:127:31
+base/scommon.h:141:31: runtime error: index -1 out of bounds for type 'byte[1]' (aka 'unsigned char[1]')
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/scommon.h:141:31
+psi/interp.c:1156:13: runtime error: member access within null pointer of type 'ref' (aka 'struct ref_s')
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior psi/interp.c:1156:13
+psi/interp.c:1156:13: runtime error: member access within null pointer of type 'struct tas_s'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior psi/interp.c:1156:13
+psi/interp.c:1434:21: runtime error: member access within null pointer of type 'ref' (aka 'struct ref_s')
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior psi/interp.c:1434:21
+psi/interp.c:1434:21: runtime error: member access within null pointer of type 'struct tas_s'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior psi/interp.c:1434:21
+GPL Ghostscript GIT PRERELEASE 10.06.0 (2025-04-29)
+Copyright (C) 2025 Artifex Software, Inc.  All rights reserved.
+This software is supplied under the GNU AGPLv3 and comes with NO WARRANTY:
+see the file COPYING for details.
+base/gsicc_manage.c:2188:23: runtime error: member access within null pointer of type 'cmm_profile_t' (aka 'struct cmm_profile_s')
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/gsicc_manage.c:2188:23
+GPL Ghostscript GIT PRERELEASE 10.06.0: device must have an X resolution of 600dpi
+**** Unable to open the initial device, quitting.
+gsapi_init_with_args: error -100
+base/fapi_ft.c:1950:43: runtime error: member access within null pointer of type 'struct FT_OutlineGlyphRec_'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/fapi_ft.c:1950:43
+base/fapi_ft.c:1951:42: runtime error: member access within null pointer of type 'struct FT_BitmapGlyphRec_'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/fapi_ft.c:1951:42
+oof@elskun-lppri:~/ghostpdlafl$
+```
+
+so this is fixed, by just adding `-r600x600` to the command line. I had 200x200 by default. I should probably make an override function which overwrites the command line parameters and it checks that output device...
+
+I now have this here:
+
+```
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include "psi/iapi.h"
+#include "psi/interp.h"
+#include "psi/iminst.h"
+#include "base/gserrors.h"
+
+#include <signal.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+
+#include <pthread.h>
+#include <stdatomic.h>
+#include <limits.h>
+
+static const unsigned char *g_data;
+static size_t g_size;
+
+
+
+#define min(x, y) ((x) < (y) ? (x) : (y))
+
+static int gs_stdin(void *inst, char *buf, int len)
+{
+    size_t to_copy = min(len, g_size);
+    to_copy = min(INT_MAX, to_copy);
+
+    memcpy(buf, g_data, to_copy);
+
+    g_data += to_copy;
+    g_size -= to_copy;
+
+    return to_copy;
+}
+
+static int gs_stdnull(void *inst, const char *buf, int len)
+{
+
+    /* Just discard everything. */
+    // return len;
+
+
+    int written = fwrite(buf, 1, len, stdout);
+    fflush(stdout);  // flush immediately if you want streaming behavior
+    return written;
+
+}
+
+/* Return a pointer to the device name inside args (after -sDEVICE=),
+   or NULL if not present. */
+static const char *extract_device_from_args(char *const *args, int argc) {
+    for (int i = 0; i < argc; ++i) {
+        const char *a = args[i];
+        if (!a) continue;
+        if (strncmp(a, "-sDEVICE=", 9) == 0) {
+            return a + 9; // after '='
+        }
+    }
+    return NULL;
+}
+
+/* Find index of the first -r... flag; -r must be followed by digits (e.g., -r200x200). */
+static int find_resolution_arg(char *const *args, int argc) {
+    for (int i = 0; i < argc; ++i) {
+        const char *a = args[i];
+        if (!a) continue;
+        if (strncmp(a, "-r", 2) == 0) {
+            // Require something like -rNNN or -rNNNxMMM
+            const char *p = a + 2;
+            if (*p) return i;
+        }
+    }
+    return -1;
+}
+
+/* Replace args[idx] with a newly allocated "-r<res>" string. */
+static bool replace_resolution_arg(char **args, int idx, const char *res) {
+    if (idx < 0 || !res) return false;
+    size_t need = 2 /*-r*/ + strlen(res) + 1;
+    char *s = (char *)malloc(need);
+    if (!s) return false;
+    snprintf(s, need, "-r%s", res);
+    args[idx] = s; // OK to leak a tiny bit in a short-lived fuzzer process
+    return true;
+}
+
+/* Map device → preferred resolution string ("600x600", etc.)
+   Extend this as you discover more device requirements. */
+static const char *device_default_res(const char *device_name) {
+    if (!device_name) return NULL;
+
+    /* Example from your note: md1xMono wants 600x600 */
+    if (strcmp(device_name, "md1xMono") == 0) return "600x600";
+
+    /* Add more rules here, e.g.:
+       if (strcmp(device_name, "someOtherDevice") == 0) return "300x300";
+    */
+
+    return NULL; // no override
+}
+
+/* Public entry point: tweak args[] in-place based on -sDEVICE=... */
+static void adjust_gs_args_for_device(char **args, int argc) {
+    const char *dev = extract_device_from_args(args, argc);
+    if (!dev) return;
+
+    const char *want_res = device_default_res(dev);
+    if (!want_res) return; // nothing to change for this device
+
+    int r_idx = find_resolution_arg(args, argc);
+    if (r_idx >= 0) {
+        (void)replace_resolution_arg(args, r_idx, want_res);
+    }
+    /* If there were no -r flag present, you could optionally insert one.
+       Since your array is static, we avoid resizing here. If you want insertion,
+       make args dynamic and append "-r<want_res>" before "-_" sentinel. */
+}
+
+int fuzz_gs_device(
+    const unsigned char *buf,
+    size_t size,
+    int color_scheme,
+    const char *device_target,
+    const char *output_file,
+    int do_interpolation
+)
+{
+
+    int ret;
+    void *gs = NULL;
+    char color_space[50];
+    char gs_device[50];
+    char gs_o[100];
+    char opt_interpolation[50];
+    /*
+     * We are expecting color_scheme to be in the [0:62] interval.
+     * This corresponds to the color schemes defined here:
+     * https://github.com/ArtifexSoftware/ghostpdl/blob/8c97d5adce0040ac38a1fb4d7954499c65f582ff/cups/libs/cups/raster.h#L102
+     */
+    sprintf(color_space, "-dcupsColorSpace=%d", color_scheme);
+    sprintf(gs_device, "-sDEVICE=%s", device_target);
+    sprintf(gs_o, "-sOutputFile=%s", output_file);
+    if (do_interpolation) {
+        sprintf(opt_interpolation, "-dDOINTERPOLATE");
+    }
+    else {
+        sprintf(opt_interpolation, "-dNOINTERPOLATE");
+    }
+    /* Mostly stolen from cups-filters gstoraster. */
+    char *args[] = {
+        "gs",
+        // "-q",
+        // "-sICCProfilesDir=/usr/share/ghostscript/10.02.1/iccprofiles/",
+        // "-sGenericResourceDir=/usr/share/ghostscript/10.02.1/Resource/",
+        // "-I/tmp/gsinit_override/",
+        "-K1048576",
+        "-r200x200",
+        "-sDriver=./libopv.so",
+        "-sBandListStorage=memory",
+        "-dMaxBitmap=0",
+        "-dBufferSpace=450k",
+        "-dMediaPosition=1",
+        // "-Z:gsicc",
+        color_space,
+        //"-dQUIET",
+        "-dSAFER",
+        "-dNOPAUSE",
+        "-dBATCH",
+        opt_interpolation,
+        "-dNOMEDIAATTRS",
+        //"-sstdout=%%stderr",
+        gs_o,
+        gs_device,
+        "-_",
+    };
+
+    // Check override stuff...
+    int argc = sizeof(args) / sizeof(args[0]); // if it's a fixed array
+
+    adjust_gs_args_for_device(args, argc); // Override...
+
+    /* Stash buffers globally, for gs_stdin(). */
+    g_data = buf;
+    g_size = size;
+
+    ret = gsapi_new_instance(&gs, NULL);
+    if (ret < 0) {
+        fprintf(stderr, "gsapi_new_instance: error %d\n", ret);
+        return ret;
+    }
+
+    gsapi_set_stdio(gs, gs_stdin, gs_stdnull, gs_stdnull);
+    ret = gsapi_set_arg_encoding(gs, GS_ARG_ENCODING_UTF8);
+    if (ret < 0) {
+        fprintf(stderr, "gsapi_set_arg_encoding: error %d\n", ret);
+        gsapi_delete_instance(gs);
+        return ret;
+    }
+
+    ret = gsapi_init_with_args(gs, argc, args);
+    if (ret && ret != gs_error_Quit)
+        /* Just keep going, to cleanup. */
+        fprintf(stderr, "gsapi_init_with_args: error %d\n", ret);
+
+    ret = gsapi_exit(gs);
+    if (ret < 0 && ret != gs_error_Quit) {
+        fprintf(stderr, "gsapi_exit: error %d\n", ret);
+        return ret;
+    }
+
+    gsapi_delete_instance(gs);
+
+    return 0;
+}
+
+
+
+/* Pick target device from this list (no leading '/'). Got from "gs -h" */
+static const char *devices[] = {
+    "lp9800c","hpdj550c","tiffsep1","dfaxhigh","hocr","lp8000c","eps9mid","psdrgb",
+    "x11gray4","stcolor","lj5gray","cljet5pr","plan","oprp","jetp3852","bjc600",
+    "pam","lps4500","hpdj560c","txtwrite","dfaxlow","pdfocr8","lp8100","epson",
+    "psdrgb16","x11mono","t4693d2","lj5mono","coslw2p","plan9bm","opvp","jj100",
+    "bjc800","pamcmyk32","lps6500","hpdj600","urfcmyk","display","pdfocr24","lp8200c",
+    "epsonc","psdrgbtags","x11rg16x","t4693d4","ljet2p","coslwxl","planc","paintjet",
+    "la50","bjc880j","pamcmyk4","lq850","hpdj660c","urfgray","docxwrite","pdfocr32",
+    "lp8300c","escp","spotcmyk","x11rg32x","t4693d8","ljet3","declj250","plang",
+    "pcl3","la70","bjccmyk","pbm","lxm3200","hpdj670c","urfrgb","eps2write",
+    "nullpage","lp8300f","escpage","tiff12nc","pclm","tek4696","ljet3d","deskjet",
+    "plank","photoex","la75","bjccolor","pbmraw","lxm5700m","hpdj680c","xcf",
+    "pdfwrite","lp8400f","fmlbp","tiff24nc","pclm8","uniprint","ljet4","dj505j",
+    "planm","picty180","la75plus","bjcgray","pcx16","m8510","hpdj690c","xpswrite",
+    "faxg3","lp8500c","fmpr","tiff32nc","bit","xes","ljet4d","djet500",
+    "plib","pj","laserjet","bjcmono","pcx24b","md1xMono","hpdj850c","alc1900",
+    "faxg32d","lp8600","fs600","tiff48nc","bitcmyk","appleraster","ljet4pjl","djet500c",
+    "plibc","pjetxl","lbp310","cdeskjet","pcx256","md2k","hpdj855c","alc2000",
+    "faxg4","lp8600f","gdi","tiff64nc","bitrgb","cups","ljetplus","dl2100",
+    "plibg","pjxl","lbp320","cdj1600","pcxcmyk","md50Eco","hpdj870c","alc4000",
+    "fpng","lp8700","hl1240","tiffcrle","bitrgbtags","pwgraster","ln03","dnj650c",
+    "plibk","pjxl300","lbp8","cdj500","pcxgray","md50Mono","hpdj890c","alc4100",
+    "inferno","lp8800c","hl1250","tiffg3","bmp16","urf","lp1800","epl2050",
+    "plibm","pr1000","lex2050","cdj550","pcxmono","md5k","hpdjplus","alc8500",
+    "ink_cov","lp8900","hl7x0","tiffg32d","bmp16m","ijs","lp1900","epl2050p",
+    "pnm","pr1000_4","lex3200","cdj670","pdfimage24","mj500c","hpdjportable","alc8600",
+    "inkcov","lp9000b","hpdj1120c","tiffg4","bmp256","png16","lp2000","epl2120",
+    "pnmraw","pr150","lex5700","cdj850","pdfimage32","mj6000c","ibmpro","alc9100",
+    "jpeg","lp9000c","hpdj310","tiffgray","bmp32b","png16m","lp2200","epl2500",
+    "ppm","pr201","lex7000","cdj880","pdfimage8","mj700v2c","imagen","ap3250",
+    "jpegcmyk","lp9100","hpdj320","tifflzw","bmpgray","png16malpha","lp2400","epl2750",
+    "ppmraw","bbox","pxlcolor","lips2p","cdj890","pgm","mj8000c","itk24i",
+    "appledmp","jpeggray","lp9200b","hpdj340","tiffpack","bmpmono","png256","lp2500",
+    "epl5800","pppm","x11","pxlmono","lips3","cdj970","pgmraw","ml600",
+    "itk38","atx23","mgr4","lp9200c","hpdj400","tiffscaled","bmpsep1","png48",
+    "lp2563","epl5900","ps2write","x11alpha","r4081","lips4","cdjcolor","pgnm",
+    "necp6","iwhi","atx24","mgr8","lp9300","hpdj500","tiffscaled24","bmpsep8",
+    "pngalpha","lp3000c","epl6100","psdcmyk","x11cmyk","rinkj","lips4v","cdjmono",
+    "pgnmraw","npdl","iwhic","atx38","mgrgray2","lp9400","hpdj500c","tiffscaled32",
+    "ccr","pnggray","lp7500","epl6200","psdcmyk16","x11cmyk2","rpdl","lj250",
+    "cdnj500","pkm","oce9050","iwlo","bj10e","mgrgray4","lp9500c","hpdj510",
+    "tiffscaled4","cfax","pngmono","lp7700","eplcolor","psdcmykog","x11cmyk4","samsunggdi",
+    "lj3100sw","chp2200","pkmraw","oki182","iwlow","bj10v","mgrgray8","lp9600",
+    "hpdj520","tiffscaled8","cif","pngmonod","lp7900","eplmono","psdcmyktags","x11cmyk8",
+    "sj48","lj4dith","cljet5","pksm","oki4w","iwlq","bj10vh","mgrmono",
+    "lp9600s","hpdj540","tiffsep","devicen","ocr","lp8000","eps9high","psdcmyktags16",
+    "x11gray2","st800","lj4dithp","cljet5c","pksmraw","okiibm","iwlqc","bj200",
+    "miff24"
+};
+
+int n_devices = 362; // The number of devices...
+
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size, char* dev) {
+    /* Always write to /dev/null. */
+    (void)fuzz_gs_device(data, size,
+                         1,
+                         dev, // "oprp", // Modify this maybe???
+                         "/dev/null",
+                         0);
+    return 0;
+}
+
+
+
+#ifdef USE_AFL
+
+__AFL_FUZZ_INIT();
+
+int main(int argc, char **argv) {
+    // LLVMFuzzerInitialize(&argc, &argv); // No initializati
+    if (argc != 2) {
+        exit(1);
+    }
+    __AFL_INIT();
+    const uint8_t *buf = __AFL_FUZZ_TESTCASE_BUF;
+    while (__AFL_LOOP(100000)) {
+        int len = __AFL_FUZZ_TESTCASE_LEN;
+        LLVMFuzzerTestOneInput(buf, (size_t)len, argv[1]);
+    }
+    return 0;
+}
+
+#endif
+
+```
+
+whoops there is a memory leak:
+
+```
+=================================================================
+==406996==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 10 byte(s) in 1 object(s) allocated from:
+    #0 0x5f74be785c23 in malloc (/home/oof/ghostpdlafl/debug_fuzzer+0x24b4c23) (BuildId: 284b817b83aadde8adb22098110d84601e6d5a2e)
+    #1 0x5f74be7c6f22 in replace_resolution_arg /home/oof/ghostpdlafl/debugging.c:88:23
+    #2 0x5f74be7c6f22 in adjust_gs_args_for_device /home/oof/ghostpdlafl/debugging.c:120:15
+    #3 0x5f74be7c6f22 in fuzz_gs_device /home/oof/ghostpdlafl/debugging.c:188:5
+    #4 0x5f74be7c79a8 in LLVMFuzzerTestOneInput /home/oof/ghostpdlafl/debugging.c:281:11
+    #5 0x5f74be7c79a8 in main /home/oof/ghostpdlafl/debugging.c:304:9
+    #6 0x79129362a1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #7 0x79129362a28a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #8 0x5f74be6eadd4 in _start (/home/oof/ghostpdlafl/debug_fuzzer+0x2419dd4) (BuildId: 284b817b83aadde8adb22098110d84601e6d5a2e)
+
+SUMMARY: AddressSanitizer: 10 byte(s) leaked in 1 allocation(s).
+```
+
+I fixed that and now it works...
+
+These are the devices which we go through:
+
+```
+"display" (doesn't work for whatever reason, not really sure why)
+
+"plib" (allocates huge amounts of memory and then doesn't work...)
+see:
+
+GPL Ghostscript GIT PRERELEASE 10.06.0 (2025-04-29)
+Copyright (C) 2025 Artifex Software, Inc.  All rights reserved.
+This software is supplied under the GNU AGPLv3 and comes with NO WARRANTY:
+see the file COPYING for details.
+base/gsicc_manage.c:2188:23: runtime error: member access within null pointer of type 'cmm_profile_t' (aka 'struct cmm_profile_s')
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/gsicc_manage.c:2188:23
+[a+]gs_malloc(cmd list buf(retry open))(1095411764) = 0x0: exceeded limit, used=2983016, max=976682482
+**** Unable to open the initial device, quitting.
+gsapi_init_with_args: error -100
+
+soo that is a bit weird...
+
+this also applies to the other ones:
+
+/* The device descriptors themselves */
+const gx_device_plib gs_plib_device =
+  plib_prn_device(plib_initialize_device_procs, "plib",
+                  3, 24, 255, 255, plib_print_page);
+const gx_device_plib gs_plibg_device =
+  plib_prn_device(plibg_initialize_device_procs, "plibg",
+                  1, 8, 255, 0, plibg_print_page);
+const gx_device_plib gs_plibm_device =
+  plib_prn_device(plibm_initialize_device_procs, "plibm",
+                  1, 1, 1, 0, plibm_print_page);
+const gx_device_plib gs_plibk_device =
+  plib_prn_device(plibk_initialize_device_procs, "plibk",
+                  4, 4, 1, 1, plibk_print_page);
+const gx_device_plib gs_plibc_device =
+  plib_prn_device(plibc_initialize_device_procs, "plibc",
+                  4, 32, 255, 255, plibc_print_page);
+
+the insane amount of memory allocation happens here:
+
+/*
+ * Define a special open procedure that changes create_buf_device to use
+ * a planar device.
+ */
+static int
+plib_open(gx_device * pdev)
+{
+    gx_device_plib * const bdev = (gx_device_plib *)pdev;
+    gx_device_printer * const ppdev = (gx_device_printer *)pdev;
+    int code;
+
+#ifdef DEBUG_PRINT
+    emprintf(pdev->memory, "plib_open\n");
+#endif
+    bdev->printer_procs.buf_procs.create_buf_device = plib_create_buf_device;
+    bdev->printer_procs.buf_procs.setup_buf_device = plib_setup_buf_device;
+    bdev->printer_procs.buf_procs.size_buf_device = plib_size_buf_device;
+    pdev->num_planar_planes = 1;
+
+    bdev->space_params.banding_type = BandingAlways;
+
+    /* You might expect us to call gdev_prn_open_planar rather than
+     * gdev_prn_open, but if we do that, it overwrites the 2 function
+     * pointers we've just overwritten! */
+    code = gdev_prn_open(pdev);
+    if (code < 0)
+        return code;
+    if (ppdev->space_params.band.BandHeight < MINBANDHEIGHT) {
+        emprintf2(pdev->memory, "BandHeight of %d not valid, BandHeight minimum is %d\n",
+                  ((gx_device_printer *)pdev)->space_params.band.BandHeight,
+                  MINBANDHEIGHT);
+
+        return_error(gs_error_rangecheck);
+    }
+    pdev->color_info.separable_and_linear = GX_CINFO_SEP_LIN;
+    set_linear_color_bits_mask_shift(pdev);
+
+    /* Start the actual job. */
+#ifdef DEBUG_PRINT
+    emprintf(pdev->memory, "calling job_begin\n");
+#endif
+    code = gs_band_donor_init(&bdev->opaque, pdev->memory);
+#ifdef DEBUG_PRINT
+    emprintf(pdev->memory, "called\n");
+#endif
+
+    return code;
+}
+
+when calling the gdev_prn_open function.... idk...
+
+
+
+next up is this here:
+
+
+GPL Ghostscript GIT PRERELEASE 10.06.0 (2025-04-29)
+Copyright (C) 2025 Artifex Software, Inc.  All rights reserved.
+This software is supplied under the GNU AGPLv3 and comes with NO WARRANTY:
+see the file COPYING for details.
+base/gsicc_manage.c:2188:23: runtime error: member access within null pointer of type 'cmm_profile_t' (aka 'struct cmm_profile_s')
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/gsicc_manage.c:2188:23
+**** Unable to open the initial device, quitting.
+gsapi_init_with_args: error -100
+base/fapi_ft.c:1950:43: runtime error: member access within null pointer of type 'struct FT_OutlineGlyphRec_'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/fapi_ft.c:1950:43
+base/fapi_ft.c:1951:42: runtime error: member access within null pointer of type 'struct FT_BitmapGlyphRec_'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/fapi_ft.c:1951:42
+
+[181] md5k            -> UNKNOWN (string)
+
+so we fixed those too by just adding the correct resolution. The ijs output device also doesn't work
+
+there are also the lips devices which has these kinds of checks:
+
+
+    else if (ptype == LIPS2P) {
+        /* LIPS II+ support DPI is 240x240 */
+        if (xdpi != LIPS2P_DPI_MAX)
+            return_error(gs_error_rangecheck);
+    } else if (ptype == LIPS3) {
+
+so for lips2p we need 240x240
+
+
+There are also these checks:
+
+
+
+gx_device_mj far_data gs_mj700v2c_device =
+mjcmyk_device(mj700v2c_initialize_device_procs, "mj700v2c",
+              360, 360, BITSPERPIXEL,
+              mj700v2c_print_page,
+              1024, 1024, 1024, 1024, 1024, 0, 1, 1);
+
+gx_device_mj far_data gs_mj500c_device =
+mjcmy_device(mj500c_initialize_device_procs, "mj500c",
+             360, 360, BITSPERPIXEL,
+             mj500c_print_page, 1024, 1024, 1024, 1024, 1024, 0, 1, 1);
+
+gx_device_mj far_data gs_mj6000c_device =
+mjcmyk_device(mj6000c_initialize_device_procs, "mj6000c",
+              360, 360, BITSPERPIXEL,
+              mj6000c_print_page, 1024, 1024, 1024, 1024, 1024, 0, 1, 1);
+
+gx_device_mj far_data gs_mj8000c_device =
+mjcmyk_device(mj8000c_initialize_device_procs, "mj8000c",
+              360, 360, BITSPERPIXEL,
+              mj8000c_print_page, 1024, 1024, 1024, 1024, 1024, 0, 1, 1);
+
+/* Get the paper size code, based on width and height. */
+static int
+gdev_mjc_paper_size(gx_device *dev)
+{
+  int width = (int)dev->MediaSize[0];
+  int height = (int)dev->MediaSize[1];
+
+  if (width == 1190 && height == 1684)
+    return PAPER_SIZE_A2;
+  else
+    return PAPER_SIZE_A4;
+}
+
+static int
+mj700v2c_open(gx_device * pdev)
+{
+  return mj_open(pdev, MJ700V2C);
+}
+
+static int
+mj500c_open(gx_device * pdev)
+{
+  return mj_open(pdev, MJ700V2C);
+}
+
+static int
+mj6000c_open(gx_device * pdev)
+{
+  return mj_open(pdev, MJ700V2C);
+}
+
+static int
+mj8000c_open(gx_device * pdev)
+{
+  return mj_open(pdev, MJ700V2C);
+}
+
+/* Open the printer and set up the margins. */
+static int
+mj_open(gx_device *pdev, int ptype)
+{       /* Change the margins if necessary. */
+  int xdpi = (int)pdev->x_pixels_per_inch;
+  int ydpi = (int)pdev->y_pixels_per_inch;
+
+  static const float mj_margin[4] = { MJ700V2C_MARGINS_A4 };
+  static const float mj6000c_a2[4] = { MJ6000C_MARGINS_A2 };
+  static const float mj8000c_a2[4] = { MJ8000C_MARGINS_A2 };
+
+  const float *m;
+
+  int paper_size;
+
+#if 0
+  /* Set up colour params if put_props has not already done so */
+  if (pdev->color_info.num_components == 0)
+    set_bpp(pdev, pdev->color_info.depth);
+#endif
+
+  paper_size = gdev_mjc_paper_size(pdev);
+  if (paper_size == PAPER_SIZE_A2 ) {
+    if (ptype == MJ6000C)
+      m = mj6000c_a2;
+    else if (ptype == MJ8000C)
+      m = mj8000c_a2;
+    else
+      m = mj_margin;
+  } else {
+    m = mj_margin;
+  }
+
+  gx_device_set_margins(pdev, m, true);
+
+  if (mj->colorcomp == 3)
+    mj->density = (int)(mj->density * 720 / ydpi) * 1.5;
+  else
+    mj->density = mj->density * 720 / ydpi;
+
+  /* Print Resolution Check */
+  if (!((xdpi == 180 && ydpi == 180) ||
+      (xdpi == 360 && ydpi == 360) ||
+      (xdpi == 720 && ydpi == 720) ||
+      (xdpi == 360 && ydpi == 720) ||
+      (xdpi == 720 && ydpi == 360)))
+    return_error(gs_error_rangecheck);
+
+  return gdev_prn_open(pdev);
+}
+
+
+so we can just replace the stuff with mj700v2c, mj500c, mj6000c and mj8000c with the 180x180 stuff...
+
+then for the rpdl stuff we need this here:
+
+gx_device_lprn far_data gs_rpdl_device =
+lprn_device(gx_device_lprn, rpdl_initialize_device_procs, "rpdl",
+            DPI, DPI, 0.0, 0.0, 0.0, 0.0, 1,
+            rpdl_print_page_copies, rpdl_image_out);
+
+#define ppdev ((gx_device_printer *)pdev)
+
+/* Open the printer. */
+static int
+rpdl_open(gx_device * pdev)
+{
+    int xdpi = (int)pdev->x_pixels_per_inch;
+    int ydpi = (int)pdev->y_pixels_per_inch;
+
+    /* Resolution Check */
+    if (xdpi != ydpi)
+        return_error(gs_error_rangecheck);
+    if (xdpi != 240 && xdpi != 400 && xdpi != 600)
+        return_error(gs_error_rangecheck);
+
+    return gdev_prn_open(pdev);
+}
+
+soo just place 240x240 for that???
+
+
+there is this stuff here: ``[  8] x11gray4        -> ERR 1``` but I think that this is a false positive since it seems to run correctly for me...
+
+it causes a memory leak here:
+
+=================================================================
+==524767==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 160 byte(s) in 1 object(s) allocated from:
+    #0 0x56f0e23abc23 in malloc (/home/oof/ghostpdlafl/pdf_debug+0x24b4c23) (BuildId: 4fa7d4bd06da1b65dc4550df9e9fdd5a2055f642)
+    #1 0x77075ddfb938 in XCreateGC /build/libx11-aL6a2q/libx11-1.8.7/build/src/../../src/CrGC.c:75:15
+    #2 0x56f0e2e15487 in gdev_x_open /home/oof/ghostpdlafl/./devices/gdevxini.c:474:16
+    #3 0x56f0e2db8b21 in x_open /home/oof/ghostpdlafl/./devices/gdevx.c:207:12
+    #4 0x56f0e2e43a41 in x_wrap_open /home/oof/ghostpdlafl/./devices/gdevxalt.c:94:13
+    #5 0x56f0e418f880 in gs_opendevice /home/oof/ghostpdlafl/./base/gsdevice.c:461:20
+
+SUMMARY: AddressSanitizer: 160 byte(s) leaked in 1 allocation(s).
+1
+
+which caused that error code 1.
+
+
+this here:
+
+
+base/gxclpath.c:1696:16: runtime error: left shift of negative value -30
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/gxclpath.c:1696:16
+gdevadmp: Bin out of range: 75.
+gdevadmp: Fatal error, cleaning up.
+gdevadmp: Please write Josh Moyer <JMoyer@NODOMAIN.NET> for help.
+gdevadmp: Output is likely corrupt -- delete the file or reset your printer.
+gdevadmp: Exiting.
+oof@elskun-lppri:~/ghostpdlafl$ ./pdf_debug iwlqc < Hakemuskirje.pdf
+
+also causes an error for some reason...
+
+also the appledmp stuff also causes this here:
+
+[248] appledmp        -> ERR 241
+
+```
+
+Ok, so after doing those fixes, I think that the harness now currently works good enough for fuzzing purposes. There is still a small thing which we need to implement, some of the output devices need a seekable output file, but if we pipe everything to /dev/null , then it fails, see:
+
+```
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/scfe.c:499:17
+I/O Error: Output File "/dev/null" must be seekable
+   **** Error: Page drawing error occurred.
+               Could not draw this page at all, page will be missing in the output.
+base/fapi_ft.c:1950:43: runtime error: member access within null pointer of type 'struct FT_OutlineGlyphRec_'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/fapi_ft.c:1950:43
+base/fapi_ft.c:1951:42: runtime error: member access within null pointer of type 'struct FT_BitmapGlyphRec_'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/fapi_ft.c:1951:42
+
+[252] tiffpack        -> OK
+```
+
+in the original fuzzing harness code, there is this here:
+
+```
+oof@elskun-lppri:~/ghostscript_mutator/pdf_fuzzing/original$ cat gs_device_tiffsep1_fuzzer.cc
+/* Copyright 2022 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+#include <sys/types.h>
+#include <unistd.h>
+#include <stdio.h>
+
+#include "gs_fuzzlib.h"
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+        char filename[256];
+        sprintf(filename, "/tmp/libfuzzer.%d.tiff", getpid());
+        fuzz_gs_device(data, size, 1, "tiffsep1", filename, 0);
+        return 0;
+}
+```
+
+Here is my final list of supported fuzzed devices:
+
+```
+[  0] lp9800c         -> OK
+[  1] hpdj550c        -> UNKNOWN (string)
+[  2] tiffsep1        -> OK
+[  3] dfaxhigh        -> OK
+[  4] hocr            -> UNKNOWN (string)
+[  5] lp8000c         -> OK
+[  6] eps9mid         -> OK
+[  7] psdrgb          -> OK
+[  8] x11gray4        -> OK
+[  9] stcolor         -> OK
+[ 10] lj5gray         -> OK
+[ 11] cljet5pr        -> OK
+[ 12] plan            -> OK
+[ 13] oprp            -> UNKNOWN (string)
+[ 14] jetp3852        -> OK
+[ 15] bjc600          -> OK
+[ 16] pam             -> OK
+[ 17] lps4500         -> OK
+[ 18] hpdj560c        -> UNKNOWN (string)
+[ 19] txtwrite        -> OK
+[ 20] dfaxlow         -> OK
+[ 21] pdfocr8         -> OK
+[ 22] lp8100          -> OK
+[ 23] epson           -> OK
+[ 24] psdrgb16        -> OK
+[ 25] x11mono         -> OK
+[ 26] t4693d2         -> OK
+[ 27] lj5mono         -> OK
+[ 28] coslw2p         -> OK
+[ 29] plan9bm         -> OK
+[ 30] opvp            -> UNKNOWN (string)
+[ 31] jj100           -> OK
+[ 32] bjc800          -> OK
+[ 33] pamcmyk32       -> OK
+[ 34] lps6500         -> OK
+[ 35] hpdj600         -> UNKNOWN (string)
+[ 36] urfcmyk         -> OK
+[ 37] display         -> UNKNOWN (string)
+[ 38] pdfocr24        -> OK
+[ 39] lp8200c         -> OK
+[ 40] epsonc          -> OK
+[ 41] psdrgbtags      -> OK
+[ 42] x11rg16x        -> OK
+[ 43] t4693d4         -> OK
+[ 44] ljet2p          -> OK
+[ 45] coslwxl         -> OK
+[ 46] planc           -> OK
+[ 47] paintjet        -> OK
+[ 48] la50            -> OK
+[ 49] bjc880j         -> OK
+[ 50] pamcmyk4        -> OK
+[ 51] lq850           -> OK
+[ 52] hpdj660c        -> UNKNOWN (string)
+[ 53] urfgray         -> OK
+[ 54] docxwrite       -> OK
+[ 55] pdfocr32        -> OK
+[ 56] lp8300c         -> OK
+[ 57] escp            -> OK
+[ 58] spotcmyk        -> OK
+[ 59] x11rg32x        -> OK
+[ 60] t4693d8         -> OK
+[ 61] ljet3           -> OK
+[ 62] declj250        -> OK
+[ 63] plang           -> OK
+[ 64] pcl3            -> OK
+[ 65] la70            -> OK
+[ 66] bjccmyk         -> OK
+[ 67] pbm             -> OK
+[ 68] lxm3200         -> OK
+[ 69] hpdj670c        -> UNKNOWN (string)
+[ 70] urfrgb          -> OK
+[ 71] eps2write       -> OK
+[ 72] nullpage        -> OK
+[ 73] lp8300f         -> OK
+[ 74] escpage         -> OK
+[ 75] tiff12nc        -> OK
+[ 76] pclm            -> OK
+[ 77] tek4696         -> OK
+[ 78] ljet3d          -> OK
+[ 79] deskjet         -> OK
+[ 80] plank           -> OK
+[ 81] photoex         -> OK
+[ 82] la75            -> OK
+[ 83] bjccolor        -> OK
+[ 84] pbmraw          -> OK
+[ 85] lxm5700m        -> OK
+[ 86] hpdj680c        -> UNKNOWN (string)
+[ 87] xcf             -> OK
+[ 88] pdfwrite        -> OK
+[ 89] lp8400f         -> OK
+[ 90] fmlbp           -> OK
+[ 91] tiff24nc        -> OK
+[ 92] pclm8           -> OK
+[ 93] uniprint        -> OK
+[ 94] ljet4           -> OK
+[ 95] dj505j          -> OK
+[ 96] planm           -> OK
+[ 97] picty180        -> OK
+[ 98] la75plus        -> OK
+[ 99] bjcgray         -> OK
+[100] pcx16           -> OK
+[101] m8510           -> OK
+[102] hpdj690c        -> UNKNOWN (string)
+[103] xpswrite        -> OK
+[104] faxg3           -> OK
+[105] lp8500c         -> OK
+[106] fmpr            -> OK
+[107] tiff32nc        -> OK
+[108] bit             -> OK
+[109] xes             -> OK
+[110] ljet4d          -> OK
+[111] djet500         -> OK
+[112] plib            -> UNKNOWN (string)
+[113] pj              -> OK
+[114] laserjet        -> OK
+[115] bjcmono         -> OK
+[116] pcx24b          -> OK
+[117] md1xMono        -> OK
+[118] hpdj850c        -> UNKNOWN (string)
+[119] alc1900         -> OK
+[120] faxg32d         -> OK
+[121] lp8600          -> OK
+[122] fs600           -> OK
+[123] tiff48nc        -> OK
+[124] bitcmyk         -> OK
+[125] appleraster     -> OK
+[126] ljet4pjl        -> OK
+[127] djet500c        -> OK
+[128] plibc           -> UNKNOWN (string)
+[129] pjetxl          -> OK
+[130] lbp310          -> OK
+[131] cdeskjet        -> OK
+[132] pcx256          -> OK
+[133] md2k            -> OK
+[134] hpdj855c        -> UNKNOWN (string)
+[135] alc2000         -> OK
+[136] faxg4           -> OK
+[137] lp8600f         -> OK
+[138] gdi             -> OK
+[139] tiff64nc        -> OK
+[140] bitrgb          -> OK
+[141] cups            -> OK
+[142] ljetplus        -> OK
+[143] dl2100          -> OK
+[144] plibg           -> UNKNOWN (string)
+[145] pjxl            -> OK
+[146] lbp320          -> OK
+[147] cdj1600         -> OK
+[148] pcxcmyk         -> OK
+[149] md50Eco         -> OK
+[150] hpdj870c        -> UNKNOWN (string)
+[151] alc4000         -> OK
+[152] fpng            -> OK
+[153] lp8700          -> OK
+[154] hl1240          -> OK
+[155] tiffcrle        -> OK
+[156] bitrgbtags      -> OK
+[157] pwgraster       -> OK
+[158] ln03            -> OK
+[159] dnj650c         -> OK
+[160] plibk           -> UNKNOWN (string)
+[161] pjxl300         -> OK
+[162] lbp8            -> OK
+[163] cdj500          -> OK
+[164] pcxgray         -> OK
+[165] md50Mono        -> OK
+[166] hpdj890c        -> UNKNOWN (string)
+[167] alc4100         -> OK
+[168] inferno         -> OK
+[169] lp8800c         -> OK
+[170] hl1250          -> OK
+[171] tiffg3          -> OK
+[172] bmp16           -> OK
+[173] urf             -> OK
+[174] lp1800          -> OK
+[175] epl2050         -> OK
+[176] plibm           -> UNKNOWN (string)
+[177] pr1000          -> OK
+[178] lex2050         -> OK
+[179] cdj550          -> OK
+[180] pcxmono         -> OK
+[181] md5k            -> OK
+[182] hpdjplus        -> UNKNOWN (string)
+[183] alc8500         -> OK
+[184] ink_cov         -> OK
+[185] lp8900          -> OK
+[186] hl7x0           -> OK
+[187] tiffg32d        -> OK
+[188] bmp16m          -> OK
+[189] ijs             -> UNKNOWN (string)
+[190] lp1900          -> OK
+[191] epl2050p        -> OK
+[192] pnm             -> OK
+[193] pr1000_4        -> OK
+[194] lex3200         -> OK
+[195] cdj670          -> OK
+[196] pdfimage24      -> OK
+[197] mj500c          -> UNKNOWN (string)
+[198] hpdjportable    -> UNKNOWN (string)
+[199] alc8600         -> OK
+[200] inkcov          -> OK
+[201] lp9000b         -> OK
+[202] hpdj1120c       -> UNKNOWN (string)
+[203] tiffg4          -> OK
+[204] bmp256          -> OK
+[205] png16           -> OK
+[206] lp2000          -> OK
+[207] epl2120         -> OK
+[208] pnmraw          -> OK
+[209] pr150           -> OK
+[210] lex5700         -> OK
+[211] cdj850          -> OK
+[212] pdfimage32      -> OK
+[213] mj6000c         -> UNKNOWN (string)
+[214] ibmpro          -> OK
+[215] alc9100         -> OK
+[216] jpeg            -> OK
+[217] lp9000c         -> OK
+[218] hpdj310         -> UNKNOWN (string)
+[219] tiffgray        -> OK
+[220] bmp32b          -> OK
+[221] png16m          -> OK
+[222] lp2200          -> OK
+[223] epl2500         -> OK
+[224] ppm             -> OK
+[225] pr201           -> OK
+[226] lex7000         -> OK
+[227] cdj880          -> OK
+[228] pdfimage8       -> OK
+[229] mj700v2c        -> UNKNOWN (string)
+[230] imagen          -> OK
+[231] ap3250          -> OK
+[232] jpegcmyk        -> OK
+[233] lp9100          -> OK
+[234] hpdj320         -> UNKNOWN (string)
+[235] tifflzw         -> OK
+[236] bmpgray         -> OK
+[237] png16malpha     -> UNKNOWN (string)
+[238] lp2400          -> OK
+[239] epl2750         -> OK
+[240] ppmraw          -> OK
+[241] bbox            -> OK
+[242] pxlcolor        -> OK
+[243] lips2p          -> OK
+[244] cdj890          -> OK
+[245] pgm             -> OK
+[246] mj8000c         -> OK
+[247] itk24i          -> OK
+[248] appledmp        -> ERR 241
+[249] jpeggray        -> OK
+[250] lp9200b         -> OK
+[251] hpdj340         -> UNKNOWN (string)
+[252] tiffpack        -> OK
+[253] bmpmono         -> OK
+[254] png256          -> OK
+[255] lp2500          -> OK
+[256] epl5800         -> OK
+[257] pppm            -> OK
+[258] x11             -> OK
+[259] pxlmono         -> OK
+[260] lips3           -> OK
+[261] cdj970          -> OK
+[262] pgmraw          -> OK
+[263] ml600           -> OK
+[264] itk38           -> OK
+[265] atx23           -> OK
+[266] mgr4            -> OK
+[267] lp9200c         -> OK
+[268] hpdj400         -> UNKNOWN (string)
+[269] tiffscaled      -> OK
+[270] bmpsep1         -> OK
+[271] png48           -> OK
+[272] lp2563          -> OK
+[273] epl5900         -> OK
+[274] ps2write        -> OK
+[275] x11alpha        -> OK
+[276] r4081           -> OK
+[277] lips4           -> OK
+[278] cdjcolor        -> OK
+[279] pgnm            -> OK
+[280] necp6           -> OK
+[281] iwhi            -> ERR 241
+[282] atx24           -> OK
+[283] mgr8            -> OK
+[284] lp9300          -> OK
+[285] hpdj500         -> UNKNOWN (string)
+[286] tiffscaled24    -> OK
+[287] bmpsep8         -> OK
+[288] pngalpha        -> UNKNOWN (string)
+[289] lp3000c         -> OK
+[290] epl6100         -> OK
+[291] psdcmyk         -> OK
+[292] x11cmyk         -> OK
+[293] rinkj           -> OK
+[294] lips4v          -> OK
+[295] cdjmono         -> OK
+[296] pgnmraw         -> OK
+[297] npdl            -> OK
+[298] iwhic           -> ERR 241
+[299] atx38           -> OK
+[300] mgrgray2        -> OK
+[301] lp9400          -> OK
+[302] hpdj500c        -> UNKNOWN (string)
+[303] tiffscaled32    -> OK
+[304] ccr             -> OK
+[305] pnggray         -> OK
+[306] lp7500          -> OK
+[307] epl6200         -> OK
+[308] psdcmyk16       -> OK
+[309] x11cmyk2        -> OK
+[310] rpdl            -> OK
+[311] lj250           -> OK
+[312] cdnj500         -> OK
+[313] pkm             -> OK
+[314] oce9050         -> OK
+[315] iwlo            -> ERR 241
+[316] bj10e           -> OK
+[317] mgrgray4        -> OK
+[318] lp9500c         -> OK
+[319] hpdj510         -> UNKNOWN (string)
+[320] tiffscaled4     -> OK
+[321] cfax            -> OK
+[322] pngmono         -> OK
+[323] lp7700          -> OK
+[324] eplcolor        -> OK
+[325] psdcmykog       -> OK
+[326] x11cmyk4        -> OK
+[327] samsunggdi      -> OK
+[328] lj3100sw        -> OK
+[329] chp2200         -> OK
+[330] pkmraw          -> OK
+[331] oki182          -> OK
+[332] iwlow           -> ERR 241
+[333] bj10v           -> OK
+[334] mgrgray8        -> OK
+[335] lp9600          -> OK
+[336] hpdj520         -> UNKNOWN (string)
+[337] tiffscaled8     -> OK
+[338] cif             -> OK
+[339] pngmonod        -> UNKNOWN (string)
+[340] lp7900          -> OK
+[341] eplmono         -> OK
+[342] psdcmyktags     -> OK
+[343] x11cmyk8        -> OK
+[344] sj48            -> OK
+[345] lj4dith         -> OK
+[346] cljet5          -> OK
+[347] pksm            -> OK
+[348] oki4w           -> OK
+[349] iwlq            -> ERR 241
+[350] bj10vh          -> OK
+[351] mgrmono         -> OK
+[352] lp9600s         -> OK
+[353] hpdj540         -> UNKNOWN (string)
+[354] tiffsep         -> OK
+[355] devicen         -> OK
+[356] ocr             -> UNKNOWN (string)
+[357] lp8000          -> OK
+[358] eps9high        -> OK
+[359] psdcmyktags16   -> OK
+[360] x11gray2        -> OK
+[361] st800           -> OK
+[362] lj4dithp        -> OK
+[363] cljet5c         -> OK
+[364] pksmraw         -> OK
+[365] okiibm          -> ERR 1
+[366] iwlqc           -> ERR 241
+[367] bj200           -> OK
+[368] miff24          -> OK
+```
+
+so over 90% are now covered nicely. I don't want to bother supporting all of them and I think this is good enough for now...
+
+## Adding persistent fuzzing...
+
+So now I think it is time to finally improve the speed of our fuzzer. Currently we are initializing the gs instance on each fuzz cycle, but I think it should be better if we reuse the gs instance, but this doesn't work, since we may have to use another output device on the next run...
+
+... an hour later ...
+
+Ok, so I did some testing and it appears that the initialization cost of the fuzzer is negligible so it doesn't really matter...
+
+
+
+
+## TODO
+
+- Persistent fuzzing
+- Fix problems with all the different output devices...
+- Make fuzzing more efficient otherwise...
+
+
+
+
+
+
+
 
 
 
