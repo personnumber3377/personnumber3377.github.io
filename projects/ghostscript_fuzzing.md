@@ -7232,6 +7232,34 @@ When looking at the coverage which the fuzzer found, there appears to be this in
 
 which has zero coverage...
 
+We also should patch this code out:
+
+```
+
+        /* Here, it would be very Apple-ish to delete the
+         * output file, since it's in an incomplete state.
+         * However, the commented out solution seems to have
+         * the potential to delete /dev/tty or similar, if
+         * the user is directly printing to the port.  So,
+         * just tell the user not to print the file in
+         * ERREXITING.
+         */
+         /* (void)unlink(pdev->fname); */
+
+         /* Tell the user we're exiting. */
+        (void)errprintf(pdev->memory, ERREXITING);
+
+        /* Exit abnormally */
+        exit(code);
+}
+
+
+```
+
+from the gdevadmp.c file...
+
+
+
 ## TODO
 
 - Persistent fuzzing
