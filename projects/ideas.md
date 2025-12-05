@@ -41,7 +41,13 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Make a content farm for youtube and automatically upload "summary style" videos or shorts to youtube, like this one here: https://www.youtube.com/watch?v=j-3QuSfDuvI
 - Fuzz windows LDAP (lsass.exe) and maybe http parsing (HTTP.sys) and mime parsing???
 - Do a custom mutator for the program fuzzer in clvm in chia netowrk maybe????
-
+- Fuzz python internals...
+- Fuzz chromium svg stuff in blink maybe???
+- Differential fuzz golang stdlib with other libraries like net/http...
+- Differential fuzz llhttp and apache module? (see personal_notes/20.7.2025.txt in the personal_notes repo...)
+- Maybe try to fuzz rack or some web server as a state machine or something or maybe try fuzzing for rce bugs or unexpected exceptions which may signify RCE or other stuff???
+- Fuzz mupdf css and html and maybe xps????
+- Fuzz filecoin EVM? (remember to use the FVM actual implementation instead of the MockRuntime instead)
 
 
 ## Some interesting looking stuff..
