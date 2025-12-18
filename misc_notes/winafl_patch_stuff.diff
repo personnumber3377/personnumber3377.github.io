@@ -1,0 +1,218 @@
+diff --git a/afl-fuzz.c b/afl-fuzz.c
+index 88db5d5..775e51a 100644
+--- a/afl-fuzz.c
++++ b/afl-fuzz.c
+@@ -3021,6 +3021,9 @@ static void show_stats(void);
+    to warn about flaky or otherwise problematic test cases early on; and when
+    new paths are discovered to detect variable behavior and so on. */
+ 
++int is_during_dry_run = 0;
++
++
+ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
+                          u32 handicap, u8 from_queue) {
+ 
+@@ -3033,6 +3036,7 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
+ 
+   s32 old_sc = stage_cur, old_sm = stage_max;
+   u32 use_tmout = exec_tmout;
++  
+   u8* old_sn = stage_name;
+ 
+   /* Be a bit more generous about timeouts when resuming sessions, or when
+@@ -3043,6 +3047,11 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
+     use_tmout = MAX(exec_tmout + CAL_TMOUT_ADD,
+                     exec_tmout * CAL_TMOUT_PERC / 100);
+ 
++  if (is_during_dry_run == 1) {
++    use_tmout = 100000; // This is for the initial startup bullshit.
++    is_during_dry_run = 0;
++  }
++
+   q->cal_failed++;
+ 
+   stage_name = "calibration";
+@@ -3191,6 +3200,8 @@ static void perform_dry_run(char** argv) {
+   u32 cal_failures = 0;
+   u8* skip_crashes = getenv("AFL_SKIP_CRASHES");
+ 
++  is_during_dry_run = 1; // Set the bullshit here...
++
+   while (q) {
+ 
+     u8* use_mem;
+@@ -3451,7 +3462,8 @@ static void pivot_inputs(void) {
+       /* No dice - invent a new name, capturing the original one as a
+          substring. */
+ 
+-#ifndef SIMPLE_FILES
++// #ifndef SIMPLE_FILES
++#if 0
+ 
+       u8* use_name = strstr(rsl, ",orig:");
+ 
+@@ -3459,8 +3471,10 @@ static void pivot_inputs(void) {
+       nfn = alloc_printf("%s\\queue\\id:%06u,orig:%s", out_dir, id, use_name);
+ 
+ #else
++      u8* use_name = strstr(rsl, ",orig:");
+ 
+-      nfn = alloc_printf("%s\\queue\\id_%06u", out_dir, id);
++      if (use_name) use_name += 6; else use_name = rsl;
++      nfn = alloc_printf("%s\\queue\\id_%06u,orig_%s", out_dir, id, use_name);
+ 
+ #endif /* ^!SIMPLE_FILES */
+ 
+@@ -5639,7 +5653,8 @@ static u8 fuzz_one(char** argv) {
+    * TRIMMING *
+    ************/
+ 
+-  if (!dumb_mode && !queue_cur->trim_done) {
++  // if (!dumb_mode && !queue_cur->trim_done) {
++  if (!dumb_mode && !queue_cur->trim_done && (!getenv("AFL_DISABLE_TRIM"))) {
+ 
+     u8 res = trim_case(argv, queue_cur, in_buf);
+ 
+@@ -6657,6 +6672,28 @@ skip_extras:
+ 
+ havoc_stage:
+ 
++
++  
++  if (getenv("AFL_ONLY_CUSTOM")) {
++    //fprintf(stderr, "Now running the bullshit thing...");
++    //SAYF("Abandoning havoc, because custom only was specified....");
++
++    /* Force UI update */
++    WARNF("paskaaaaaaaaaaaaaafewfewfewf\n");
++    show_stats();
++    /* Skip other stages */
++    ret_val = 0;
++    goto abandon_entry;
++  }/* else {
++    while (1) {
++       SAYF("POOPOOOO");
++    }
++    // SAYF("POOPOOOO");
++  }
++  */
++
++
++
+   stage_cur_byte = -1;
+ 
+   /* The havoc stage mutation code is also invoked when splicing files; if the
+@@ -8126,7 +8163,12 @@ void load_custom_library(const char *libname)
+ {
+   int result = 0;
+   SAYF("Loading custom winAFL server library\n");
++  
++
++
+   HMODULE hLib = LoadLibraryEx(libname, NULL, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
++  // HMODULE hLib = LoadLibraryEx("C:\\Users\\elsku\\winafl\\winafl\\python_mutator.dll", NULL, NULL);
++
+   if (hLib == NULL)
+     FATAL("Unable to load custom server library, GetLastError = 0x%x", GetLastError());
+ 
+diff --git a/third_party/TinyInst b/third_party/TinyInst
+--- a/third_party/TinyInst
++++ b/third_party/TinyInst
+@@ -1 +1 @@
+-Subproject commit 4d8e6ee24b6228ae8ac6632d506dc8deef5110b5
++Subproject commit 4d8e6ee24b6228ae8ac6632d506dc8deef5110b5-dirty
+diff --git a/tinyinst_afl.cpp b/tinyinst_afl.cpp
+index ea88915..95f94fa 100644
+--- a/tinyinst_afl.cpp
++++ b/tinyinst_afl.cpp
+@@ -71,6 +71,30 @@ int get_argc(char** argv) {
+   return argc;
+ }
+ 
++
++int copy_file2(const char* src_path, const char* dst_path) {
++    FILE* src = fopen(src_path, "rb");
++    if (!src) return -1;
++
++    FILE* dst = fopen(dst_path, "wb");
++    if (!dst) {
++        fclose(src);
++        return -1;
++    }
++
++    char buffer[4096];
++    size_t bytes;
++
++    while ((bytes = fread(buffer, 1, sizeof(buffer), src)) > 0) {
++        fwrite(buffer, 1, bytes, dst);
++    }
++
++    fclose(src);
++    fclose(dst);
++    return 0;
++}
++
++
+ extern "C" int tinyinst_run(char** argv, uint32_t timeout) {
+   uint32_t init_timeout = timeout;
+   DebuggerStatus status;
+@@ -88,6 +112,8 @@ extern "C" int tinyinst_run(char** argv, uint32_t timeout) {
+     timeout1 = init_timeout;
+   }
+ 
++  // WARN("Here is the value of init_timeout: %d\n", init_timeout);
++  // WARN("Here is the value of timeout1: %d\n", timeout1);
+   if (instrumentation->IsTargetAlive() && persist) {
+     status = instrumentation->Continue(timeout1);
+   } else {
+@@ -100,7 +126,16 @@ extern "C" int tinyinst_run(char** argv, uint32_t timeout) {
+   // we should wait until it is hit
+   if (instrumentation->IsTargetFunctionDefined()) {
+     if (status != DEBUGGER_TARGET_START) {
++      WARN("Here is the value of status: %d\n", status);
++      WARN("Here is the value of status: %d\n", status);
+       // try again with a clean process
++
++      // Just try to continue if we are exiting
++
++      if (status == DEBUGGER_PROCESS_EXIT) {
++        status = instrumentation->Continue(timeout);
++      }
++
+       WARN("Target function not reached, retrying with a clean process\n");
+       instrumentation->Kill();
+       cur_iteration = 0;
+@@ -139,20 +174,33 @@ extern "C" int tinyinst_run(char** argv, uint32_t timeout) {
+   case DEBUGGER_PROCESS_EXIT:
+     ret = FAULT_NONE;
+     if (instrumentation->IsTargetFunctionDefined()) {
++      copy_file2("C:\\Users\\elsku\\final\\input.svg", "C:\\Users\\elsku\\theexitinginput.svg");
+       WARN("Process exit during target function\n");
++      exit(0); // Just exit here...
+       ret = FAULT_TMOUT;
+     }
+     break;
++  case DEBUGGER_TARGET_START: // This is because of the fuzzing and shit like that....
++  // case DEBUGGER_PROCESS_EXIT: // Maube this too here...
+   case DEBUGGER_TARGET_END:
+     if (instrumentation->IsTargetFunctionDefined()) {
+       ret = FAULT_NONE;
+       cur_iteration++;
+     }
++    /*
+     else {
+       FATAL("Unexpected status received from the debugger\n");
+     }
++    */
++
++    // Ignore the fault here... this is to prevent killing the process on timeouts...
++
++    ret = FAULT_NONE;
++    cur_iteration++;
++
+     break;
+   default:
++    WARN("Got this Unexpected status shit: %d\n", status);
+     FATAL("Unexpected status received from the debugger\n");
+     break;
+   }

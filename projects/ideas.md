@@ -31,10 +31,23 @@ This is a compilation of some of my ideas, which I could do sometime.
 - Add fuzz target for avfilter_graph_parse in ffmpeg???
 - Make an autodictionary tool for webpages etc..
 - Add ways to fuzz the parsers in ffmpeg individually. As it stands, all of the parsers are being fuzzed simultaneously and that isn't really good. The parsers.c file has some pointers as to how to do about doing this. My idea is to just write one file which serves as a template and then compile all of the fuzzers individually with a compiler flag signifying which parser to use... This way each of the formats that ffmpeg supports get's fuzzed individually. Jpeg-XL seems to have the most complex parsing by just looking at the file sizes.
-
-
-
-
+- Fuzz OPX files in microsoft office.
+- Fuzz GDIplus with winafl and other windows internals...
+- Try to make a custom mutator for the EMF file format.
+- Try to fuzz with this: https://github.com/fuzzitdev/jsfuzz/tree/master the standard library of nodejs or something like that maybe???
+- Finish the microsoft office svg fuzzer...
+- Try to fuzz django for SQL injection vulns.
+- Maybe try to differential fuzz pitchfork which is made by shopify or some bullshit like that????
+- Make a content farm for youtube and automatically upload "summary style" videos or shorts to youtube, like this one here: https://www.youtube.com/watch?v=j-3QuSfDuvI
+- Fuzz windows LDAP (lsass.exe) and maybe http parsing (HTTP.sys) and mime parsing???
+- Do a custom mutator for the program fuzzer in clvm in chia netowrk maybe????
+- Fuzz python internals...
+- Fuzz chromium svg stuff in blink maybe???
+- Differential fuzz golang stdlib with other libraries like net/http...
+- Differential fuzz llhttp and apache module? (see personal_notes/20.7.2025.txt in the personal_notes repo...)
+- Maybe try to fuzz rack or some web server as a state machine or something or maybe try fuzzing for rce bugs or unexpected exceptions which may signify RCE or other stuff???
+- Fuzz mupdf css and html and maybe xps????
+- Fuzz filecoin EVM? (remember to use the FVM actual implementation instead of the MockRuntime instead)
 
 
 ## Some interesting looking stuff..

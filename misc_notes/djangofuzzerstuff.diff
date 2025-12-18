@@ -1,0 +1,155 @@
+diff --git a/fuzz_alg_comp.sh b/fuzz_alg_comp.sh
+index 2628de2..c693a85 100755
+--- a/fuzz_alg_comp.sh
++++ b/fuzz_alg_comp.sh
+@@ -1,4 +1,4 @@
+ 
+-# Just use 10k as max length
+-python3 fuzz_algorithmic_complexity.py -dict=dictionary.txt -max_len=10000 -timeout=1 corp/
++# Just use 100k as max length
++python3 fuzz_algorithmic_complexity.py -dict=dictionary.txt -max_len=1000000 -timeout=1 corp/
+ 
+diff --git a/fuzz_algorithmic_complexity.py b/fuzz_algorithmic_complexity.py
+index 9312253..1b304cd 100644
+--- a/fuzz_algorithmic_complexity.py
++++ b/fuzz_algorithmic_complexity.py
+@@ -1,13 +1,22 @@
+ import sys
+ import atheris
+ import mutator # Custom mutator
++import time # For measuring exec time...
++import copy
++import pickle
++import os
+ 
+ with atheris.instrument_imports():
+     import fuzzers
+     from django.core.exceptions import SuspiciousOperation
+ 
+-
++COUNT = 100
++worst_cases = [(0.0,None) for _ in range(COUNT)] # List of pairs of worst time, and input pairs.
++counter = 0
++SKIP_AMOUNT = 10000
+ def TestOneInput(data):
++    global counter
++    global worst_cases
+     if len(data) == 0: # We use the first byte to choose the test, so therefore we can not process empty inputs.
+         return
+     #assert len(fuzzers.tests) <= 256 # must fit in a byte....
+@@ -17,15 +26,31 @@ def TestOneInput(data):
+     func, data_type = fuzzers.tests_str[choice]
+     # assert data_type == str # Should be string...
+     # Here in the original version we used the fuzz data provider to generate inputs, however in this fork we just use only the functions which take strings.
++    start = time.time()
+     try:
+         data = data.decode("utf-8") # Try to decode as hex. All the functions should only take string input, therefore 
+         func(data)
+-    except (UnicodeDecodeError, SuspiciousOperation):
++    except (UnicodeDecodeError, SuspiciousOperation, AssertionError):
+         # Just ignore decode errors
+         return
+     except Exception:
+         print(func, data_type, repr(data))
+         raise
++    tot_time = time.time() - start # The total exec time
++    wc = worst_cases[0] # Compare to the first.
++    if wc[0] < tot_time: # If the new time is worse aka more than the previous, then put this new sample to the start of the list and pop the last one
++        worst_cases = [copy.deepcopy(tuple((tot_time, data)))] + worst_cases
++        worst_cases.pop(-1) # Get rid of the last element.
++        assert len(worst_cases) == COUNT
++    # Now save the thing...
++    if counter % SKIP_AMOUNT == 0: # Save every SKIP_AMOUNT iterations.
++        os.system("rm worst_cases.pkl") # Remove the old file...
++        with open('worst_cases.pkl', 'wb') as f:
++            pickle.dump(data, f)
++
++
++
++    counter += 1
+     return
+ 
+ def CustomMutator(data, max_size, seed):
+@@ -35,6 +60,8 @@ def CustomMutator(data, max_size, seed):
+         res = atheris.Mutate(data, len(data))
+     else:
+         res = atheris.Mutate(res, len(res))
++    print(len(res))
++    res = res * 10
+     if len(res) >= max_size: # Truncate inputs which are too long...
+         return res[:max_size]
+     return res
+diff --git a/fuzzers.py b/fuzzers.py
+index 554c2b7..f50710a 100644
+--- a/fuzzers.py
++++ b/fuzzers.py
+@@ -143,7 +143,8 @@ def test_strip_spaces_between_tags(inp):
+ 
+ def test_strip_tags(inp):
+     try:
+-        strip_tags(inp)
++        # strip_tags(inp)
++        return
+     except NotImplementedError:  # TODO: this should be fixed
+         pass
+ 
+@@ -157,12 +158,13 @@ def test_smart_split(inp):
+ 
+ 
+ def test_Truncator(inp):
+-    text.Truncator(inp).words(8, "...", html=True)
++    return 
++    # text.Truncator(inp).words(8, "...", html=True)
+ 
+ 
+-def test_wrap(inp):
+-    text.wrap(inp, 8)
+-
++def test_wrap(inp): # Just skip this (for now)
++    # text.wrap(inp, 8)
++    return
+ 
+ def test_normalize_newlines(inp):
+     text.normalize_newlines(inp)
+@@ -230,11 +232,13 @@ def test_filepath_to_uri(inp):
+ 
+ 
+ def test_iri_to_uri(inp):
++    # return
+     iri_to_uri(inp)
+ 
+ 
+ def test_uri_to_iri(inp):
+-    uri_to_iri(inp)
++    return
++    # uri_to_iri(inp)
+ 
+ 
+ def test_smart_str(inp):
+diff --git a/mutator.py b/mutator.py
+index dc41046..c1b8c3d 100644
+--- a/mutator.py
++++ b/mutator.py
+@@ -5,15 +5,15 @@ import sys
+ 
+ # Custom mutator parameters. Tweak these for your use case.
+ 
+-MAXIMUM_LENGTH = 100_000 # Absolute maximum length of the generated data.
++MAXIMUM_LENGTH = 100_0000 # Absolute maximum length of the generated data.
+ NEW_DATA_CHANCE = 0.01 # Possibility of creating an entirely new string
+-MAX_REPEAT_COUNT = 100_00 # Maximum amount of repetitions
+-MAX_REPEAT_LENGTH = 10000 # Maximum length of the repeating stuff
+-MAX_REPEAT_COUNT_LINEAR = 10000
+-MIN_REPEAT_COUNT_LINEAR = 200
+-MAX_REPEAT_TOKEN_LENGTH = 5 # Maximum length of the string which to repeat.
++MAX_REPEAT_COUNT = 300_000 # Maximum amount of repetitions
++MAX_REPEAT_LENGTH = 30000 # Maximum length of the repeating stuff
++MAX_REPEAT_COUNT_LINEAR = 100000
++MIN_REPEAT_COUNT_LINEAR = 2000
++MAX_REPEAT_TOKEN_LENGTH = 50 # Maximum length of the string which to repeat.
+ MAX_REPEAT_STRING_COUNT = 10 # Maximum amount of repeating substrings
+-MAX_SUBSTRING_LENGTH = 10
++MAX_SUBSTRING_LENGTH = 20
+ 
+ def f(x: float) -> float: # Function (this is assumed to be growing in the period 0 <= x <= 1)
+     return (x + 0.6) ** 3 + max(MIN_REPEAT_COUNT_LINEAR, round(MAX_REPEAT_COUNT_LINEAR * x))

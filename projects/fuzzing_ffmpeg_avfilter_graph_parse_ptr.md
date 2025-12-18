@@ -7499,6 +7499,8 @@ Shadow byte legend (one shadow byte represents 8 application bytes):
 
 the contents of the input file are just "bm3d" . When running with the in-memory file it runs normally. I think we can just banlist bm3d from the input and continue, but I think that we should later on actually fix this properly.
 
+Okay, so I think the next step is to just create a custom mutator for filtergraphs I think...
+
 
 
 
