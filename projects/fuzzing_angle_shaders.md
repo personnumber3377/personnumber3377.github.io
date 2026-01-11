@@ -172,3 +172,134 @@ which results in:
 ```
 
 ```
+
+## Improving the custom mutator even further... by comparing against a real vulnerability
+
+See https://issuetracker.google.com/issues/437845672
+
+Ok, so after a ton of fiddling around I now have commit 7edea230908a2ef34650f44c405079101184e889 . The goal right now is to make the custom mutator find the previous bug.
+
+The bug was because I wasn't actually mutating the qualifiers of struct definitions. After actually adding this code here:
+
+```
+        # 🔥 THIS IS THE IMPORTANT PART 🔥
+        # if it.declarators and coin(rng, 0.35):
+        if coin(rng, 0.50):
+            d = rng.choice(it.declarators)
+
+            old = list(d.qualifiers)
+            dlog("stuff")
+            mutate_declarator_qualifiers(
+                d,
+                rng,
+                storage_pool=["uniform", "buffer", "const", None],
+                precision_pool=PRECISION_QUALIFIERS,
+            )
+
+            # optional debug / assert-chasing hook
+            if "uniform" in d.qualifiers and "uniform" not in old:
+                global stop
+                stop = True
+
+
+        # mutate declarators
+        if it.declarators and coin(rng, 0.10):
+            rng.shuffle(it.declarators)
+        if it.declarators and coin(rng, 0.20):
+            d = it.declarators[rng.randrange(len(it.declarators))]
+            if d.array_size is not None:
+                d.array_size = mutate_expr(d.array_size, rng, dummy_scope, env)
+```
+
+it now rediscovers the previous bug.
+
+## Implementing custom crossover...
+
+Ok, so time to implement custom crossover...
+
+So I added the custom crossover shit here:
+
+```
+
+
+// Also add the custom crossover function thing here:
+
+extern "C" size_t LLVMFuzzerCustomCrossOver(const uint8_t *Data1, size_t Size1,
+                                            const uint8_t *Data2, size_t Size2,
+                                            uint8_t *Out, size_t MaxOutSize,
+                                            unsigned int Seed) {
+  // If python module missing or python crossover missing -> fallback to default
+  // NOTE: libFuzzer provides LLVMFuzzerCrossOver in some builds, but not always.
+  // Safer fallback: just memcpy prefix/suffix or call LLVMFuzzerMutate on one.
+  if (!py_module || !py_functions[PY_FUNC_CUSTOM_CROSSOVER]) {
+    size_t n = Size1 < MaxOutSize ? Size1 : MaxOutSize;
+    memcpy(Out, Data1, n);
+    return n;
+  }
+
+  PyGILState_STATE gstate = PyGILState_Ensure();
+
+  // args: (data1, data2, max_out_size, seed)
+  PyObject *py_args = PyTuple_New(4);
+
+  PyObject *py_d1 = PyByteArray_FromStringAndSize((const char *)Data1, Size1);
+  PyObject *py_d2 = PyByteArray_FromStringAndSize((const char *)Data2, Size2);
+  PyObject *py_max = PyLong_FromSize_t(MaxOutSize);
+  PyObject *py_seed = PyLong_FromUnsignedLong((unsigned long)Seed);
+
+  if (!py_d1 || !py_d2 || !py_max || !py_seed) {
+    Py_XDECREF(py_d1); Py_XDECREF(py_d2); Py_XDECREF(py_max); Py_XDECREF(py_seed);
+    Py_DECREF(py_args);
+    PyGILState_Release(gstate);
+    fprintf(stderr, "Error: Failed to build crossover args.\n");
+    py_fatal_error();
+  }
+
+  PyTuple_SetItem(py_args, 0, py_d1);
+  PyTuple_SetItem(py_args, 1, py_d2);
+  PyTuple_SetItem(py_args, 2, py_max);
+  PyTuple_SetItem(py_args, 3, py_seed);
+
+  PyObject *py_value = PyObject_CallObject(py_functions[PY_FUNC_CUSTOM_CROSSOVER], py_args);
+  Py_DECREF(py_args);
+
+  if (!py_value) {
+    if (PyErr_Occurred()) PyErr_Print();
+    PyGILState_Release(gstate);
+    fprintf(stderr, "Error: Python custom_crossover call failed\n");
+    py_fatal_error();
+  }
+
+  ssize_t ReturnedSize = PyByteArray_Size(py_value);
+  if (ReturnedSize < 0) ReturnedSize = 0;
+  if ((size_t)ReturnedSize > MaxOutSize) ReturnedSize = (ssize_t)MaxOutSize;
+
+  memcpy(Out, PyByteArray_AsString(py_value), (size_t)ReturnedSize);
+  Py_DECREF(py_value);
+
+  PyGILState_Release(gstate);
+  return (size_t)ReturnedSize;
+}
+
+
+```
+
+and then after recompiling it now calls that python function...
+
+Let's just put this kind of thing here:
+
+```
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
