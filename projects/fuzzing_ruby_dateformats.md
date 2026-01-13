@@ -21,6 +21,7 @@ After that I then copied this example program from here: https://silverhammermba
 
 Here it is:
 
+{% raw %}
 ```
 
 #include <ruby.h>
@@ -37,6 +38,7 @@ int main(int argc, char* argv[])
 }
 
 ```
+{% endraw %}
 
 The compilation process is this: `gcc -I/usr/include/ruby-3.0.0 -I/usr/include/ruby-3.0.0/x86_64-linux -lruby`
 
@@ -44,6 +46,7 @@ Notice the `-lruby` ? This is basically `libruby.so` , but there isn't a library
 
 After compiling again, we now have `libruby.so` ! Great!
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Asioita/Hakkerointi/Rubydatetime/ruby/install$ find . | grep libruby
 ./lib/libruby.so.3.4
@@ -51,18 +54,22 @@ cyberhacker@cyberhacker-h8-1131sc:~/Asioita/Hakkerointi/Rubydatetime/ruby/instal
 ./lib/libruby.so.3.4.0
 
 ```
+{% endraw %}
 
 
 Now we just need to compile the actual program. Shouldn't be that hard right? :D
 
 Here is my command:
 
+{% raw %}
 ```
 gcc -Iinstall/include/ruby-3.4.0+0 -Iinstall/include/ruby-3.4.0+0/x86_64-linux -Linstall/lib/ -lruby ./oof.c -o oof
 ```
+{% endraw %}
 
 and here is the error which I get:
 
+{% raw %}
 ```
 /usr/bin/ld: /tmp/cckUnrHf.o: in function `main':
 oof.c:(.text+0x23): undefined reference to `ruby_init'
@@ -70,6 +77,7 @@ oof.c:(.text+0x23): undefined reference to `ruby_init'
 collect2: error: ld returned 1 exit status
 
 ```
+{% endraw %}
 
 sooooo what gives?
 
@@ -79,10 +87,12 @@ Now my computer just decided to automatically update. Thanks linux mint. Now I c
 
 After doing `export PKG_CONFIG_PATH=$PWD` in the directory where I had the `.pc` file, I got this:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Asioita/Hakkerointi/Rubydatetime/ruby$ pkg-config --cflags --libs ruby-3.3
 -I/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/include/ruby-3.3.0+0/x86_64-linux -I/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/include/ruby-3.3.0+0 -L/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/lib -Wl,--compress-debug-sections=zlib -Wl,-rpath,/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/lib -lruby -lm -lpthread
 ```
+{% endraw %}
 
 Ok so let's add this to the compile command? No. Fuck!
 
@@ -92,6 +102,7 @@ And holy shit I am retarded. As it turns out, the order of linking matters for s
 
 After running this instead: 
 
+{% raw %}
 ```
 
 gcc -c -I/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/include/ruby-3.3.0+0/x86_64-linux -I/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/include/ruby-3.3.0+0 -L/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/lib -Wl,--compress-debug-sections=zlib -Wl,-rpath,/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/lib -lruby -lm -lpthread -Iinstall/include/ruby-3.3.0+0 -Iinstall/include/ruby-3.3.0+0/x86_64-linux -Linstall/lib/ -L.  ./oof.c -o oof.o
@@ -101,6 +112,7 @@ gcc -c -I/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/include
 gcc ./oof.o -I/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/include/ruby-3.3.0+0/x86_64-linux -I/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/include/ruby-3.3.0+0 -L/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/lib -Wl,--compress-debug-sections=zlib -Wl,-rpath,/home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/install/lib -lruby -lm -lpthread -Iinstall/include/ruby-3.3.0+0 -Iinstall/include/ruby-3.3.0+0/x86_64-linux -Linstall/lib/ -L. -o oof
 
 ```
+{% endraw %}
 
 it now links and we get an executable! Great!
 
@@ -111,16 +123,19 @@ Yeah, fuck that. Let's fuzz unmarshalling instead. After compiling I do not find
 
 Ok, so I decided to check if the vulnerability is actually findable with afl, so I decided to compile the thing with the patch removed. Thankfully the guy also provided a crashing input, so let's see what happens:
 
+{% raw %}
 ```
 # xxd marshal-overflow
 0000000: 0408 3afc ffff ff7f 3030 3030 3030 3030  ..:.....00000000
 0000010: 3030 3030
 ```
+{% endraw %}
 
 I am going to remove the patch and compile again and see if it crashes.
 
 Here is the thing before:
 
+{% raw %}
 ```
 void
 rb_str_modify_expand(VALUE str, long expand)
@@ -144,9 +159,11 @@ rb_str_modify_expand(VALUE str, long expand)
     ENC_CODERANGE_CLEAR(str);
 }
 ```
+{% endraw %}
 
 and here it is after:
 
+{% raw %}
 ```
 
 void
@@ -169,6 +186,7 @@ rb_str_modify_expand(VALUE str, long expand)
 }
 
 ```
+{% endraw %}
 
 and let's see if it crashes with the input.
 
@@ -185,6 +203,7 @@ source "$HOME/.cargo/env"
 
 Ok, so after a long while of searching I finally found this: https://stackoverflow.com/questions/3222171/ruby-c-extension-using-singleton which tells how to call `DateTime` in ruby c api. Here is my current wrapper code:
 
+{% raw %}
 ```
 
 
@@ -401,11 +420,13 @@ int main(int argc, char **argv) {
 
 
 ```
+{% endraw %}
 
 that actually calls `DateTime.now` instead of the parsing function, but whatever.
 
 Here is the actual parse function:
 
+{% raw %}
 ```
 
 
@@ -416,6 +437,7 @@ Here is the actual parse function:
 		rb_funcall(singletonmodule,rb_intern("parse"), 1, date_string);
 
 ```
+{% endraw %}
 
 
 

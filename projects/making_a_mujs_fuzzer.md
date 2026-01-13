@@ -6,16 +6,19 @@ Ok, so our target is this here: https://github.com/ccxvii/mujs looking at the is
 
 Something like this maybe???
 
+{% raw %}
 ```
 #!/bin/sh
 
 CC=clang CXX=clang++ CFLAGS="-fsanitize=address,undefined,fuzzer-no-link" CXXFLAGS="-fsanitize=address,undefined,fuzzer-no-link" make -j$(nproc) release
 ```
+{% endraw %}
 
 that doesn't work, since the Makefile doesn't respect CFLAGS: `CFLAGS = -std=c99 -pedantic -Wall -Wextra -Wno-unused-parameter` so we need to modify the makefile itself. Maybe something like this here: `CFLAGS = -fsanitize=address,undefined,fuzzer-no-link -std=c99 -pedantic -Wall -Wextra -Wno-unused-parameter` and that seemed to work.
 
 Now it is time to actually make the fuzzer:
 
+{% raw %}
 ```
 
 // regex_fuzzer.c
@@ -63,9 +66,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
 
 ```
+{% endraw %}
 
 Ok, so I modified my fuzzer a bit and I now have this here:
 
+{% raw %}
 ```
 #include <stdio.h>
 #include <string.h>
@@ -133,6 +138,7 @@ extern "C" int LLVMFuzzerInitialize(int *argc, char ***argv) {
         return 0;
 }
 ```
+{% endraw %}
 
 Which seems to fuzz nicely. I am going to update you on the results a bit later on...
 

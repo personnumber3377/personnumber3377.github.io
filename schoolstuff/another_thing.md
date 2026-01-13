@@ -2,14 +2,17 @@
 
 Ok, so I was given this assignment: 
 
+{% raw %}
 ```
 
 ```
+{% endraw %}
 
 the difficulty arises from treating other variables as dependent variables.
 
 My initial try was this:
 
+{% raw %}
 ```
 
 from sympy import *
@@ -31,6 +34,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 but this won't work, because they are dependent stuff...
 

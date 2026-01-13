@@ -8,11 +8,13 @@ This is just a linear optimization problem. Here is a prompt for chatgpt which b
 
 and here is the answer:
 
+{% raw %}
 ```
 
 This problem can be solved as an integer linear programming (ILP) problem because all variables are nonnegative integers, and you are minimizing a linear objective function subject to linear equality constraints. Here's the structured approach:
 
 ```
+{% endraw %}
 
 chatgpt originally gave an answer which just used a solver library, but that is cheating. I wan't to know how it works. Let's ask it to write one without the help of a library:
 
@@ -20,6 +22,7 @@ This problem is closely correlated to diophantime equations.
 
 Chatgpt gave this answer:
 
+{% raw %}
 ```
 4. Implementation
 Here’s a Python implementation using direct computation and solving for integer constraints:
@@ -83,6 +86,7 @@ Optimization: Evaluates the cost function for all valid
 𝑘
 k values within a reasonable range.
 ```
+{% endraw %}
 
 which basically is just a diophantine equation solver which solves a particular solution.
 
@@ -92,6 +96,7 @@ Let's try to implement it ourselves.
 
 Here is my backbone:
 
+{% raw %}
 ```
 
 
@@ -123,9 +128,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Ok, so after like an hour of trying shit I now have this which I basically copied from wikipedia:
 
+{% raw %}
 ```
 
 def extended_euclidean_algorithm(a,b,c):
@@ -149,6 +156,7 @@ def extended_euclidean_algorithm(a,b,c):
 	return r0, s0*k, t0*k # r0 is gcd, s0 and t0 are the coefficients
 
 ```
+{% endraw %}
 
 Now `s0*k` is basically x0 and `t0*k` is y0 initial answers, then the actual value for x is basically just this: https://math.stackexchange.com/questions/2018981/how-do-you-solve-diophantine-equations-using-euclidean-algorithm aka  x0 + t*(b/r0) and y is just y0 + t*(a/r0)
 
@@ -158,6 +166,7 @@ except maybe we can't do that because the k in x is not the same as the k in y??
 
 Here is my current code (see my notes for the explanation for the formulas):
 
+{% raw %}
 ```
 
 
@@ -349,9 +358,11 @@ if __name__=="__main__":
 	exit(ret)
 
 ```
+{% endraw %}
 
 This code has some sort of bug in it:
 
+{% raw %}
 ```
 
 ==============================
@@ -394,6 +405,7 @@ Values:
 0
 
 ```
+{% endraw %}
 
 
 so let's get to debugging....
@@ -402,6 +414,7 @@ so let's get to debugging....
 
 I had the a_shit multiple times. I changed the code to this: `a_shit, b_shit, prize = [int(x[2:]) for x in a_shit.split(", ")], [int(x[2:]) for x in b_shit.split(", ")], [int(x[2:]) for x in prize.split(", ")]` and now it seems to atleast parse the input correctly. Now it calculates the solutions incorrectly:
 
+{% raw %}
 ```
 Finite solutions...
 Here is the actual_x: -16640.0
@@ -412,9 +425,11 @@ Here is the actual_x: 38.0
 Finite solutions...
 Here is the actual_x: -24121.161757830763
 ```
+{% endraw %}
 
 notice that the third solution is actually correct, but the other three are incorrect. There is a problem with this line: `actual_x = x0 + t*(d_blue_x)` we need to divide this by the gcd thing: `actual_x = x0 + t*(d_blue_x/gcd_thing)` and now I get this output:
 
+{% raw %}
 ```
 
 [['Button A: X+94, Y+34\n', 'Button B: X+22, Y+67\n', 'Prize: X=8400, Y=5400\n'], ['Button A: X+26, Y+66\n', 'Button B: X+67, Y+21\n', 'Prize: X=12748, Y=12176\n'], ['Button A: X+17, Y+86\n', 'Button B: X+84, Y+37\n', 'Prize: X=7870, Y=6450\n'], ['Button A: X+69, Y+23\n', 'Button B: X+27, Y+71\n', 'Prize: X=18641, Y=10279']]
@@ -429,16 +444,19 @@ Here is the actual_x: 244.50163627863367
 0
 
 ```
+{% endraw %}
 
 Now the first and third are correct... Let's try to figure out what is going on with the other two...
 
 Both of these are equations which don't have solutions:
 
+{% raw %}
 ```
 
 For the second and fourth claw machines, there is no combination of A and B presses that will ever win a prize.
 
 ```
+{% endraw %}
 
 so therefore we need to add some code to check if the solution doesn't actually even exist. Now to check for the solutions existence we need to take the module between the rhs and the gcd. If the modulo is zero, then solution exists and if not, then solution doesn't exist...
 
@@ -446,13 +464,16 @@ Let's add a check...
 
 here:
 
+{% raw %}
 ```
 if K_x % gcd_thing != 0 or K_y % gcd(d_red_y, d_blue_y) != 0:
 		return None # No solution
 ```
+{% endraw %}
 
 Now we get this output:
 
+{% raw %}
 ```
 Finite solutions...
 Here is the actual_x: 80.0
@@ -462,6 +483,7 @@ Here is the actual_x: 38.0
 Finite solutions...
 0
 ```
+{% endraw %}
 
 
 
@@ -477,19 +499,23 @@ Now let's inspect the test case which fucks us over...
 
 This testcase is fucking us over:
 
+{% raw %}
 ```
 Button A: X+40, Y+26
 Button B: X+13, Y+42
 Prize: X=17433, Y=2622
 ```
+{% endraw %}
 
 So passing these parameters:
 
+{% raw %}
 ```
 40
 13
 17433
 ```
+{% endraw %}
 
 to `extended_euclidean_algorithm` results in an erroneous output.
 
@@ -500,6 +526,7 @@ extended_euclidean_algorithm(40, 13, 17433)
 
 Ok, so here is my current code:
 
+{% raw %}
 ```
 
 
@@ -741,6 +768,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and this bullshit doesn't work...
 
@@ -750,6 +778,7 @@ I added a another sanity checking spot: `assert d_red_y*actual_x + d_blue_y*actu
 
 After a shit ton of debugging I found the fucking bug. I had to comment out this part:
 
+{% raw %}
 ```
 	if x0 == 0 or y0 == 0:
 		print("fefe")
@@ -758,11 +787,13 @@ After a shit ton of debugging I found the fucking bug. I had to comment out this
 			return None
 		return x0, y0
 ```
+{% endraw %}
 
 and now it works, this is because I didn't really understand that stuff.
 
 Here is my final code:
 
+{% raw %}
 ```
 
 
@@ -1050,6 +1081,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 On to part 2!!!!
 

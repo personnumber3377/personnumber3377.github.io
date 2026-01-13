@@ -8,6 +8,7 @@ Looking at CMakeLists.txt there appears to be a variable called BUILD_STATIC_LIB
 
 Let's add this fuzzer.c source code: (this is based on the code found in ffmpeg)
 
+{% raw %}
 ```
 
 
@@ -74,19 +75,23 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 
 
 ```
+{% endraw %}
 
 it tries to somewhat mimic the functionality found in ffmpeg for fuzzing purposes. Now let's add the modifications to CMakeLists.txt
 
+{% raw %}
 ```
 
 
 
 ```
+{% endraw %}
 
 
 
 here:
 
+{% raw %}
 ```
 
 export ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
@@ -95,6 +100,7 @@ cmake -DCMAKE_BUILD_TYPE=Debug -DADDRESS_SANITIZE=ON -DVDEBUG=1 ..
 make all test
 
 ```
+{% endraw %}
 
 That actually seems to compile the fuzzer! After a couple of fixes I am now in commit 5a45c42f8185aa70a1d4d80ce270dbb4a51fc7c2 ! Thanks for reading!
 

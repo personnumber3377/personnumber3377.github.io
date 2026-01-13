@@ -2,6 +2,7 @@
 
 Ok, so I have already written up this code here:
 
+{% raw %}
 ```
 
 
@@ -84,6 +85,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 which seems to work for part1
 
@@ -95,6 +97,7 @@ I think there is a problem with this approach, because reasons.
 
 Here is my bruteforce solve:
 
+{% raw %}
 ```
 
 def check_conditions_skip_one(l1):
@@ -116,6 +119,7 @@ def check_conditions_skip_one(l1):
 
 
 ```
+{% endraw %}
 
 
 which basically does a bruteforce solve which is fucking stupid. There was a way better way of solving this here:

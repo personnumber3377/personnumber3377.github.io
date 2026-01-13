@@ -53,6 +53,7 @@ This is a compilation of some of my ideas, which I could do sometime.
 ## Some interesting looking stuff..
 
 
+{% raw %}
 ```
 
 # This is taken from https://libc-alpha.sourceware.narkive.com/1BhjzIpn/is-there-a-fuzzer-for-libc
@@ -81,6 +82,7 @@ https://sourceware.org/bugzilla/show_bug.cgi?id=17062 (already fixed).
 
 
 ```
+{% endraw %}
 
 https://sourceware.org/glibc/wiki/FuzzingLibc
 

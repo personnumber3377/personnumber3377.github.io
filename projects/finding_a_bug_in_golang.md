@@ -5,6 +5,7 @@ Ok, so after scrolling on youtube and finding this video here: https://www.youtu
 
 this seems quite sus:
 
+{% raw %}
 ```
 
 
@@ -23,9 +24,11 @@ func (r *Reader) closeDot() {
 }
 
 ```
+{% endraw %}
 
 and here is a function where it is being used:
 
+{% raw %}
 ```
 
 // ReadResponse reads a multi-line response of the form:
@@ -81,9 +84,11 @@ func (r *Reader) ReadResponse(expectCode int) (code int, message string, err err
 }
 
 ```
+{% endraw %}
 
 I think there may be a possibility of a bug here, because this here: `buf := make([]byte, 128)` allocates memory, but then we call this `closeDot` function in readLineSlice:
 
+{% raw %}
 ```
 
 func (r *Reader) readLineSlice(lim int64) ([]byte, error) {
@@ -122,6 +127,7 @@ func (r *Reader) ReadLine() (string, error) {
 
 
 ```
+{% endraw %}
 
 and this readLine function is ultimately used in the ReadResponse function..
 
@@ -131,6 +137,7 @@ https://nowotarski.info/golang-textproto-reader/
 
 This here also seems sus:
 
+{% raw %}
 ```
 
 // readCookies parses all "Cookie" values from the header h and
@@ -173,6 +180,7 @@ func readCookies(h Header, filter string) []*Cookie {
 }
 
 ```
+{% endraw %}
 
 
 

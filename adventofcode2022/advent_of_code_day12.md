@@ -6,6 +6,7 @@ This is quite a fun little challenge.
 
 First things first let's program the parse function for the input. I think I want to make a numpy matrix.
 
+{% raw %}
 ```
 
 
@@ -35,6 +36,7 @@ def get_map() -> np.array:
 
 
 ```
+{% endraw %}
 
 Now my idea is to just make a modified version of a pathfinding algorithm. https://en.wikipedia.org/wiki/Pathfinding#Sample_algorithm
 
@@ -42,6 +44,7 @@ Except that instead of the walls, we have a condition to check if we can move.
 
 After a bit of dabbling I now have this:
 
+{% raw %}
 ```
 
 
@@ -143,9 +146,11 @@ def solve() -> int:
 
 
 ```
+{% endraw %}
 
 Now, there is a bug because I get this error when I run it with the example input:
 
+{% raw %}
 ```
 
 Traceback (most recent call last):
@@ -162,9 +167,11 @@ IndexError: index 5 is out of bounds for axis 0 with size 5
 
 
 ```
+{% endraw %}
 
 After fixing one bug in it, it still does not work:
 
+{% raw %}
 ```
 
 
@@ -274,9 +281,11 @@ def solve() -> int:
 
 
 ```
+{% endraw %}
 
 This never finds the path. I think I should actually follow the advice of the wikipedia page and do it that way.
 
+{% raw %}
 ```
 
 
@@ -472,11 +481,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 After actually implementing the wikipedia algorithm, we now get 25 as the result for the toy example. I programmed a render_solution function which tells us the problem.
 
 Looking at the render_solution output:
 
+{% raw %}
 ```
 
 [[ 0.  0.  1. 18. 17. 16. 15. 14.]
@@ -486,9 +497,11 @@ Looking at the render_solution output:
  [ 3.  4.  5.  6.  7.  8.  9. 10.]]
 
 ```
+{% endraw %}
 
 I overlooked one crucial detail in the challenge statement: "... the location that should get the best signal (E) has elevation z." . There is the problem. After setting the end to z height by modifying the parser function:
 
+{% raw %}
 ```
 
 def get_map() -> np.array:
@@ -519,6 +532,7 @@ def get_map() -> np.array:
 	return out_matrix, start_point, end_point, mat_width, mat_height
 
 ```
+{% endraw %}
 
 Now it works with the toy input. What about the actual input? Aaaaannnd no. It doesn't work. I am going to solve this tomorrow.
 
@@ -528,19 +542,23 @@ Now it works with the toy input. What about the actual input? Aaaaannnd no. It d
 
 Let's make a function which shows the route by going from the end and advancing to the next step. Except let's not do that because the bug was in the lines:
 
+{% raw %}
 ```
 	shit_oof = set({tuple((0,0))})
 	shit_oof2 = set({tuple((0,0,0))})
 ```
+{% endraw %}
 
 because I just assumed the start was at 0,0 , when I changed them to this:
 
+{% raw %}
 ```
 
 	shit_oof = set({tuple(start_point)})
 	shit_oof2 = set({tuple((start_point[0],start_point[1], 0))})
 
 ```
+{% endraw %}
 
 Now it works perfectly.
 
@@ -552,6 +570,7 @@ Instead of jumping to the second part straight away, I am going to first optimiz
 
 Cprofile:
 
+{% raw %}
 ```
 
 [[ 19.  20.  21. ... 228. 229. 230.]
@@ -594,6 +613,7 @@ Cprofile:
 
 
 ```
+{% endraw %}
 
 
 I found this: https://github.com/mahakaal/adventofcode/blob/main/2022/day12/day12.py  on this reddit comment: https://www.reddit.com/r/adventofcode/comments/zjnruc/comment/j3ja3na/?utm_source=share&utm_medium=web2x&context=3
@@ -604,6 +624,7 @@ I modified it such that it takes input from stdin, so that does not affect anyth
 
 Here are the results:
 
+{% raw %}
 ```
 
 Part 1 - 472
@@ -635,9 +656,11 @@ Part 1 - 472
 
 
 ```
+{% endraw %}
 
 Yeah, I have a long way to go. First let's do a code cleanup. I have a nasty habit of leaving the comments from my previous tries in instead of just removing the code. Then another idea is that I am actually going through a lot of spaces which aren't really used in a way. Instead of going through all of the spots, we can just go through the spots which are new. This decreases the execution time to a lot less:
 
+{% raw %}
 ```
 
 472
@@ -654,6 +677,7 @@ Yeah, I have a long way to go. First let's do a code cleanup. I have a nasty hab
       280    0.005    0.000    0.015    0.000 <frozen importlib._bootstrap_external>:1676(find_spec)
 
 ```
+{% endraw %}
 
 
 

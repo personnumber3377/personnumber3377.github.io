@@ -7,6 +7,7 @@ Ok so we basically need to count all of the ways to finish the race while going 
 
 Let's program a skeleton solver without the meat:
 
+{% raw %}
 ```
 import sys
 
@@ -28,6 +29,7 @@ def main() -> None:
 if __name__=="__main__":
 	exit(main())
 ```
+{% endraw %}
 Instead of going straight to the naive method, let's first try to model this problem with math. Our total time which we actually go forward is `t - c` where t is the total time and c is the charging time. Our velocity increases by one unit for every unit of time we charge, so our velocity is simply `c` units. Because distance is time times speed, we therefore go forward `c * (t - c)` units. Now, we want the intersection points between this graph and a horizontal line where `y=distance` where distance is the distance from our puzzle input, therefore we have an equation: `c * (t - c) = distance` and we need to solve this with respect to c (the charging time) and then get the highestand lowest bounds using math.ceil() and math.floor() to get the amount of integer solutions. Let's solve this using wolframalpha.
 
 ![](pictures/wolframalpha.png)
@@ -36,6 +38,7 @@ There you go!
 
 Here was my first implementation of this:
 
+{% raw %}
 ```
 import sys
 import math
@@ -73,9 +76,11 @@ def main() -> None:
 if __name__=="__main__":
 	exit(main())
 ```
+{% endraw %}
 
 Except that it doesn't work, because in the very last case, we have 10.0 and 20.0 as solutions to the equation, and since those are integers represented as a float, the math.ceil and math.floor do not do anything to them, so we actually count cases where we tie the best distance, not exceed it. That is why my answer was wrong. After adding a couple of checks:
 
+{% raw %}
 ```
 
 def get_sols(distance: int, time: int) -> tuple:
@@ -90,6 +95,7 @@ def get_sols(distance: int, time: int) -> tuple:
 	return math.ceil(sol1), math.floor(sol2)
 
 ```
+{% endraw %}
 
 Now our code works perfectly. Though there may exist a more efficient way to handle this edge case.
 
@@ -98,6 +104,7 @@ Now our code works perfectly. Though there may exist a more efficient way to han
 Ok, so I guess the challenge expected you to solve part 1 the naive way and then do part 2 the optimized way, but I did the optimized way first, so the only things we need to do for part 2 is to modify the integer concatenation and we should be good.
 
 Here is the modified version, which ignores the spaces in the input:
+{% raw %}
 ```
 import sys
 import math
@@ -155,11 +162,13 @@ def main() -> None:
 if __name__=="__main__":
 	exit(main())
 ```
+{% endraw %}
 
 and it works, but I think we can actually make this faster, by making the nums a set instead of a string.
 
 Like so:
 
+{% raw %}
 ```
 import sys
 import math
@@ -217,6 +226,7 @@ def main() -> None:
 if __name__=="__main__":
 	exit(main())
 ```
+{% endraw %}
 
 ## Comparing with other solutions
 

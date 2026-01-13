@@ -14,6 +14,7 @@ After compiling httpd with afl-clang-fast and afl-clang-fast++ as compilers and 
 
 Here is the source code of the request fuzzer:
 
+{% raw %}
 ```
 
 /* Copyright 2021 Google LLC
@@ -160,11 +161,13 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
 
 ```
+{% endraw %}
 
 but then if you look at the `r->the_request` construct, it actually is only the very first line of the request, not the request text as a whole. This means that we are only fuzzing the parsing logic, which parses the very first line of each HTTP request. To improve this situation, we should find a function which actually parses the entire request instead of just the first line.
 
 After simply grepping for "parse" and "request", I found this in request.c :
 
+{% raw %}
 ```
 
 /* This is the master logic for processing requests.  Do NOT duplicate
@@ -177,6 +180,7 @@ AP_DECLARE(int) ap_process_request_internal(request_rec *r)
     // SNIP
 
 ```
+{% endraw %}
 
 Maybe we should use ap_process_request_internal instead? Let's look at the documentation: https://nightlies.apache.org/httpd/trunk/doxygen/group__APACHE__CORE__REQ.html#ga7cf27cfba3c6dd2c9ad8685dd515923e
 
@@ -184,6 +188,7 @@ Oh, so that function is actually used by in turn ap_process_request . There is a
 
 There is this code in http_request.c in the http module:
 
+{% raw %}
 ```
 
 void ap_process_async_request(request_rec *r)
@@ -291,11 +296,13 @@ AP_DECLARE(void) ap_process_request(request_rec *r)
 
 
 ```
+{% endraw %}
 
 ap_process_request seems like a promising target for fuzzing.
 
 In http_core.c there is this code:
 
+{% raw %}
 ```
 
 static int ap_process_http_sync_connection(conn_rec *c)
@@ -362,6 +369,7 @@ static int ap_process_http_sync_connection(conn_rec *c)
 }
 
 ```
+{% endraw %}
 
 so I think what we need to do is replicate in our wrapper what the code in `ap_read_request(c)` does. But in fuzz_request.c (the fuzzing wrapper), there is this comment: `/* Simulate ap_read_request */` so I think we do that already and we do not need to do anything. Maybe.
 
@@ -396,6 +404,7 @@ I had some trouble getting the fuzzer to work, so I changed to the 2-4-x branch 
 
 If I try to run the fuzzer, I get this coredump:
 
+{% raw %}
 ```
 
 oof@oof-h8-1440eo:~/work/better_fuzzer$ coredumpctl gdb 4480
@@ -490,6 +499,7 @@ Program terminated with signal SIGILL, Illegal instruction.
 
 
 ```
+{% endraw %}
 
 ## Solving the bug.
 

@@ -18,6 +18,7 @@ First of all, I actually already had a working python mutator for libfuzzer here
 
 First of all, the source in `go-fuzz-build/main.go` adds a C code template which is then compiled with the libfuzzer library to give you the final binary:
 
+{% raw %}
 ```
 var mainSrcLibFuzzer = template.Must(template.New("main").Parse(`
 package main
@@ -62,11 +63,13 @@ func main() {
 }
 `))
 ```
+{% endraw %}
 
 We basically need to add the python bridge to this code.
 
 This change does that:
 
+{% raw %}
 ```
 diff --git a/go-fuzz-build/main.go b/go-fuzz-build/main.go
 index 581cfee..fc51978 100644
@@ -107,20 +110,24 @@ index 581cfee..fc51978 100644
  }
 
 ```
+{% endraw %}
 
 It of course assumes that the `harness.h` file is in the `/home/oof/gitaly/` directory. I was too lazy to program any path, so I just chose that one. Of course you must replace this with your own directory. I have this fork at: https://github.com/personnumber3377/go-fuzz
 
 I also had to add a couple of environment variables:
 
+{% raw %}
 ```
 export GO111MODULE=off
 export GOPATH=~/go/
 ```
+{% endraw %}
 
 also you need to have the code at: `~/go/src/github.com/dvyukov/go-fuzz` for it to compile succesfully. To compile, just run `go install ./go-fuzz ./go-fuzz-build/` and it should put the compiled binaries in `~/go/bin/` so remember to add that to your path
 
 Here is the source of `harness.h`:
 
+{% raw %}
 ```
 
 
@@ -329,6 +336,7 @@ size_t LLVMFuzzerCustomMutator(uint8_t *Data, size_t Size,
 
 
 ```
+{% endraw %}
 
 The original libfuzzer-python-bridge code was in c++, but cgo only supports c code so I had to modify the code.
 
@@ -336,9 +344,11 @@ The original libfuzzer-python-bridge code was in c++, but cgo only supports c co
 
 Ok, so the architecture of cgo is quite janky and you actually can not implement functions in the cgo C-code. You can only declare them. This is because otherwise you get linking errors about multiple definitions like this:
 
+{% raw %}
 ```
 
 ```
+{% endraw %}
 
 These can be solved by just ignoring them :D . (Explained below)
 
@@ -347,13 +357,16 @@ These can be solved by just ignoring them :D . (Explained below)
 
 So just after compiling the go-fuzz-build with all of the required modifications (adding the harness code etc) run these commands:
 
+{% raw %}
 ```
 go-fuzz-build -libfuzzer -o fuzz_target_name.a ./<yourfuzztargethere>
 clang -fsanitize=fuzzer fuzz_target_name.a -o fuzz_target_name # This command should actually fail with the linking errors explained below.
 ```
+{% endraw %}
 
 The `clang` command fails with these linker errors
 
+{% raw %}
 ```
 /usr/bin/ld: rangediff_fuzzer.a(000001.o): in function `py_fatal_error':
 /home/oof/gitaly/harness.h:19: multiple definition of `py_fatal_error'; rangediff_fuzzer.a(000000.o):/home/oof/gitaly/harness.h:19: first defined here
@@ -478,11 +491,13 @@ The `clang` command fails with these linker errors
 clang: error: linker command failed with exit code 1 (use -v to see invocation)
 
 ```
+{% endraw %}
 
 to solve this, get the link command from the clang command with this command: `clang -fsanitize=fuzzer rangediff_fuzzer.a -o rangediff_fuzzer -###`
 
 For me, it outputs this:
 
+{% raw %}
 ```
 
 Ubuntu clang version 14.0.0-1ubuntu1.1
@@ -493,12 +508,15 @@ InstalledDir: /usr/bin
 
 
 ```
+{% endraw %}
 
 now copy that link command into a file called `link.sh` or whatever and then add `"--allow-multiple-definition"` and `"-lpython3.10"` to the link command like so:
 
+{% raw %}
 ```
  "/usr/bin/ld" "-pie" "--hash-style=both" "--build-id" "--eh-frame-hdr" "-m" "elf_x86_64" "-dynamic-linker" "/lib64/ld-linux-x86-64.so.2" "-o" "rangediff_fuzzer" "/lib/x86_64-linux-gnu/Scrt1.o" "/lib/x86_64-linux-gnu/crti.o" "/usr/bin/../lib/gcc/x86_64-linux-gnu/12/crtbeginS.o" "-L/usr/bin/../lib/gcc/x86_64-linux-gnu/12" "-L/usr/bin/../lib/gcc/x86_64-linux-gnu/12/../../../../lib64" "-L/lib/x86_64-linux-gnu" "-L/lib/../lib64" "-L/usr/lib/x86_64-linux-gnu" "-L/usr/lib/../lib64" "-L/usr/lib/llvm-14/bin/../lib" "-L/lib" "-L/usr/lib" "--whole-archive" "/usr/lib/llvm-14/lib/clang/14.0.0/lib/linux/libclang_rt.fuzzer-x86_64.a" "--no-whole-archive" "--whole-archive" "/usr/lib/llvm-14/lib/clang/14.0.0/lib/linux/libclang_rt.fuzzer_interceptors-x86_64.a" "--no-whole-archive" "-lstdc++" "--whole-archive" "/usr/lib/llvm-14/lib/clang/14.0.0/lib/linux/libclang_rt.ubsan_standalone-x86_64.a" "--no-whole-archive" "--dynamic-list=/usr/lib/llvm-14/lib/clang/14.0.0/lib/linux/libclang_rt.ubsan_standalone-x86_64.a.syms" "rangediff_fuzzer.a" "--no-as-needed" "-lpthread" "-lrt" "-lm" "-ldl" "-lgcc" "--as-needed" "-lgcc_s" "--no-as-needed" "-lc" "-lgcc" "--as-needed" "-lgcc_s" "--no-as-needed" "/usr/bin/../lib/gcc/x86_64-linux-gnu/12/crtendS.o" "/lib/x86_64-linux-gnu/crtn.o" "--allow-multiple-definition" "-lpython3.10"
 ```
+{% endraw %}
 
 and after that command, you should have a working fuzzer binary!!!!
 
@@ -506,17 +524,20 @@ and after that command, you should have a working fuzzer binary!!!!
 
 To actually use it, you basically need to implement a python function called `custom_mutator` which takes three arguments like so:
 
+{% raw %}
 ```
 def custom_mutator(data, max_size, seed, native_mutator):
 	# Modify data here.
 	return data
 ```
+{% endraw %}
 
 for example there is an example of this at: https://github.com/MozillaSecurity/libfuzzer-python-bridge/blob/master/pymodules/example_compressed.py
 
 
 Then to run the fuzzer you can use this script here:
 
+{% raw %}
 ```
 #!/bin/sh
 
@@ -532,6 +553,7 @@ done
 
 
 ```
+{% endraw %}
 
 That script outputs the fuzz output to a file called "rangediff_output.txt" of course you can play around with that script to your liking.
 

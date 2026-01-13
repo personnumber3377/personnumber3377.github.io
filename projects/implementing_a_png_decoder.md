@@ -13,16 +13,19 @@ The PNG spec is just wrapper around the zlib compression algorithm and zlib is i
 
 Ok, so as many file formats, the PNG file consists of different "blocks" each of which serve a distinct purpose. In addition, PNG files have a distinct file header to signify that they are PNG files:
 
+{% raw %}
 ```
 
 PngSignature = b'\x89PNG\r\n\x1a\n'
 
 ```
+{% endraw %}
 
 Actually, I am just going to implement a file called "const.py" where I store all of the constants (as the name suggests).
 
 Here is the beginnings of my code:
 
+{% raw %}
 ```
 
 
@@ -103,11 +106,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Basically, it is just code which loops over each chunk in the file and then adds all of the chunks to a list while reading.
 
 Here is my code with some additional checks in-place:
 
+{% raw %}
 ```
 
 
@@ -194,6 +199,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 ## Interpreting the IHDR chunk:
 
@@ -214,6 +220,7 @@ Ok, so as it turns out, there exists a bug in my zlib library and that causes sh
 
 Here is the program output:
 
+{% raw %}
 ```
 
 chunk_header == b'\x00\x00\x00\rIHDR'
@@ -256,6 +263,7 @@ AttributeError: 'NoneType' object has no attribute 'isLeaf'
 
 
 ```
+{% endraw %}
 
 we can see that it is a so called "dynamic" block, which makes sense, because I didn't actually do the stuff when programming the zlib library. I didn't add a test for the dynamic trees, because encoding simple strings with zlib.compress yields usually "static" blocks.
 
@@ -263,6 +271,7 @@ Let's take a look at the code from here: https://pyokagan.name/blog/2019-10-18-z
 
 Here is the reference implementation:
 
+{% raw %}
 ```
 
 class BitReader:
@@ -503,9 +512,11 @@ print(decompress(compressed_data))
 
 
 ```
+{% endraw %}
 
 Here is the output of this code:
 
+{% raw %}
 ```
 
 def lz77_decode_block(r: Bitreader, literal_length_tree: HuffmanTree, distance_tree: HuffmanTree, output: list) -> None: # The output is the list of bytes to output. This function modifies it in-place.
@@ -533,9 +544,11 @@ def lz77_decode_block(r: Bitreader, literal_length_tree: HuffmanTree, distance_t
 	return output # Return the final byte list.
 
 ```
+{% endraw %}
 
 here:
 
+{% raw %}
 ```
 
 Decoded this value: 1
@@ -551,9 +564,11 @@ Decoded this value: 267
 
 
 ```
+{% endraw %}
 
 and here is the reference output:
 
+{% raw %}
 ```
 
 Decoded this value: 1
@@ -576,9 +591,11 @@ Decoded this value: 31
 # SNIP
 
 ```
+{% endraw %}
 
 Here is some more debug info from my implementation:
 
+{% raw %}
 ```
 
 Decoded this value: 1
@@ -598,9 +615,11 @@ final_distance == 36
 
 
 ```
+{% endraw %}
 
 and here is the reference implementation:
 
+{% raw %}
 ```
 
 Decoded this value: 1
@@ -617,9 +636,11 @@ final_length == 4
 final_distance == 15
 
 ```
+{% endraw %}
 
 Here is my current code:
 
+{% raw %}
 ```
 def lz77_decode_block(r: Bitreader, literal_length_tree: HuffmanTree, distance_tree: HuffmanTree, output: list) -> None: # The output is the list of bytes to output. This function modifies it in-place.
 	while True: # Main decoding loop.
@@ -650,9 +671,11 @@ def lz77_decode_block(r: Bitreader, literal_length_tree: HuffmanTree, distance_t
 
 	return output # Return the final byte list.
 ```
+{% endraw %}
 
 and here is the output:
 
+{% raw %}
 ```
 Decoded this value: 1
 Decoded this value: 255
@@ -671,9 +694,11 @@ backwards_distance_bases[symbol] == 33
 final_length == 15
 final_distance == 36
 ```
+{% endraw %}
 
 and here is what the output should be:
 
+{% raw %}
 ```
 
 Decoded this value: 1
@@ -694,11 +719,13 @@ final_length == 4
 final_distance == 15
 
 ```
+{% endraw %}
 
 my code produces this: `backwards_distance_extra_bits[symbol] == 4` while the reference implementation has this: `backwards_distance_extra_bits[symbol] == 0`
 
 Actually, the problem here:
 
+{% raw %}
 ```
 
 def lz77_decode_block(r: Bitreader, literal_length_tree: HuffmanTree, distance_tree: HuffmanTree, output: list) -> None: # The output is the list of bytes to output. This function modifies it in-place.
@@ -730,11 +757,13 @@ def lz77_decode_block(r: Bitreader, literal_length_tree: HuffmanTree, distance_t
 
 	return output # Return the final byte list.
 ```
+{% endraw %}
 
 because I never actually use the `distance_amount` variable anywhere. I had quite a brain fart here and that caused shit to go wrong..
 
 After fixing this function looks like this:
 
+{% raw %}
 ```
 def lz77_decode_block(r: Bitreader, literal_length_tree: HuffmanTree, distance_tree: HuffmanTree, output: list) -> None: # The output is the list of bytes to output. This function modifies it in-place.
 	while True: # Main decoding loop.
@@ -766,6 +795,7 @@ def lz77_decode_block(r: Bitreader, literal_length_tree: HuffmanTree, distance_t
 
 	return output # Return the final byte list.
 ```
+{% endraw %}
 
 After these fixes, my PNG data get's correctly decompressed! Good!
 
@@ -775,6 +805,7 @@ Ok, so now that we can extract the data from the scanlines. The very first byte 
 
 Here is my main decoding function:
 
+{% raw %}
 ```
 
 def read_png(data: bytes) -> None: # Just show as an image (for now).
@@ -918,9 +949,11 @@ def read_png(data: bytes) -> None: # Just show as an image (for now).
 	return 0 # Return success
 
 ```
+{% endraw %}
 
 and here are the helper functions:
 
+{% raw %}
 ```
 
 # These are used in the different filters.
@@ -953,6 +986,7 @@ def PaethPredictor(a,b,c): # This is just a spec defined function
 	return Pr
 
 ```
+{% endraw %}
 
 and it seems to work fine.
 
@@ -968,6 +1002,7 @@ I think the easiest way to do this is to just improve the read_png function and 
 
 Here is my current code:
 
+{% raw %}
 ```
 
 
@@ -1131,9 +1166,11 @@ def read_png(data: bytes) -> None: # Just show as an image (for now).
 	return 0 # Return success
 
 ```
+{% endraw %}
 
 except it results in this error:
 
+{% raw %}
 ```
 
 len(scanline) == 2560
@@ -1150,13 +1187,16 @@ AssertionError
 
 
 ```
+{% endraw %}
 
 the image which I am using is 640 pixels wide, so therefore what if we divide 2560 by that?
 
+{% raw %}
 ```
 >>> 2560 / 640
 4.0
 ```
+{% endraw %}
 
 What? That doesn't seem good. OOOooohhh, the bug is here: `scanline_size = 1 + width * 4 # Four bytes per pixel times the amount of pixels plus one, because the very first byte is the filter type.` . Let's replace that "4" with "BYTES_PER_PIXEL" and see what happens. After fixing this quick little bug. Now the thing works for both the `colort == 6` case and the `colort == 2` cases.
 

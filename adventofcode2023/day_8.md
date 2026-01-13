@@ -7,6 +7,7 @@ Ok so this puzzle is basically just a binary tree searching problem. I am going 
 
 Here is the input parsing part:
 
+{% raw %}
 ```
 import sys
 
@@ -29,9 +30,11 @@ def main() -> int:
 if __name__=="__main__":
 	exit(main())
 ```
+{% endraw %}
 
 Now just traverse the tree:
 
+{% raw %}
 ```
 def traverse_tree(tree: dict, route: str) -> int: # returns the amount of steps required to reach "ZZZ"
 	step_count = 0
@@ -55,6 +58,7 @@ def main() -> int:
 	print("Solution: "+str(sol))
 	return 0
 ```
+{% endraw %}
 
 and it works! Great! Let's move on to part 2.
 

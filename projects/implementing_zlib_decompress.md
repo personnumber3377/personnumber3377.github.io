@@ -11,6 +11,7 @@ In addition, I am going to create a file called helpers.py which contains some h
 
 Here is the contents of helpers.py:
 
+{% raw %}
 ```
 
 def type_check(input, type) -> bool: # Checks that the input is of type "type"
@@ -26,9 +27,11 @@ def strict_val_check(a, b) -> bool:
 	return True # Match
 
 ```
+{% endraw %}
 
 and here is my very initial implementation of a bitreader class:
 
+{% raw %}
 ```
 
 # Implements a bitreader class which is used to interpret the zlib data from the datastream.
@@ -62,11 +65,13 @@ class Bitreader:
 
 
 ```
+{% endraw %}
 
 In addition, let's also create a file called "tests.py" which contains tests for the different parts of the program. For example we should add a testcase for the bitreader class.
 
 Here is a test script which tests a lot of the stuff:
 
+{% raw %}
 ```
 
 
@@ -91,11 +96,13 @@ def test_bitreader() -> None:
 	return
 
 ```
+{% endraw %}
 
 and it passes. Good!!!
 
 After doing a couple of modifications, my bitreader class now looks like this:
 
+{% raw %}
 ```
 
 class Bitreader:
@@ -139,11 +146,13 @@ class Bitreader:
 		return int(output) # Return as integer
 
 ```
+{% endraw %}
 
 ## Actually starting to implement the zlib decompression.
 
 As it turns out, after tring to use my bitreader class, I actuall got it the wrong way around (I mean the order of the bits), so here is a new version of the thing:
 
+{% raw %}
 ```
 
 from helpers import *
@@ -199,11 +208,13 @@ class Bitreader:
 		return int(output) # Return as integer
 
 ```
+{% endraw %}
 
 now it works properly.
 
 Here is the start of the decompression function:
 
+{% raw %}
 ```
 
 def our_decompress(input_data: bytes) -> bytes:
@@ -259,6 +270,7 @@ def our_decompress(input_data: bytes) -> bytes:
 
 
 ```
+{% endraw %}
 
 ## Implementing inflate algorithm
 
@@ -266,6 +278,7 @@ Ok, so the INFLATE format is comprised of "blocks" . Each block begins with a th
 
 Here is my function which detects the type of these blocks and then calls the appropriate function:
 
+{% raw %}
 ```
 
 
@@ -294,6 +307,7 @@ def inflate(reader) -> bytes:
 	return bytes(output) # Convert list of integers to a bytestring before returning
 
 ```
+{% endraw %}
 
 Now, we will go over each of these functions. I am going to start with the easiest one first (inflate_no_compression)..
 
@@ -301,6 +315,7 @@ Now, we will go over each of these functions. I am going to start with the easie
 
 The first two bytes should be the length of the block (not including the header) and then the next two bytes should be the ones complement (bitwise not) of the length, therefore we should add a sanity check for that. Then the next "length" number of bytes are the content. Here is my implementation:
 
+{% raw %}
 ```
 
 def inflate_no_compression(reader, output):
@@ -318,9 +333,11 @@ def inflate_no_compression(reader, output):
 	return
 
 ```
+{% endraw %}
 
 After a bit of debugging, I actually found a bug in my code:
 
+{% raw %}
 ```
 
 def inflate_no_compression(reader, output):
@@ -348,9 +365,11 @@ def inflate_no_compression(reader, output):
 
 
 ```
+{% endraw %}
 
 This errors out with this output:
 
+{% raw %}
 ```
 
 b'x\x01\x01\x0c\x00\xf3\xffHello World!\x1cI\x04>'
@@ -376,6 +395,7 @@ AssertionError
 
 
 ```
+{% endraw %}
 
 This is because when we are reading the LENGTH and the NLENGTH fields, the reader isn't byte aligned, and therefore it gives us the wrong answer.
 
@@ -383,6 +403,7 @@ Here: `Here is LENGTH: 0b110000000` if we shift the value left 5 bits, then we g
 
 (in bitreader.py)
 
+{% raw %}
 ```
 
 	def skip_to_start_of_next_byte(self) -> None: # This should skip to the start of the next byte.
@@ -392,9 +413,11 @@ Here: `Here is LENGTH: 0b110000000` if we shift the value left 5 bits, then we g
 
 
 ```
+{% endraw %}
 
 then if we call this function, before trying to read the header, then we get this:
 
+{% raw %}
 ```
 
 b'x\x01\x01\x0c\x00\xf3\xffHello World!\x1cI\x04>'
@@ -422,6 +445,7 @@ Here is the result: 0
 
 
 ```
+{% endraw %}
 
 that seems more like it!
 
@@ -439,6 +463,7 @@ In the article they use the name of code_to_bytes , but I am going to call it si
 
 Here it is:
 
+{% raw %}
 ```
 
 
@@ -464,6 +489,7 @@ def int_to_bytes(integer: int, n: int) -> bytes: # Encodes "integer" to a bytest
 	return bytes(output)
 
 ```
+{% endraw %}
 
 There actually exists a method called to_bytes on the integer object, but I am not sure that it is what we want, besides it was fun trying to implement that myself.
 
@@ -471,6 +497,7 @@ Let's actually go to implement a huffman tree! The tree is composed of leaves (o
 
 Here is the beginnings of the node structure:
 
+{% raw %}
 ```
 
 RIGHT = 1
@@ -506,9 +533,11 @@ class Node:
 
 
 ```
+{% endraw %}
 
 and here is the huffman tree structure:
 
+{% raw %}
 ```
 
 
@@ -549,6 +578,7 @@ class HuffmanTree:
 
 
 ```
+{% endraw %}
 
 Let's take it out for a test drive! Here is my test function:
 
@@ -556,6 +586,7 @@ Actually, I am going to modify the "add_node" method such that it creates the no
 
 Here:
 
+{% raw %}
 ```
 
 	def add_node(self, node, path_int: int, n: int) -> None:
@@ -582,9 +613,11 @@ Here:
 					node.add_node(bit_val, child)
 
 ```
+{% endraw %}
 
 and I added a couple more methods:
 
+{% raw %}
 ```
 
 	def add_value(self, path_int: int, n: int, value) -> None: # A wrapper around add_node
@@ -608,9 +641,11 @@ and I added a couple more methods:
 				return cur_node.value
 
 ```
+{% endraw %}
 
 here is a function to test the functionality of this tree structure:
 
+{% raw %}
 ```
 
 def test_huffman_tree() -> None:
@@ -642,6 +677,7 @@ def test_huffman_tree() -> None:
 
 
 ```
+{% endraw %}
 
 and the test passes. Good!!!
 
@@ -659,6 +695,7 @@ So we need a first a way to get the amount of occurences of each value up to max
 
 Something like this?
 
+{% raw %}
 ```
 
 
@@ -677,9 +714,11 @@ def bitlengths_to_tree(bitlengths: list, alphabet: list) -> huffman.HuffmanTree:
 	return
 
 ```
+{% endraw %}
 
 Let's create a test function for it in the tests.py file...
 
+{% raw %}
 ```
 
 def test_bitlengths_to_tree() -> None:
@@ -697,12 +736,15 @@ def test_bitlengths_to_tree() -> None:
 
 
 ```
+{% endraw %}
 
 and here is the result:
 
+{% raw %}
 ```
 Here is the bitlength stuff: [0, 1, 1, 2]
 ```
+{% endraw %}
 
 seems ok to me!
 
@@ -712,6 +754,7 @@ In the article: "Next, we compute `next_code` such that `next_code[n]` is the sm
 
 This I don't really understand the logic of:
 
+{% raw %}
 ```
 
 for bits in range(2, MAX_BITS+1):
@@ -719,6 +762,7 @@ for bits in range(2, MAX_BITS+1):
 print(next_code) # [0, 0, 2, 6]
 
 ```
+{% endraw %}
 
 Why does this work? Maybe this has something to do with the canonicality of the huffman table. Maybe that, but it could also be something else.
 
@@ -726,6 +770,7 @@ I am going to mark areas which I do not understand as DONOTUNDERSTAND and then r
 
 Here is my very initial draft of the function which converts the bitlengths and the alphabet to a canonical huffman tree:
 
+{% raw %}
 ```
 
 def bitlengths_to_tree(bitlengths: list, alphabet: list) -> HuffmanTree:
@@ -773,11 +818,13 @@ def bitlengths_to_tree(bitlengths: list, alphabet: list) -> HuffmanTree:
 
 
 ```
+{% endraw %}
 
 Let's write a test for this...
 
 Here:
 
+{% raw %}
 ```
 
 def test_bitlengths_to_tree() -> None:
@@ -802,9 +849,11 @@ def test_bitlengths_to_tree() -> None:
 	return
 
 ```
+{% endraw %}
 
 and after a couple of tweaks, here is the working version of the function:
 
+{% raw %}
 ```
 
 def bitlengths_to_tree(bitlengths: list, alphabet: list) -> HuffmanTree:
@@ -852,6 +901,7 @@ def bitlengths_to_tree(bitlengths: list, alphabet: list) -> HuffmanTree:
 	return output_tree # Return the decoded tree object...
 
 ```
+{% endraw %}
 
 Let's continue on!
 
@@ -865,6 +915,7 @@ Ok, so as I understand it, there is the alphabet and the codelengths. These code
 
 Here is my very initial draft of the function which decodes the trees from the data:
 
+{% raw %}
 ```
 
 code_length_orders = [16, 17, 18, 0, 8, 7, 9, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15] # This is the order of the the bitlengths when decoding the code length sequences.
@@ -925,6 +976,7 @@ def decode_trees(r) -> list: # This shit decodes the trees from the bitreader ob
 
 
 ```
+{% endraw %}
 
 ## Using these trees to decode a symbol from the bitstream
 
@@ -932,6 +984,7 @@ Ok, so now that we have the way to decode the trees from the bitstream, we need 
 
 After a bit of fiddling, I came up with this:
 
+{% raw %}
 ```
 
 length_extra_bits = [0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0] # These are the extra bits when reading the length codes from the bitstream.
@@ -966,6 +1019,7 @@ def lz77_decode_block(r: Bitreader, literal_length_tree: HuffmanTree, distance_t
 	return output # Return the final byte list.
 
 ```
+{% endraw %}
 
 which is my very initial draft of this function... Let's try to create the inflate_block_dynamic function now that we have all of the building blocks.
 
@@ -973,6 +1027,7 @@ which is my very initial draft of this function... Let's try to create the infla
 
 Ok, so here is the very final decompression function:
 
+{% raw %}
 ```
 
 def inflate_block_dynamic(reader, output) -> None:
@@ -985,11 +1040,13 @@ def inflate_block_dynamic(reader, output) -> None:
 
 
 ```
+{% endraw %}
 
 Now, I had a bit of trouble, because the zlib.compress actually seems to output static blocks for some reason. This is because my input is quite small and therefore can efficiently be encoded by a static block, with the predetermined trees.
 
 Here is some code which decompresses static blocks:
 
+{% raw %}
 ```
 
 def inflate_fixed_block(reader, output) -> None: # Fixed block. Uses a predetermined literal_length tree and a backwards distance tree.
@@ -1007,10 +1064,12 @@ def inflate_fixed_block(reader, output) -> None: # Fixed block. Uses a predeterm
 
 
 ```
+{% endraw %}
 
 Uh oh..
 
 
+{% raw %}
 ```
 
 b'x\xda\xf3H\xcd\xc9\xc9W\x08\xcf/\xcaIQ\x04\x00\x1cI\x04>'
@@ -1037,6 +1096,7 @@ IndexError: list index out of range
 
 
 ```
+{% endraw %}
 
 fuck!
 
@@ -1046,6 +1106,7 @@ Ok, so let's copy the source code from the blog post and then compare our result
 
 Here is the output of the reference implementation:
 
+{% raw %}
 ```
 
 Called inflate_block_fixed!
@@ -1066,9 +1127,11 @@ b'Hello World!'
 
 
 ```
+{% endraw %}
 
 and here is our output:
 
+{% raw %}
 ```
 
 b'x\x9c\xf3H\xcd\xc9\xc9W\x08\xcf/\xcaIQ\x04\x00\x1cI\x04>'
@@ -1111,30 +1174,36 @@ IndexError: list index out of range
 
 
 ```
+{% endraw %}
 
 
 why aren't we stopping on the 256 symbol???
 
 (aka here)
 
+{% raw %}
 ```
 Decoded this value: 33
 Decoded this value: 256
 Decoded this value: 256
 Decoded this value: 65
 ```
+{% endraw %}
 
 here in lz77.py :
 
+{% raw %}
 ```
 		if val <= 256: # Literal value
 			output.append(val)
 ```
+{% endraw %}
 
 that is supposed to just be less than. Let's change it.
 
 There you go!
 
+{% raw %}
 ```
 
 b'x\x9c\xf3H\xcd\xc9\xc9W\x08\xcf/\xcaIQ\x04\x00\x1cI\x04>'
@@ -1161,6 +1230,7 @@ Here is the decompressed output: Hello World!
 
 
 ```
+{% endraw %}
 
 ## Trying to test the dynamic blocks.
 

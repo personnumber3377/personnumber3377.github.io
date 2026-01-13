@@ -5,6 +5,7 @@ Hi! This is my minesweeper project. I hope that you know minesweeper, because I 
 
 Now, let's create a minefield object:
 
+{% raw %}
 ```
 
 
@@ -17,9 +18,11 @@ class Minefield:
 		self.shown = self.shown * HIDDEN_SPACE # Mark them as hidden.
 
 ```
+{% endraw %}
 
 Now generate a random position for each mine and place mine:
 
+{% raw %}
 ```
 
 HIDDEN_SPACE = 100
@@ -42,9 +45,11 @@ MINE_NUMBER = 10
 			self.mines[pos[0]][pos[1]] = MINE_NUMBER
 
 ```
+{% endraw %}
 
 Then let's program a render function for the minefield.
 
+{% raw %}
 ```
 
 def render(self):
@@ -68,11 +73,13 @@ def render(self):
 		print("-"*(self.width + 2))
 
 ```
+{% endraw %}
 
 There you go.
 
 Now time for the update function, with the move and the position.
 
+{% raw %}
 ```
 
 
@@ -100,9 +107,11 @@ Now time for the update function, with the move and the position.
 			self.shown[position[0]][position[1]] = neig_count # Just show the number.
 
 ```
+{% endraw %}
 
 This code actually had a bug in it. I got this error:
 
+{% raw %}
 ```
 
 Traceback (most recent call last):
@@ -135,9 +144,11 @@ RecursionError: maximum recursion depth exceeded
 
 
 ```
+{% endraw %}
 
 This is because we are marking shown spaces as shown, even though they already were. Adding an if check to check if the new position is already checked prevents this:
 
+{% raw %}
 ```
 
 	def update(self, position, move_type):
@@ -166,11 +177,13 @@ This is because we are marking shown spaces as shown, even though they already w
 			self.shown[position[0]][position[1]] = neig_count # Just show the number.
 
 ```
+{% endraw %}
 
 Now the code works.
 
 Here is an example output:
 
+{% raw %}
 ```
 
 Printing the minefield now:
@@ -215,9 +228,11 @@ Revealing mines: (X means mine)
 
 
 ```
+{% endraw %}
 
 My current code is the following:
 
+{% raw %}
 ```
 
 
@@ -389,9 +404,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Now I think we need to add a win condition to our code. I think the best way to do that is to check if all of the other spaces other than the bomb spots have been revealed.
 
+{% raw %}
 ```
 
 	def have_won(self):
@@ -406,11 +423,13 @@ Now I think we need to add a win condition to our code. I think the best way to 
 		return True
 
 ```
+{% endraw %}
 
 Now, the code is not optimized and it could also be refactored a lot.
 
 Here is the final code (for now, I am planning on improving the input mechanism by using keyboard events and the console cursor in the future, so the player does not have to type the coordinates every time):
 
+{% raw %}
 ```
 
 
@@ -639,6 +658,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 ## Making it better.
 
@@ -648,6 +668,7 @@ Now it is time to actually make the controls interactive instead of a having to 
 
 After trying out a lot of things, I eventually settled on this:
 
+{% raw %}
 ```
 
 
@@ -1120,6 +1141,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 It's not pretty by any means, but it gets the job done without having to do that much of extra work. One thing which bugs me is that after losing the game and getting into the terminal, it spews out all of the characters which were typed during the game into the terminal. I do not know how to get rid of this, but now atleast it works with WASD inputs. Also another thing is that it does not work if the size of the grid is larger than the size of the terminal so that is quite bad. Anyway, now it works.
 

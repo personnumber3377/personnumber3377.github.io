@@ -7,6 +7,7 @@ Let's add names to things. First of all, let's call the width of the dvd box w a
 
 Here is my initial code, which simulates the box bouncing around:
 
+{% raw %}
 ```
 
 import time
@@ -122,6 +123,7 @@ if __name__=="__main__":
     exit(main())
 
 ```
+{% endraw %}
 
 Now, let's try to create the equations which gives us the time it takes to reach a corner. We need to create an equation which takes the parameters and then spits out the position after n timesteps.
 
@@ -135,6 +137,7 @@ Therefore the position after n timesteps is: `(x0+n*vx, y0+n*vy)` . After a bit 
 
 I came up with this when I watched the video:
 
+{% raw %}
 ```
 def check_satisfiability(width, height, box_width, box_height, x0, y0, vx, vy) -> bool: # This checks if the box will hit the corner.
     a = x0
@@ -157,6 +160,7 @@ def check_satisfiability(width, height, box_width, box_height, x0, y0, vx, vy) -
             return True
     return False # Otherwise no solution.
 ```
+{% endraw %}
 
 but it doesn't work. It always returns true. Now, I don't really know where the problem arises, so let's get to debugging.
 
@@ -166,6 +170,7 @@ It should be this: `z % math.gcd(x,y)` . After doing this quick little change, t
 
 Here is the final code:
 
+{% raw %}
 ```
 
 import time
@@ -354,6 +359,7 @@ if __name__=="__main__":
     exit(main())
 
 ```
+{% endraw %}
 
 You can also take a look at it on github: https://github.com/personnumber3377/pythondvdlogos
 

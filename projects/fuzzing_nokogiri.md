@@ -6,6 +6,7 @@ My custom mutator repeats a string many times. This can be used to find Denial O
 
 To enable the use of my custom mutator with nokogiri, I had to apply the next patch:
 
+{% raw %}
 ```
 diff --git a/gumbo-parser/Makefile b/gumbo-parser/Makefile
 index f29a38a3..b5ba4a9d 100644
@@ -302,9 +303,11 @@ index 234d7b72..5d18de56 100644
    /* arbitrary upper size limit to avoid "out-of-memory in parse_fuzzer" reports */
    if (size < 10 | size > 25000) {
 ```
+{% endraw %}
 
 after doing that and compiling the fuzzers, they seem to work fine... except hold on, there is a fucking hardcoded limit to the fuzz stuff:
 
+{% raw %}
 ```
 
   /* arbitrary upper size limit to avoid "out-of-memory in parse_fuzzer" reports */
@@ -313,6 +316,7 @@ after doing that and compiling the fuzzers, they seem to work fine... except hol
   }
 
 ```
+{% endraw %}
 
 We need to get rid of that.
 

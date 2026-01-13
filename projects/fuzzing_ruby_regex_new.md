@@ -4,6 +4,7 @@ Ok, so I already fuzzed ruby regexes before a bit, but didn't find anything good
 
 I just asked chatgpt to make me a custom mutator for regular expressions and it decided to use lark to accomplish that:
 
+{% raw %}
 ```
 
 from lark import Lark, Transformer
@@ -71,6 +72,7 @@ parser = Lark(regex_grammar, start="start", parser="earley")
 
 
 ```
+{% endraw %}
 
 seems kinda fine. Let's put the grammar to a separate file maybe??
 

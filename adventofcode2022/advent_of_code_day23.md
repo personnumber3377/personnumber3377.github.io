@@ -7,6 +7,7 @@ Lets get cracking!
 
 Here is my start: It parses the input.
 
+{% raw %}
 ```
 
 
@@ -50,12 +51,14 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 I think the best way to go about deciding if to move or not is to first move hypothetically and then check if two elves would land on the same spot and then add the indexes of those elves to a dictionary if yes and then in stage two lookup the dictionary and see if the index is in the banlist and if not then do not move.
 
 After a bit of fiddling, I got this:
 
+{% raw %}
 ```
 
 
@@ -450,6 +453,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 There is certainly a lot of improvement to be made, but it does the job. One easy optimization to do is to keep track of the min and max of x and y when going through the list instead of calculating it again.
 
@@ -463,6 +467,7 @@ Again, lets run cProfile and see what the output shows us. The output shows that
 
 This code:
 
+{% raw %}
 ```
 
 def generate_neighbours(place):
@@ -476,9 +481,11 @@ def generate_neighbours(place):
 
 
 ```
+{% endraw %}
 
 Is slow. What if we just simply replace it with this:
 
+{% raw %}
 ```
 
 def generate_neighbours(place):
@@ -487,10 +494,12 @@ def generate_neighbours(place):
 	return [[x+1,y],[x+1,y+1],[x+1,y-1],[x,y+1],[x,y-1],[x-1,y],[x-1,y+1],[x-1,y-1]]
 
 ```
+{% endraw %}
 
 This code is a lot faster. Currently the cProfile output is this:
 
 
+{% raw %}
 ```
 
 Solution to puzzle: 3882
@@ -532,11 +541,13 @@ Solution to puzzle: 3882
 
 
 ```
+{% endraw %}
 
 Next up is the usual culprits of collision checking and the main loop itself. If I can get this under 100ms then I would be surprised. Looking at the subreddit https://www.reddit.com/r/adventofcode/comments/zt6xz5/comment/j2wamb3/?utm_source=share&utm_medium=web2x&context=3 there is a solution which solves part one in 1.5 microseconds, but it uses SIMD instructions which really can not be used with python.
 
 Currently my check_collision function looks like this:
 
+{% raw %}
 ```
 
 def check_collision(place, move_offset, other_elves):
@@ -563,9 +574,11 @@ def check_collision(place, move_offset, other_elves):
 	return None
 
 ```
+{% endraw %}
 
 After a bit of fiddling I got this:
 
+{% raw %}
 ```
 
 def check_collision(place, move_offset, other_elves):
@@ -594,9 +607,11 @@ def check_collision(place, move_offset, other_elves):
 	return None
 	
 ```
+{% endraw %}
 
 Except that it is only barely faster. Here is the cProfile output:
 
+{% raw %}
 ```
 
 Solution to puzzle: 3882
@@ -614,10 +629,12 @@ Solution to puzzle: 3882
 
 
 ```
+{% endraw %}
 
 Here is a the new code with the "breaks":
 
 
+{% raw %}
 ```
 
 def check_collision(place, move_offset, other_elves):
@@ -667,9 +684,11 @@ def check_collision(place, move_offset, other_elves):
 	return None
 
 ```
+{% endraw %}
 
 here is the profiling output:
 
+{% raw %}
 ```
 
 Solution to puzzle: 3882
@@ -686,6 +705,7 @@ Solution to puzzle: 3882
 
 
 ```
+{% endraw %}
 
 It is barely faster than the 0.29 second one. Still an improvement.
 
@@ -696,6 +716,7 @@ Instead of trying to do modular arithmetic to get the correct index for the list
 
 As it turns out popping elements of off a list and then appending them is hella slow. This function takes a lot of time:
 
+{% raw %}
 ```
 
 def check_collision(place, move_offset, other_elves):
@@ -731,17 +752,21 @@ def check_collision(place, move_offset, other_elves):
 	return None
 
 ```
+{% endraw %}
 
 Instead of popping shit and appending, maybe we can just use list splicing?
 
 If we use this instead:
 
+{% raw %}
 ```
 offsets = offsets[move_offset%12:] + offsets[:move_offset%12]
 ```
+{% endraw %}
 
 We get this cProfile output:
 
+{% raw %}
 ```
 Solution to puzzle: 3882
          163447 function calls (161706 primitive calls) in 0.275 seconds
@@ -755,10 +780,12 @@ Solution to puzzle: 3882
     25980    0.015    0.000    0.034    0.000 optimization.py:329(check_moving)
       114    0.013    0.000    0.013    0.000 {built-in method marshal.loads}
 ```
+{% endraw %}
 
 There appears to not be anymore obvious optimizations so this is my final code for part2:
 
 
+{% raw %}
 ```
 
 
@@ -1285,6 +1312,7 @@ if __name__=="__main__":
 	print("Solution to puzzle: "+str(solve_puzzle()))
 
 ```
+{% endraw %}
 
 Lets continue on with part two for now. Now the only difference is basically to instead of calculating the area, we count how many rounds it is until no-one moves. We can just add a boolean check.
 

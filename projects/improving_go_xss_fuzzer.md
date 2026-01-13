@@ -2,6 +2,7 @@
 
 Ok, so my current code looks something like this here:
 
+{% raw %}
 ```
 
 package fuck
@@ -109,14 +110,17 @@ func contains(line string, targetChar byte) bool {
 }
 
 ```
+{% endraw %}
 
 Now the `input.txt` file is actually used by an external python script which then tries loading the data and checks for xss. I am going to take a look at the tests in the golang source code and make a script like so:
 
+{% raw %}
 ```
 
 The source code for this script is inside the blog in projects/xss_fuzzer.go
 
 ```
+{% endraw %}
 
 this program generates both the templates and the payloads.
 

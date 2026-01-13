@@ -8,6 +8,7 @@ This fuzzing attempt was largely motivated by this blog post here: https://offse
 
 Git clone https://gitlab.gnome.org/GNOME/libsoup.git and then compile this harness here:
 
+{% raw %}
 ```
 #include <libsoup/soup.h>
 
@@ -27,6 +28,7 @@ LLVMFuzzerTestOneInput (const unsigned char *data, size_t size)
     return 0;
 }
 ```
+{% endraw %}
 
 
 

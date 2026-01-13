@@ -8,6 +8,7 @@ I downloaded the repository which implements the VM (https://github.com/filecoin
 
 So, I asked chatgpt to give me a fuzzer and it came up with this here:
 
+{% raw %}
 ```
 #![no_main]
 use libfuzzer_sys::fuzz_target;
@@ -35,9 +36,11 @@ fuzz_target!(|data: &[u8]| {
     let _ = util::invoke_contract(&rt, &solidity_params);
 });
 ```
+{% endraw %}
 
 this is essentially just taken from the tests. After hardcoding the contents of MCOPYTest.hex, I now have this:
 
+{% raw %}
 ```
 #![no_main]
 use libfuzzer_sys::fuzz_target;
@@ -85,9 +88,11 @@ fuzz_target!(|data: &[u8]| {
     let _ = util::invoke_contract(&rt, &solidity_params);
 });
 ```
+{% endraw %}
 
 but will it run? No! Here is a fixed version:
 
+{% raw %}
 ```
 #![no_main]
 use libfuzzer_sys::fuzz_target;
@@ -264,9 +269,11 @@ fuzz_target!(|data: &[u8]| {
     let _ = invoke_contract(&rt, &solidity_params);
 });
 ```
+{% endraw %}
 
 This results in this panic:
 
+{% raw %}
 ```
 thread '<unnamed>' panicked at fuzz/fuzz_targets/evm_actor.rs:84:10:
 called `Result::unwrap()` on an `Err` value: ActorError { exit_code: ExitCode { value: 33 }, data: Some(IpldBlock { codec: 51, data: [40] }), msg: "contract reverted at 214" }
@@ -343,9 +350,11 @@ Minimize test case with:
 
 Error: Fuzz target exited with exit status: 77
 ```
+{% endraw %}
 
 But I think that we should do something like this here instead:
 
+{% raw %}
 ```
 if let Ok(res) = rt.call::<evm::EvmContractActor>(
     evm::Method::InvokeContract as u64,
@@ -356,6 +365,7 @@ if let Ok(res) = rt.call::<evm::EvmContractActor>(
     // Don't panic — contract reverted (ExitCode 33) is allowed
 }
 ```
+{% endraw %}
 
 **A couple of hours later**
 

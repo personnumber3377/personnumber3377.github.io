@@ -21,6 +21,7 @@ Let's create a file called NFA.py. I am first going to try to implement this mys
 
 Here is my current skeleton for the state machine:
 
+{% raw %}
 ```
 class NFAEngine:
 	def __init__(self):
@@ -42,20 +43,24 @@ class NFAEngine:
 		# Then look at the current node and see which transition(s) to take.
 		# Take the transition(s)
 ```
+{% endraw %}
 
 Then we also need a way to implement a node in the state machine, so let's add a state to that. I think a good way to model the state transitions is a tuple. The first element in the tuple is the character and the second element is a reference to the next node object. Or we could also make the transition arrow itself another object. A transition object of sorts, but let's for now implement it as a touple, or now that I think about it, why don't we define it as a dictionary? See, the key would be the character and the value would be the reference to the next node(s).
 
 Here is my node class:
 
+{% raw %}
 ```
 class Node:
 	def __init__(self, name: str): # This is a node in the regex engine.
 		self.transitions = {} # This will be added to later on.
 		self.name = name
 ```
+{% endraw %}
 
 and here is my engine class with a couple of added methods:
 
+{% raw %}
 ```
 class NFAEngine:
 	def __init__(self):
@@ -99,11 +104,13 @@ class NFAEngine:
 		# Then look at the current node and see which transition(s) to take.
 		# Take the transition(s)
 ```
+{% endraw %}
 
 There are unused variables everywhere, but I am going to remove those later. Let's implement the transition_state function which is the real meat and potatoes of the engine.
 
 Here:
 
+{% raw %}
 ```
 	def transition_states(self):
 		# TODO: First get the input character.
@@ -133,11 +140,13 @@ Here:
 		self.current_nodes = new_nodes
 		return
 ```
+{% endraw %}
 
 Now, let's write a driver function for this engine and see how it fairs.
 
 I noticed that there was a flaw in my code. There can be many end nodes, so I updated my NFA code:
 
+{% raw %}
 ```
 class NFAEngine:
 	def __init__(self):
@@ -220,9 +229,11 @@ class NFAEngine:
 		self.current_nodes = new_nodes
 		return
 ```
+{% endraw %}
 
 and here is my driver code:
 
+{% raw %}
 ```
 from NFA import *
 
@@ -251,17 +262,21 @@ def main() -> int:
 if __name__=="__main__":
 	exit(main())
 ```
+{% endraw %}
 
 aaaaaaannnnnddddd...
 
+{% raw %}
 ```
     self.end_nodes = names
                      ^^^^^
 NameError: name 'names' is not defined. Did you mean: 'name'?
 ```
+{% endraw %}
 
 whoops. After fixing a couple of typos:
 
+{% raw %}
 ```
 class Node:
 	def __init__(self, name: str): # This is a node in the regex engine.
@@ -353,6 +368,7 @@ class NFAEngine:
 		self.current_nodes = new_nodes
 		return
 ```
+{% endraw %}
 
 Now our code prints `We have reached the end node!` now instead of "a", if we put "b" instead, we of course shouldn't get into the end node, so the program should print `We did NOT reach the end node`. And it does. Great!
 
@@ -362,6 +378,7 @@ So, let's change our implementation to a backtracking one... and also change the
 
 Here is the skeleton class for a matcher:
 
+{% raw %}
 ```
 class Matcher:
 	def matches(self, char: str) -> bool:
@@ -373,11 +390,13 @@ class Matcher:
 
 
 ```
+{% endraw %}
 
 I actually have a bit of an embarrasing thing to admit, I don't really know how inheritance works in python3. So let's learn it!
 
 Here:
 
+{% raw %}
 ```
 class CharacterMatcher(Matcher):
 	def __init__(self, c: str) -> None:
@@ -402,11 +421,13 @@ class EpsilonMatcher(Matcher):
 	def isEpsilon(self) -> bool:
 		return False
 ```
+{% endraw %}
 
 There is a bit of a problem. See in the javascript code there is this: `matcher.matches(input, i)` and I do not really understand why there is the input, and then there is the i, because shouldn't the function only take one parameter? Maybe we will use that later on so let's just roll with it.
 
 Uh oh....
 
+{% raw %}
 ```
 from matchers import *
 
@@ -418,17 +439,21 @@ def main() -> int:
 if __name__=="__main__":
 	exit(main())
 ```
+{% endraw %}
 
 results in this:
 
+{% raw %}
 ```
     assert char_matcher.matches("a", 0)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 TypeError: CharacterMatcher.matches() takes 2 positional arguments but 3 were given
 ```
+{% endraw %}
 
 So let's just add a dummy variable to it:
 
+{% raw %}
 ```
 class Matcher:
 	def matches(self, char: str, i: int) -> bool:
@@ -461,11 +486,13 @@ class EpsilonMatcher(Matcher):
 	def isEpsilon(self) -> bool:
 		return False
 ```
+{% endraw %}
 
 Now the assert passes without erroring. Now, let's add them to my engine.
 
 Here is my refactored code:
 
+{% raw %}
 ```
 from matchers import *
 
@@ -561,11 +588,13 @@ class NFAEngine:
 		return False
 
 ```
+{% endraw %}
 
 I am now in this commit: 62085c3b09095f12c714b1485642eab2da9064cf . You can follow my progress on my github: https://github.com/personnumber3377/Regexengine
 
 There is also a problem that the finite automata matches partial strings. But it is actually a feature, not a bug. The guy even addresses it: "It seems to work, but there's a problem, the machine returns true for strings that partially match that input." and then later on:
 
+{% raw %}
 ```
 This is clearly wrong and easily fixed by adding a condition in the return statement, BUT since we are implementing a modern regex engine, we don't really want that. Modern regex allow this unless you specify the end of string anchor $. For example in Javascript:
 
@@ -573,6 +602,7 @@ const regex = new RegExp("ab+");
 console.log(regex.exec("abbc")); //Array [ "abb" ]
 So it's not a bug, it's a feature. When we implement capturing groups it'll be more clear how much text the engine has actually matched.
 ```
+{% endraw %}
 
 ## Solving epsilon loops.
 
@@ -582,6 +612,7 @@ Let's implement it!
 
 Here is my first try:
 
+{% raw %}
 ```
 		stack = [[0, self.states[self.start_state], set()]] # The last element is the epsilon memory.
 
@@ -609,9 +640,11 @@ Here is my first try:
 							epsilon_memory.add(state.name)
 					stack.append([i, destination_state, epsilon_memory])
 ```
+{% endraw %}
 
 and then after adding this driver code:
 
+{% raw %}
 ```
 	engine = NFAEngine()
 	engine.add_state("q0")
@@ -625,6 +658,7 @@ and then after adding this driver code:
 	engine.update_input("ab")
 	engine.transition_states()
 ```
+{% endraw %}
 
 my regex engine hangs. :(
 
@@ -632,10 +666,12 @@ my regex engine hangs. :(
 
 This is probably why it didn't work: (in matchers.py)
 
+{% raw %}
 ```
 	def isEpsilon(self) -> bool:
 		return False
 ```
+{% endraw %}
 
 That is in the epsilon matcher. After replacing that False with True, I no longer get the hang. Great!
 
@@ -655,6 +691,7 @@ So I have to make my own parser it seems, or that I need to port the guys parser
 
 Ok, so as it turns out, this takes quite a while. Here is my translated version of ast.js (aka now it is ast.py):
 
+{% raw %}
 ```
 
 
@@ -1004,18 +1041,21 @@ class Backreference:
 
 
 ```
+{% endraw %}
 
 Now it is time to translate astBuilder.js to astBuilder.py!
 
 
 Now after looking at the code for a while I found this:
 
+{% raw %}
 ```
 visitBackreference(ctx) {
         const [_, group] = /\\([0-9]+)/.exec(ctx.getText());
         return new Backreference(Number(group));
     }
 ```
+{% endraw %}
 
 which seems quite peculiar. We are essentially using regexes to implement a regex engine. I found this quite humorous and thought to share.
 
@@ -1023,6 +1063,7 @@ Now, I am almost done rewriting the entire thing, but now it occurs to me that m
 
 Doing something like this:
 
+{% raw %}
 ```
 import re
 
@@ -1032,17 +1073,21 @@ matcher = re.compile(regex_string)
 
 print(matcher.match("\\10"))
 ```
+{% endraw %}
 
 results in this error:
 
+{% raw %}
 ```
   File "/usr/local/lib/python3.12/re/_parser.py", line 975, in parse
     raise source.error("unbalanced parenthesis")
 re.error: unbalanced parenthesis at position 8
 ```
+{% endraw %}
 
 Ok, so we need to change our regexes a bit. We need to use raw strings instead. This seems to work:
 
+{% raw %}
 ```
 import re
 
@@ -1052,11 +1097,13 @@ matcher = re.compile(regex_string)
 
 print(matcher.match("\\10").group())
 ```
+{% endraw %}
 
 So let's use that.
 
 After a very tedious session of just typing (almost) mindlessly, I now have this:
 
+{% raw %}
 ```
 from grammar.regexVisitor import regexVisitor
 from ast import *
@@ -1407,36 +1454,44 @@ class AstBuilder(regexVisitor):
 		return PLUS
 
 ```
+{% endraw %}
 
 Now just convert parser.js to parser.py aaanddd.. Uh oh..
 
+{% raw %}
 ```
 Exception: Could not deserialize ATN with version  (expected 4)
 ```
+{% endraw %}
 
 Ok, so I had to change the version number of antlr4. As per this here: https://github.com/antlr/antlr4/issues/3997
 
 Now I get this error:
 
+{% raw %}
 ```
     return c >= self.start && self.end >= c
                             ^
 SyntaxError: invalid syntax
 ```
+{% endraw %}
 
 This is easily fixable.
 
 And apparently this is not how typehints work:
 
+{% raw %}
 ```
     def nonCapturing(self) -> Regex:
 NameError: name 'Regex' is not defined
 ```
+{% endraw %}
 
 After a couple of small changes now I can call the file by doing python3 parser.py , but the file doesn't actually do anything yet.
 
 Fuck! We were so close yet so far:
 
+{% raw %}
 ```
 chars == abcdefg
 Type of chars: <class 'antlr4.InputStream.InputStream'>
@@ -1467,9 +1522,11 @@ Traceback (most recent call last):
 AttributeError: 'list' object has no attribute 'accept'
 
 ```
+{% endraw %}
 
 Here is my current script:
 
+{% raw %}
 ```
 
 import antlr4
@@ -1537,9 +1594,11 @@ if __name__=="__main__":
     exit(main())
 
 ```
+{% endraw %}
 
 I added debug statements to the code (including the antlr4 library) and here are the results:
 
+{% raw %}
 ```
 chars == abcdefg
 Type of chars: <class 'antlr4.InputStream.InputStream'>
@@ -1554,6 +1613,7 @@ oof == [<grammar.regexParser.regexParser.ExprContext object at 0x7f61c10d2b20>, 
 tree == [<grammar.regexParser.regexParser.ExprContext object at 0x7f61c10d2b20>, <grammar.regexParser.regexParser.ExprContext object at 0x7f61c10d2c40>, <grammar.regexParser.regexParser.ExprContext object at 0x7f61c10d2d60>, <grammar.regexParser.regexParser.ExprContext object at 0x7f61c10d2d00>, <grammar.regexParser.regexParser.ExprContext object at 0x7f61c10de790>, <grammar.regexParser.regexParser.ExprContext object at 0x7f61c10de0d0>, <grammar.regexParser.regexParser.ExprContext object at 0x7f61c10de220>]
 type of tree: <class 'list'>
 ```
+{% endraw %}
 
 Now, this is quite a predicament. Maybe I should actually do some research on how to use antlr in python? That possibly could work. :D
 
@@ -1561,6 +1621,7 @@ Now, this is quite a predicament. Maybe I should actually do some research on ho
 
 Ok, so I have managed to somewhat narrow down the problem, see when there is only one character in the regex, aka "a" for example, then I get this:
 
+{% raw %}
 ```
 chars == a
 Type of chars: <class 'antlr4.InputStream.InputStream'>
@@ -1577,9 +1638,11 @@ oof == [<grammar.regexParser.regexParser.ExprContext object at 0x7fe5f6f35bb0>]
 tree == [<grammar.regexParser.regexParser.ExprContext object at 0x7fe5f6f35bb0>]
 type of tree: <class 'list'>
 ```
+{% endraw %}
 
 and then if I have "ab" for example, I get this:
 
+{% raw %}
 ```
 
 chars == ab
@@ -1598,11 +1661,13 @@ tree == [<grammar.regexParser.regexParser.ExprContext object at 0x7f74f90edbb0>,
 type of tree: <class 'list'>
 
 ```
+{% endraw %}
 
 Ok, so oof is actually a list, but the function expects some other type. Let's run the guys program and check the type of the variable in his code...
 
 Here is the node output of oof:
 
+{% raw %}
 ```
 Here is the actual thing...
 [
@@ -1770,9 +1835,11 @@ Here is the actual thing...
   }
 ]
 ```
+{% endraw %}
 
 Ok, so it is a list representation, but it is not a list. After looking at the source code for antlr4 in javascript I found this:
 
+{% raw %}
 ```
 ParseTreeVisitor.prototype.visit = function(ctx) {
  	if (Array.isArray(ctx)) {
@@ -1785,11 +1852,13 @@ ParseTreeVisitor.prototype.visit = function(ctx) {
 };
 
 ```
+{% endraw %}
 
 Well, there's why it doesn't work.
 
 After doing some modding of the antlr library:
 
+{% raw %}
 ```
 class ParseTreeVisitor(object):
     # This actually doesn't work
@@ -1819,6 +1888,7 @@ class ParseTreeVisitor(object):
         else:
             tree.accept(self)
 ```
+{% endraw %}
 
 Now it works for a simple regex such as "a", but it doesn't work for a more complicated regex such as "a|b", now this is still a good sign, because we are atleast moving in the right direction.
 
@@ -1827,10 +1897,12 @@ More debugging!
 
 Well, the reason was that I forgot to put a "return" in the fix:
 
+{% raw %}
 ```
         else:
             tree.accept(self) # <--- HERE!
 ```
+{% endraw %}
 
 after putting `return tree.accept(self)`, it now works for more complex regexes.
 
@@ -1839,6 +1911,7 @@ I copied all of the testcases from the blog to my program, but it doesn't work. 
 
 I get this output:
 
+{% raw %}
 ```
 chars == a+
 Type of chars: <class 'antlr4.InputStream.InputStream'>
@@ -1882,9 +1955,11 @@ Traceback (most recent call last):
 TypeError: visitPlusQuantifier() takes 1 positional argument but 2 were given
 
 ```
+{% endraw %}
 
 After doing this modification:
 
+{% raw %}
 ```
         def accept(self, visitor:ParseTreeVisitor):
             if hasattr( visitor, "visitPlusQuantifier" ):
@@ -1894,6 +1969,7 @@ After doing this modification:
             else:
                 return visitor.visitChildren(self)
 ```
+{% endraw %}
 
 It now works. This will probably bite us in the ass later, but let's roll with it for now. I also changed this in everything else. I am 100% sure that this will bite me in the ass later, but that is a problem for future me.
 
@@ -1915,6 +1991,7 @@ The blog post is written in a weird style, because it first writes the functions
 
 Here is the NFABuilder class, which will be the main class we use when using our regexes (we will then finally make a wrapper class which also handles the conversion of the regex string to an AST):
 
+{% raw %}
 ```
 
 # This file is actually the program, which constructs the NFA from an AST generated by antlr4 from the regex string.
@@ -1946,6 +2023,7 @@ class NFABuilder:
 			return self._singleRegexToNFA(regexAST) # Also not yet defined
 
 ```
+{% endraw %}
 
 Let's first up write some helpers and abstractions: (In the blog post there is this line: "In code we'll see this pattern (two states with a single transition) multiple times, so I'll make a small abstraction called _oneStepNFA.")
 
@@ -1953,6 +2031,7 @@ First up we will see a lot of empty epsilon transitions, so let's create a small
 
 The empty epsilon transition will use the oneStepNFA abstraction, so let's first write oneStepNFA.
 
+{% raw %}
 ```
 
 # snip
@@ -1973,16 +2052,19 @@ The empty epsilon transition will use the oneStepNFA abstraction, so let's first
 # snip
 
 ```
+{% endraw %}
 
 I don't know why there is the `character` argument to the emptyExpression .
 
 Then, just as in the blog post, we implement a transition for a single character.
 
+{% raw %}
 ```
 	def _atomicPatternNFA(self, character):
 		matcher = EpsilonMatcher() if character == EPSILON else CharacterMatcher(character) # Check for epsilon
 		return self._oneStepNFA(matcher)
 ```
+{% endraw %}
 
 Ok, so now it is time to actually implement the "gluing together" of NFA:s.
 

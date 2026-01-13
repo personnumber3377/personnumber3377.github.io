@@ -6,15 +6,18 @@ So after fuzzing ghostscript and stuff for a while I decided to switch back to m
 
 After the usual setup of this:
 
+{% raw %}
 ```
 git submodule update --init
 CC="afl-clang-fast" CFLAGS="-fsanitize=address -O3" make prefix="/home/oof/muinstall" LDFLAGS="-fsanitize=address" -j8 install
 ```
+{% endraw %}
 
 I now have the thing...
 
 I also have this fuzzer here:
 
+{% raw %}
 ```
 /*
 # Copyright 2018 Google Inc.
@@ -182,13 +185,16 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   return 0;
 }
 ```
+{% endraw %}
 
 and then compile with these commands here:
 
 
+{% raw %}
 ```
 
 ```
+{% endraw %}
 
 
 

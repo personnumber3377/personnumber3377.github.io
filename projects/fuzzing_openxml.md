@@ -2,6 +2,7 @@
 
 I recently found openxml which is the format that microsoft office uses.
 
+{% raw %}
 ```
 
 
@@ -126,6 +127,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Here is quick mutator I whipped up. Let's see how it succeeds...
 

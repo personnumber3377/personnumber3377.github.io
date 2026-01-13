@@ -13,6 +13,7 @@ Ok, so after going through a couple of targets, I found one which seems quite ou
 
 Here is the current harness: (As of 24th of February 2024)
 
+{% raw %}
 ```
 /* Copyright (C) 2019 Mozilla Foundation.
    File: decode_fuzzer.cc
@@ -98,6 +99,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 }
 
 ```
+{% endraw %}
 
 which is quite a decent harness.
 
@@ -109,6 +111,7 @@ as we can see, we only have around 62 percent of the functions covered. There is
 
 One thing which we can add is we can add coverage for the ov_comment function. Another thing which we can do is we can add support for the fuzzing of seekable files. This is because there are a lot of functions in there which need a seekable file in order to work. For example this:
 
+{% raw %}
 ```
      927          56 : static int _ov_open2(OggVorbis_File *vf){
      928          56 :   if(vf->ready_state != PARTOPEN) return OV_EINVAL;
@@ -126,6 +129,7 @@ One thing which we can add is we can add coverage for the ov_comment function. A
      940          56 :   return 0;
      941             : }
 ```
+{% endraw %}
 
 where the _open_seekable2 function only gets called if the file is seekable. and stdin is not seekable, therefore this is never called. So maybe we should add a method which takes in data from stdin, then writes it to a file and then reads that file. This causes the seekable condition to be true and therefore causes more coverage.
 

@@ -9,6 +9,7 @@ Let's get through a simple case, a case where there are no obstacles. I think th
 
 Here are all of the positions which the thing could visit after 2 steps.
 
+{% raw %}
 ```
 ....................
 ....................
@@ -31,9 +32,11 @@ Here are all of the positions which the thing could visit after 2 steps.
 ....................
 ....................
 ```
+{% endraw %}
 
 Now, all of the final positions would be these:
 
+{% raw %}
 ```
 ....................
 ....................
@@ -56,12 +59,14 @@ Now, all of the final positions would be these:
 ....................
 ....................
 ```
+{% endraw %}
 
 The total visited area is 12, whileas the amount of distinct final positions is 9. Actually, I think that just doing it the "naive" way and just simulating all of the positions is the best performance wise. I think that keeping track of all of the visited spaces and then trying to come up with a formula for all of them is actually slower and more memory intensive.
 
 
 Here was my initial attempt at part 1:
 
+{% raw %}
 ```
 import sys
 
@@ -114,18 +119,23 @@ def main() -> int:
 if __name__=="__main__":
     exit(main())
 ```
+{% endraw %}
 
 There was a bug in it. The bug is on this line:
 
+{% raw %}
 ```
                 if matrix[neig[1]][neig[0]] == "#": # Wall
 ```
+{% endraw %}
 
 See, I replaced the "#" characters with the integer 1 in the parse function, so this check will never pass. This is the correct version:
 
+{% raw %}
 ```
                 if matrix[neig[1]][neig[0]] == 1: # Wall
 ```
+{% endraw %}
 
 Ok, so for part 2 I think we need the optimization which I talked about. See, for all of the places which we have actually visited, we know that those places alternate.
 

@@ -2,6 +2,7 @@
 
 Here:
 
+{% raw %}
 ```
 
 
@@ -71,14 +72,17 @@ int main(int argc, char** argv)
 
 
 ```
+{% endraw %}
 
 I am going to just call the loop method.
 
 Here is just a fuzzing script:
 
+{% raw %}
 ```
 C:\Users\elsku\winafl\winafl\build\bin\Release\afl-fuzz.exe -i c:\Users\elsku\inputs -o c:\Users\elsku\outputs -D C:\Users\elsku\dynamorio2\DynamoRIO-Windows-11.3.0-1\bin64 -I 40000   -t 40000 -f input.emf -- -coverage_module gdiplus.dll -fuzz_iterations 1000 -persistence_mode in_app -target_module gdiplusharness.exe -verbose 100 -target_offset 0x1170 -nargs 1 -- "C:\Users\elsku\source\repos\gdiplusharness\x64\Release\gdiplusharness.exe" "@@"
 ```
+{% endraw %}
 
 I originally tried with the `-target_method loop` command line option, but I actually got an error complaining that `to_wrap` wasn't found. I filed an issue with winafl for this bug. https://github.com/googleprojectzero/winafl/issues/456
 
@@ -102,6 +106,7 @@ Actually let's just create a separate repo for a parser.
 
 Ok, so let's also add an implementation for the actual bullshit which takes in a .h header and then outputs a reader for that file.
 
+{% raw %}
 ```
 
 typedef struct tagENHMETAHEADER {
@@ -123,9 +128,11 @@ typedef struct tagENHMETAHEADER {
 } ENHMETAHEADER;
 
 ```
+{% endraw %}
 
 Something like this maybe?
 
+{% raw %}
 ```
 
 import re
@@ -200,9 +207,11 @@ generated_code = c_header_to_python(c_header)
 print(generated_code)
 
 ```
+{% endraw %}
 
 Here is an improved version:
 
+{% raw %}
 ```
 
 import re
@@ -358,11 +367,13 @@ if __name__=="__main__":
     exit(0)
 
 ```
+{% endraw %}
 
 Let's modify this program such that it returns the rest of the data (if not all if it wasn't consumed)...
 
 Here is the final version:
 
+{% raw %}
 ```
 
 import re
@@ -545,14 +556,17 @@ if __name__=="__main__":
     exit(0)
 
 ```
+{% endraw %}
 
 Here is a program generated from the header:
 
+{% raw %}
 ```
 
 
 
 ```
+{% endraw %}
 
 
 
@@ -564,6 +578,7 @@ Actually here is some bullshit...
 
 Here is some bullshit:
 
+{% raw %}
 ```
 
 class ParsedHeader:
@@ -590,6 +605,7 @@ class ParsedHeader:
         return f"<ParsedHeader {parsed_fields}, Remaining: {len(self.remaining_data)} bytes>"
 
 ```
+{% endraw %}
 
 the fucking thing doesn't work, since the size thing returns 88, but the correct size is 108 .
 
@@ -599,6 +615,7 @@ Ok, so the python struct library doesn't support unpacking integers of arbitrary
 
 Here is the template file:
 
+{% raw %}
 ```
 
 import struct
@@ -627,6 +644,7 @@ class ParsedHeader:
         return f"<ParsedHeader {{parsed_fields}}, Remaining: {{len(self.remaining_data)}} bytes>"
 
 ```
+{% endraw %}
 
 Now the problem is that we don't know the sizes of the fields, but we need to know them during mutation, so I think we should make the elements as tuples which the first element is the expected size and the second element is the current value?????? Also we should transform each of these type identifiers to just use bytes, because then we don't need to deal with the signedness issue bullshit and shit like that...
 
@@ -639,6 +657,7 @@ Now in order to fuzz the structures of an EMF file, we also need to program some
 
 Something like this?
 
+{% raw %}
 ```
 
     def serialize(parsed):
@@ -649,11 +668,13 @@ Something like this?
         return struct.pack(format_string, *values)
 
 ```
+{% endraw %}
 
 (Thanks chatgpt)
 
 Actually the serialization is more like:
 
+{% raw %}
 ```
 
     def serialize(self):
@@ -669,11 +690,13 @@ Actually the serialization is more like:
         return out # Return the output bytes
 
 ```
+{% endraw %}
 
 ## Parsing records
 
 Here is a function which tries to parse the rest of the records:
 
+{% raw %}
 ```
 
 def parse_records(record_data):
@@ -691,11 +714,13 @@ def parse_records(record_data):
 	return
 
 ```
+{% endraw %}
 
 Let's take a look at https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-emf/1eec80ba-799b-4784-a9ac-91597d590ae1 and the records and see what kinds of records are in the file...
 
 Here is the output:
 
+{% raw %}
 ```
 
 Here are the record bytes: b'F\x00\x00\x00,\x00\x00\x00 \x00\x00\x00EMF+\x01@\x00\x00\x1c\x00\x00\x00\x10\x00\x00\x00\x02\x10\xc0\xdb\x01\x00\x00\x00`\x00\x00\x00`\x00\x00\x00'
@@ -708,12 +733,15 @@ Here are the record bytes: b'F\x00\x00\x00\x1c\x00\x00\x00\x10\x00\x00\x00EMF+\x
 Here are the record bytes: b'\x0e\x00\x00\x00\x14\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x14\x00\x00\x00'
 
 ```
+{% endraw %}
 
 The first record is a comment. See:
 
+{% raw %}
 ```
    EMR_COMMENT = 0x00000046,
 ```
+{% endraw %}
 
 and `chr(0x46) == 'F'`
 
@@ -729,11 +757,13 @@ also: "Note: The EMR_REALIZEPALETTE and EMR_SAVEDC records do not specify parame
 
 Let's move on to the next thing. It seems to start with the character "b" : ` EMR_SETICMMODE = 0x00000062,` : `EMR_SETICMMODE: This record specifies the mode of Image Color Management (ICM) for graphics operations.<5>`
 
+{% raw %}
 ```
 Image Color Management (ICM): Technology that ensures that a color image, graphic, or text
 object is rendered as closely as possible to its original intent on any device despite differences in
 imaging technologies and color capabilities between devices.
 ```
+{% endraw %}
 
 Here is the thing: `2.3.11.14`
 
@@ -741,11 +771,13 @@ Next is the record starting with the character "L" which is `   EMR_BITBLT = 0x0
 
 Here:
 
+{% raw %}
 ```
 EMR_BITBLT: This record specifies a block transfer of pixels from a source bitmap to a destination
 rectangle, optionally in combination with a brush pattern, according to a specified raster
 operation.
 ```
+{% endraw %}
 
 Ok, so ```b'L\x00\x00\x00d\x00\x00\x00\x0f\x00\x00\x00\x00\x00\x00\x00c\x00\x00\x00`\x00\x00\x00\x0f\x00\x00\x00\x00\x00\x00\x00U\x00\x00\x00a\x00\x00\x00)\x00\xaa\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80?\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80?\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'```
 
@@ -757,6 +789,7 @@ Before doing that, let's manually try to parse this packet.
 
 Here is from the doc:
 
+{% raw %}
 ```
 
 BitBltRasterOperation (4 bytes): An unsigned integer that specifies the raster operation code. This
@@ -766,6 +799,7 @@ This value is in the Ternary Raster Operation enumeration ([MS-WMF] section 2.1.
 
 
 ```
+{% endraw %}
 
 that section doesn't even exist in the same pdf document.
 
@@ -773,27 +807,33 @@ Here seems to be some documentation: `https://learn.microsoft.com/en-us/openspec
 
 Here seems to be our value:
 
+{% raw %}
 ```
 D:
 
 Reverse Polish = 00AA0029
 ```
+{% endraw %}
 
 because we had that but in reverse byteorder:
 
+{% raw %}
 ```
 0\x00\x00\x00\x00\x00\x00\x00\x80?\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 EMR_BITBLT
 BitmapBuffer: b''
 BitBltRasterOperation: 0x2900aa00
 ```
+{% endraw %}
 
 
 The "D" value from the documentation seems to mean the destination bitmap.
 
+{% raw %}
 ```
 0x2900aa00
 ```
+{% endraw %}
 
 so 0x29 is the operand index and 0xaa is something else. Let's try to figure out what that something else means...
 Yeah, so I don't understand how the algorithm works in the thing. Let's hope that isn't important.
@@ -810,6 +850,7 @@ I have created a github repo for this:
 
 Ok, so I just copy pasted the entire contents of the PDF file to a text file and here is a simple script which checks for the stuff:
 
+{% raw %}
 ```
 
     # Regular expression to match C-style fields
@@ -858,11 +899,13 @@ Ok, so I just copy pasted the entire contents of the PDF file to a text file and
         line_ind += 1
 
 ```
+{% endraw %}
 
 it checks for the section stuff on each line and then just reports if a record section is encountered.
 
 Here happens the shit bug:
 
+{% raw %}
 ```
 
 2.3.4.1 EMR_EOF Record
@@ -933,6 +976,7 @@ Fields not specified in this section are specified in section 2.3.4.
 0 1 2 3 4 5 6 7 8 9
 
 ```
+{% endraw %}
 
 ok so there is also another bug when parsing the variable, optional things. I assumed that all variable fields are marked as "(variable)", but there are also "(variable, optional)" fields...
 
@@ -944,6 +988,7 @@ Let's create a dir called testfiles
 
 I also added this utility function which takes a hexdump and outputs bytes:
 
+{% raw %}
 ```
 
 def parse_hex_dump(hex_dump): # This parses an xxd -g 1 style hex dump and returns a "bytes" object which corresponds to that hexdump.
@@ -963,6 +1008,7 @@ def parse_hex_dump(hex_dump): # This parses an xxd -g 1 style hex dump and retur
 	return o
 
 ```
+{% endraw %}
 
 This can be used to take examples from the spec and then using in them in tests etc etc...
 
@@ -979,6 +1025,7 @@ Now first of all we need a way to lookup the record type from our autogenerated 
 
 Here is the enum thing:
 
+{% raw %}
 ```
 
 typedef enum
@@ -1106,6 +1153,7 @@ typedef enum
 
 
 ```
+{% endraw %}
 
 My idea is to parse the file as an object.
 
@@ -1113,6 +1161,7 @@ Let's create a file called emf_file.py which specifies the class which is an obj
 
 Maybe something like this?
 
+{% raw %}
 ```
 
 
@@ -1199,6 +1248,7 @@ def parse_emf_file(data):
 
 
 ```
+{% endraw %}
 
 Now we want to make a design decision, do we want to modify the Size fields in the record objects themselves or do we want to just modify the "Size" field in the mutation function?????
 
@@ -1208,6 +1258,7 @@ We also want the names of the stuff.
 
 So here is the stuff:
 
+{% raw %}
 ```
 
 
@@ -1331,12 +1382,14 @@ EMR_SETTEXTJUSTIFICATION = 0x00000078
 EMR_COLORMATCHTOTARGETW = 0x00000079
 EMR_CREATECOLORSPACEW = 0x0000007A
 ```
+{% endraw %}
 
 
 we also want a dictionary where the key is the integer and the key is actually the string "EMR_COMMENT" etc etc.. I think we can do that by just: `reverse_dict = {value: key for key, value in globals().items() if isinstance(value, int)}` thanks chatgpt!!!!!!
 
 Something like this?????
 
+{% raw %}
 ```
 
 
@@ -1400,9 +1453,11 @@ def parse_records(record_data):
 
 
 ```
+{% endraw %}
 
 This almost works, but the problem is that there are records which aren't actually in the PDF file in the usual format. Fuck!!!
 
+{% raw %}
 ```
 
 []
@@ -1426,12 +1481,14 @@ Traceback (most recent call last):
 AttributeError: module 'autogenerated' has no attribute 'EMR_SAVEDC'
 
 ```
+{% endraw %}
 
 
 So I think we need to fucking add some records manually. This is complete dogshit imo...
 
 Here is another bug:
 
+{% raw %}
 ```
 
 unpacked:
@@ -1463,9 +1520,11 @@ Traceback (most recent call last):
 AttributeError: module 'autogenerated' has no attribute 'EMR_EOF'
 
 ```
+{% endraw %}
 
 Here is my current record generation code:
 
+{% raw %}
 ```
 
 def spec_to_python(contents):
@@ -1599,10 +1658,12 @@ def to_unsigned(byte_integer: int) -> int: # Converts a signed integer in a sing
     return output
 
 ```
+{% endraw %}
 
 
 Ok, so now we can create the record objects from the data I think. Now we need to program a serialization function for our EMFFile object:
 
+{% raw %}
 ```
 
 
@@ -1621,6 +1682,7 @@ class EMFFile:
 
 
 ```
+{% endraw %}
 
 I think the best way to do this is to just first serialize each record and then after this add the header and fix up all the lengths etc etc...
 
@@ -1628,6 +1690,7 @@ Also in addition I think we need to keep track of the variable data at the end i
 
 Let's modify our template.
 
+{% raw %}
 ```
 
 
@@ -1646,9 +1709,11 @@ class EMFFile:
 
 
 ```
+{% endraw %}
 
 Here is our current template for the EMR record:
 
+{% raw %}
 ```
 
 class NAME:
@@ -1720,11 +1785,13 @@ class NAME:
 
 
 ```
+{% endraw %}
 
 We also need to add some sanity checking to the serialization function and we also should add the variable data shit to the serialization stuff...
 
 Here is the serialization function:
 
+{% raw %}
 ```
 
     def serialize(self):
@@ -1747,11 +1814,13 @@ Here is the serialization function:
         return out # Return the output bytes
 
 ```
+{% endraw %}
 
 there is also some jankiness going on with the Size and Type fields, because in the spec, sometimes they are explicitly stated when as during other times, they are omitted from the listing in the format our autogenerator expects. This basically causes there to sometimes be a Type field and sometimes not and same with Size, so let's also fix this in the autogenerator....
 
 Here is my current autogenerator:
 
+{% raw %}
 ```
 
 
@@ -1985,11 +2054,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 ## More bugs
 
 Ok, so there is some bullshit happening with the generation function because I get this assertion error here:
 
+{% raw %}
 ```
 
 Here is the fields: ['Type', 'Size', 'Bounds', 'xDest', 'yDest', 'xSrc', 'ySrc', 'cxSrc', 'cySrc', 'offBmiSrc', 'cbBmiSrc', 'offBitsSrc', 'cbBitsSrc', 'UsageSrc', 'BitBltRasterOperation', 'cxDest', 'cyDest']
@@ -2016,11 +2087,13 @@ Traceback (most recent call last):
 AssertionError
 
 ```
+{% endraw %}
 
 this happens with the EMR_STRETCHDIBITS field. Let's copy the shit from the file and see what happens.
 
 Ok, so I fixed that bug. Now I am getting this error:
 
+{% raw %}
 ```
 
 \xff\xffF\x00\x00\x00\x1c\x00\x00\x00\x10\x00\x00\x00EMF+\x02@\x00\x00\x0c\x00\x00\x00\x00\x00\x00\x00\x0e\x00\x00\x00\x14\x00\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x14\x00\x00\x00'
@@ -2047,11 +2120,13 @@ Traceback (most recent call last):
 AssertionError
 
 ```
+{% endraw %}
 
 this is because the has_variable isn't being set properly during autogeneration...
 
 This is again, because the fucking documentation didn't specify the field in the expected format. This is honestly fucking ridiculous.
 
+{% raw %}
 ```
 
 Name: EMR_SELECTCLIPPATH
@@ -2095,12 +2170,15 @@ Fields after: []
 Bullshit after...
 
 ```
+{% endraw %}
 
 Wait nevermind. This is because it is optional:
 
+{% raw %}
 ```
 PrivateData (variable, optional): An array of bytes that specifies the private data. The first 32-bit
 ```
+{% endraw %}
 
 Here is the old field: `variable_field_regex = re.compile(r'\w+\s\(variable\):') # This is for fixed length fields...`
 
@@ -2110,6 +2188,7 @@ There you go! Now we can parse the EMF file into an EMFFile parsed object which 
 
 I did some cleanup of debug prints and here is now the current output:
 
+{% raw %}
 ```
 unpacked:
 [(1, 0, 0, 0), (108, 0, 0, 0), (15, 0, 0, 0, 0, 0, 0, 0, 99, 0, 0, 0, 96, 0, 0, 0), (-21, 0, 0, 0, 0, 0, 0, 0, 16, 6, 0, 0, -32, 5, 0, 0), (32, 69, 77, 70), (0, 0, 1, 0), (96, 2, 0, 0), (9, 0, 0, 0), (1, 0), (0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (-128, 7, 0, 0, -80, 4, 0, 0), (45, 1, 0, 0, -68, 0, 0, 0)]
@@ -2246,9 +2325,11 @@ Here is self.remaining_data: b''
 Here are the records: [<EMR_COMMENT {'Type': (4, 70), 'Size': (4, 44)}, Remaining: 28 bytes>, <EMR_COMMENT {'Type': (4, 70), 'Size': (4, 276)}, Remaining: 260 bytes>, <EMR_SAVEDC {'Type': (4, 33), 'Size': (4, 8)}, Remaining: 0 bytes>, <EMR_SETICMMODE {'Type': (4, 98), 'Size': (4, 12), 'ICMMode': (4, 1)}, Remaining: 0 bytes>, <EMR_BITBLT {'Type': (4, 76), 'Size': (4, 100), 'Bounds': (16, 7605903603195604072277464842255), 'xDest': (4, 15), 'yDest': (4, 0), 'cxDest': (4, 85), 'cyDest': (4, 97), 'BitBltRasterOperation': (4, 11141161), 'xSrc': (4, 0), 'ySrc': (4, 0), 'XformSrc': (24, 84405977732342157929391748328867233792), 'BkColorSrc': (4, 0), 'UsageSrc': (4, 0), 'offBmiSrc': (4, 0), 'cbBmiSrc': (4, 0), 'offBitsSrc': (4, 0), 'cbBitsSrc': (4, 0)}, Remaining: 0 bytes>, <EMR_RESTOREDC {'Type': (4, 34), 'Size': (4, 12), 'SavedDC': (4, 4294967295)}, Remaining: 0 bytes>, <EMR_COMMENT {'Type': (4, 70), 'Size': (4, 28)}, Remaining: 12 bytes>, <EMR_EOF {'Type': (4, 14), 'Size': (4, 20), 'nPalEntries': (4, 0), 'offPalEntries': (4, 16), 'SizeLast': (4, 20)}, Remaining: 0 bytes>]
 
 ```
+{% endraw %}
 
 for this EMF file:
 
+{% raw %}
 ```
 00000000: 01 00 00 00 6c 00 00 00 0f 00 00 00 00 00 00 00  ....l...........
 00000010: 63 00 00 00 60 00 00 00 eb 00 00 00 00 00 00 00  c...`...........
@@ -2289,6 +2370,7 @@ for this EMF file:
 00000240: 02 40 00 00 0c 00 00 00 00 00 00 00 0e 00 00 00  .@..............
 00000250: 14 00 00 00 00 00 00 00 10 00 00 00 14 00 00 00  ................
 ```
+{% endraw %}
 
 Now we need a way to parse the structure back into bytes!!!
 
@@ -2298,6 +2380,7 @@ Ok, so now we need to serialize the structure correctly.
 
 Something like this? This doesn't serialize the header yet, but we will implement that later:
 
+{% raw %}
 ```
 
 class EMFFile:
@@ -2318,9 +2401,11 @@ class EMFFile:
 		return out
 
 ```
+{% endraw %}
 
 another bug!!
 
+{% raw %}
 ```
 
 Traceback (most recent call last):
@@ -2338,9 +2423,11 @@ Traceback (most recent call last):
 AssertionError
 
 ```
+{% endraw %}
 
 Add some debugging????
 
+{% raw %}
 ```
 
 
@@ -2371,9 +2458,11 @@ Add some debugging????
 
 
 ```
+{% endraw %}
 
 oh, it looks like I am using the entire thing:
 
+{% raw %}
 ```
 aining: 0 bytes>]
 Here is the data without the variable shit: b'F\x00\x00\x00,\x00\x00\x00'
@@ -2394,6 +2483,7 @@ Traceback (most recent call last):
            ^^^^^^^^^^^^^^^^^^^^^
 AssertionError
 ```
+{% endraw %}
 
 we want `self.Size[1]` instead of just `self.Size[0]`
 
@@ -2401,6 +2491,7 @@ wait that still doesn't work. Something is going on..
 
 If we look at the thing:
 
+{% raw %}
 ```
 
 Test succeeded!
@@ -2410,9 +2501,11 @@ Here are the record bytes: b'F\x00\x00\x00,\x00\x00\x00 \x00\x00\x00EMF+\x01@\x0
 Here is the data in EMR_COMMENT: b'F\x00\x00\x00,\x00\x00\x00
 
 ```
+{% endraw %}
 
 and here is the thing at the end:
 
+{% raw %}
 ```
 
 'offPalEntries': (4, 16), 'SizeLast': (4, 20)}, Remaining: 0 bytes>]
@@ -2423,16 +2516,19 @@ Here is the Size: (4, 44)
 
 
 ```
+{% endraw %}
 
 we can see that the difference is that when reading the stuff, we cut out the ` \x00\x00\x00EMF+` part. Which seems to make sense since, since the difference between the expected and the parsed is 8 bytes...
 
 Ah, I see that we actually cut the thing in the `__init__` function here:
 
+{% raw %}
 ```
         for f in self.format:
             unpacked.append(struct.unpack(f, data[:struct.calcsize(f)]))
             data = data[struct.calcsize(f):]
 ```
+{% endraw %}
 
 this essentially means that the data gets truncated and that is why the check fails..
 
@@ -2452,6 +2548,7 @@ Now one mutation strategy is to simply modify an existing record in the file. I 
 
 Here is the mutator skeleton:
 
+{% raw %}
 ```
 # This mutator is for EMF files. See https://www.mcafee.com/blogs/other-blogs/mcafee-labs/analyzing-cve-2021-1665-remote-code-execution-vulnerability-in-windows-gdi/ and
 
@@ -2523,9 +2620,11 @@ if __name__=="__main__":
 	test_mut()
 	exit(0)
 ```
+{% endraw %}
 
 and here is the mutation strategies:
 
+{% raw %}
 ```
 
 
@@ -2581,11 +2680,13 @@ def mutate_tuple(field): # This mutates the thing with fixed size integer...
 
 
 ```
+{% endraw %}
 
 There is quite an obvious bug here. We shouldn't mutate the Size or Type fields, so let's remove those from the list before choosing a field to mutate.
 
 Here seems to be a sufficient fix:
 
+{% raw %}
 ```
 def mut_field(rec) -> None:
 	# Mutates a field in a record.
@@ -2606,11 +2707,13 @@ def mut_field(rec) -> None:
 	return
 
 ```
+{% endraw %}
 
 Ok, so now I think we actually have a fully functioning mutator which we can now test out. We just only need to add the afl specific functions to our code and we should be golden...
 
 Here this seems to do the thing:
 
+{% raw %}
 ```
 
 
@@ -2707,11 +2810,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 One small problem... the python custom mutator shit doesn't exist for winafl... FUCK!!!!!!!!!
 
 I asked chatgpt to write me a custom mutator dll for python for winafl and it came up with this:
 
+{% raw %}
 ```
 
 #include <Python.h>
@@ -2776,6 +2881,7 @@ void afl_custom_deinit(void *data) {
 }
 
 ```
+{% endraw %}
 
 Let's create a repo for this garbage: https://github.com/personnumber3377/winafl_python_custom_mutator
 
@@ -2786,6 +2892,7 @@ Ok, so I asked how to compile in Visual Studio and I got this here: `cl /LD pyth
 
 
 
+{% raw %}
 ```
 
 cl /LD python_mutator.c /I"C:\Python39\include" /link /LIBPATH:"C:\Python39\libs" python39.lib
@@ -2805,18 +2912,22 @@ cl /LD python_mutator.c /I"C:\Users\elsku\AppData\Local\Programs\Python\Python31
 
 
 ```
+{% endraw %}
 
 Ok, so I managed to compile the bullshit with the help of chatgpt. Now it is time to try and run the thing. Maybe something like this???
 
+{% raw %}
 ```
 
 C:\Users\elsku\winafl\winafl\build\bin\Release\afl-fuzz.exe -i c:\Users\elsku\inputs -o c:\Users\elsku\outputs3 -D C:\Users\elsku\dynamorio2\DynamoRIO-Windows-11.3.0-1\bin64 -I 40000   -t 4000 -f input.emf -- -coverage_module gdiplus.dll -fuzz_iterations 1000 -persistence_mode in_app -target_module gdiplusharness.exe -verbose 100 -target_offset 0x1170 -nargs 1 -- "C:\Users\elsku\source\repos\gdiplusharness\x64\Release\gdiplusharness.exe" "@@"
 
 ```
+{% endraw %}
 
 
 Ok, so the chatgpt generated was wrong I think (surprise) and here is actually something which we want:
 
+{% raw %}
 ```
 
     if (dll_mutate_testcase_ptr(argv, in_buf, len, common_fuzz_stuff))
@@ -2830,6 +2941,7 @@ and here:
   dll_mutate_testcase_ptr = (dll_mutate_testcase)GetProcAddress(hLib, "dll_mutate_testcase");
   SAYF("dll_mutate_testcase %s defined.\n", dll_mutate_testcase_ptr ? "is" : "isn't");
 ```
+{% endraw %}
 
 so we actually want to define the function as dll_mutate_testcase .
 
@@ -2837,6 +2949,7 @@ The common_fuzz_stuff is actually a function pointer which does some stuff. I do
 
 Fuck. I am getting an error saying some bullshit....
 
+{% raw %}
 ```
 
 #include <windows.h>
@@ -2862,38 +2975,46 @@ int main() {
 }
 
 ```
+{% endraw %}
 
 
 Let's try to load the dll manually and see what happens...
 
 
+{% raw %}
 ```
 
 cl /LD python_mutator.c /I"C:\Users\elsku\AppData\Local\Programs\Python\Python313\Include" /link  /MACHINE:x64 /LIBPATH:"C:\Users\elsku\AppData\Local\Programs\Python\Python313\libs" python313.lib
 
 ```
+{% endraw %}
 
 
+{% raw %}
 ```
 
 cl /LD "C:\Users\elsku\winafl\winafl\python_mutator.c" /I"C:\Users\elsku\AppData\Local\Programs\Python\Python313\Include" /link  /MACHINE:x64 /LIBPATH:"C:\Users\elsku\AppData\Local\Programs\Python\Python313\libs" python313.lib
 
 
 ```
+{% endraw %}
 
 
 
 
 I think this is some binary versioning bullshit and we actually need to compile the bullshit with the 32 version of binaries and that is why it claims that it can't find it, because it can but it is the wrong binary version...
 
+{% raw %}
 ```
 
 cl /LD "C:\Users\elsku\winafl\winafl\python_mutator.c" /I"C:\py32\Include" /link   /LIBPATH:"C:\py32\libs" python312.lib
 
 ```
+{% endraw %}
 
 Ok, so now I get this bullshit:
 
+{% raw %}
 ```
 
 C:\Users\elsku\source\repos\gdiplusharness>C:\Users\elsku\winafl\winafl\build\bin\Release\afl-fuzz.exe -i c:\Users\elsku\inputs -o c:\Users\elsku\outputs4 -D C:\Users\elsku\dynamorio2\DynamoRIO-Windows-11.3.0-1\bin64 -I 40000   -t 4000 -f input.emf -l python_mutator.dll -- -coverage_module gdiplus.dll -fuzz_iterations 1000 -persistence_mode in_app -target_module gdiplusharness.exe -verbose 100 -target_offset 0x1170 -nargs 1 -- "C:\Users\elsku\source\repos\gdiplusharness\x64\Release\gdiplusharness.exe" "@@"
@@ -2906,18 +3027,22 @@ Using absolute path to search for dll...
          Location : load_custom_library(), C:\Users\elsku\winafl\winafl\afl-fuzz.c:8140
 
 ```
+{% endraw %}
 
 the error code 0xc1 means that the binary format is wrong. Fuck!!!!
 
 Just compile with the norma command???
 
 
+{% raw %}
 ```
 C:\Users\elsku\winafl\winafl\build\bin\Release\afl-fuzz.exe -i c:\Users\elsku\inputs -o c:\Users\elsku\outputs4 -D C:\Users\elsku\dynamorio2\DynamoRIO-Windows-11.3.0-1\bin64 -I 40000   -t 4000 -f input.emf -l python_mutator.dll -- -coverage_module gdiplus.dll -fuzz_iterations 1000 -persistence_mode in_app -target_module gdiplusharness.exe -verbose 100 -target_offset 0x1170 -nargs 1 -- "C:\Users\elsku\source\repos\gdiplusharness\x64\Release\gdiplusharness.exe" "@@"
 ```
+{% endraw %}
 
 Ok, so this is quite annoying. The error is in the environment variable script. See, I am running the fuzzer as follows:
 
+{% raw %}
 ```
 
 
@@ -2930,6 +3055,7 @@ copy C:\Users\elsku\winafl\winafl\python_mutator.dll .
 
 C:\Users\elsku\winafl\testing\afl-fuzz.exe -i c:\Users\elsku\inputs -o c:\Users\elsku\outputs4 -D C:\Users\elsku\dynamorio2\DynamoRIO-Windows-11.3.0-1\bin64 -I 40000   -t 4000 -f input.emf -l python_mutator.dll -- -coverage_module gdiplus.dll -fuzz_iterations 1000 -persistence_mode in_app -target_module gdiplusharness.exe -verbose 100 -target_offset 0x1170 -nargs 1 -- "C:\Users\elsku\source\repos\gdiplusharness\x64\Release\gdiplusharness.exe" "@@"
 ```
+{% endraw %}
 
 
 
@@ -2939,6 +3065,7 @@ where the error is actually caused by the setting of the pythonpath variable!!!!
 
 Ok, so now I think the next course of action is to try to make it actually load succesfully the custom mutator function, right now it doesn't find the custom mutator function and I get the following error message:
 
+{% raw %}
 ```
 
 Using absolute path to search for dll...
@@ -2951,11 +3078,13 @@ dll_trim_testcase isn't defined.
 dll_mutate_testcase_with_energy isn't defined.
 
 ```
+{% endraw %}
 
 which means that it is unable to find the custom mutation functions which is of course not what we want.
 
 Ok, so I managed to write this:
 
+{% raw %}
 ```
 
 __declspec(dllexport) void *dll_init(void) {
@@ -2981,9 +3110,11 @@ __declspec(dllexport) void *dll_init(void) {
 }
 
 ```
+{% endraw %}
 
 except here is the return value:
 
+{% raw %}
 ```
 
 [*] Attempting dry run with 'id_000000'...
@@ -2993,6 +3124,7 @@ except here is the return value:
        OS message : No error
 
 ```
+{% endraw %}
 
 so therefore I think the function should return something and chatgpt did something wrong???????
 
@@ -3001,6 +3133,7 @@ Let's just take a look at the actual documentation and see what it says on custo
 
 Here is my current code:
 
+{% raw %}
 ```
 
 #include <Python.h>
@@ -3171,9 +3304,11 @@ __declspec(dllexport) void afl_custom_deinit(void *data) {
 }
 
 ```
+{% endraw %}
 
 here is a working thing:
 
+{% raw %}
 ```
 
 #include <Python.h>
@@ -3346,15 +3481,19 @@ __declspec(dllexport) void afl_custom_deinit(void *data) {
 }
 
 ```
+{% endraw %}
 
 and now I think we actually want to return one on purpose and see what happens...
 
+{% raw %}
 ```
 copy C:\Users\elsku\winafl\winafl\python_mutator.dll .
 ```
+{% endraw %}
 
 Ok, so if we actually take a look at a working custom mutator example from winafl itself:
 
+{% raw %}
 ```
 
 u8 dll_mutate_testcase(char **argv, u8 *buf, u32 len, u8 (*common_fuzz_stuff)(char**, u8*, u32))
@@ -3380,6 +3519,7 @@ u8 dll_mutate_testcase(char **argv, u8 *buf, u32 len, u8 (*common_fuzz_stuff)(ch
 
 
 ```
+{% endraw %}
 
 Now we have basically two choices: We can either modify winafl itself to incorporate an environment variable for python fuzz only OR we can modify the mutator to run in a loop, this is some bullshit, but idk...
 
@@ -3389,6 +3529,7 @@ Let's take a look at original afl-fuzz and see the environment variables...
 
 Just looking at the hex dumps, there doesn't really seem to be any mutating going on which is quite odd.
 
+{% raw %}
 ```
 
 00000000: 01 00 00 00 6c 00 00 00 0f 00 00 00 00 00 00 00  ....l...........
@@ -3430,6 +3571,7 @@ Just looking at the hex dumps, there doesn't really seem to be any mutating goin
 00000240: 14 00 00 00 00 00 00 00 10 00 00 00 14 00 00 00  ................
 
 ```
+{% endraw %}
 
 this binary data doesn't get mutated in the custom mutator, so let's try to figure out why...
 
@@ -3441,12 +3583,14 @@ No that doesn't work.
 
 Here is a thing:
 
+{% raw %}
 ```
 
 oof@elskun-lppri:/mnt/c/Users/elsku$ ls outputs4/queue/
 id_000000  id_000001
 
 ```
+{% endraw %}
 
 so we actually only have two things in the thing... , so therefore we run the thing once, so what if we initialize the thing on each iteration???
 
@@ -3454,6 +3598,7 @@ Like so???
 
 Wait nevermind, I actually have this here:
 
+{% raw %}
 ```
 
 def fuzz(buf):
@@ -3513,6 +3658,7 @@ def fuzz(buf):
 	return buf # Return the mutated buffer
 
 ```
+{% endraw %}
 
 and we only get two files in the output. This probably means that we need to investigate the bullshit.
 
@@ -3526,6 +3672,7 @@ I think we should add a helper to the record objects which returns the mutable f
 
 Maybe something like this????
 
+{% raw %}
 ```
 
     def mutable_fields(self) -> list:
@@ -3540,6 +3687,7 @@ Maybe something like this????
         return 0
 
 ```
+{% endraw %}
 
 ## Cleaning up some shit..
 
@@ -3548,6 +3696,7 @@ Ok, so I think it is time to get rid of some old debug messages and shit like th
 
 Here is the old python custom mutator:
 
+{% raw %}
 ```
 
 #include <Python.h>
@@ -3745,9 +3894,11 @@ __declspec(dllexport) void afl_custom_deinit(void *data) {
 }
 
 ```
+{% endraw %}
 
 Here is a cleaned up version of it:
 
+{% raw %}
 ```
 
 
@@ -3880,11 +4031,13 @@ __declspec(dllexport) void afl_custom_deinit(void *data) {
     Py_Finalize();
 }
 ```
+{% endraw %}
 
 Then I think the next step to do is fixup my horrible python code...
 
 Here is my cleaned up code:
 
+{% raw %}
 ```
 
 #include <Python.h>
@@ -3984,6 +4137,7 @@ __declspec(dllexport) void afl_custom_deinit(void *data) {
 }
 
 ```
+{% endraw %}
 
 I am getting roughly 100 execs a second on my machine with the custom mutator which was similar to when running without so I don't think the performance overhead is that bad... but idk..
 
@@ -3992,14 +4146,17 @@ I am getting roughly 100 execs a second on my machine with the custom mutator wh
 I think we should also check if the mutated EMF files are structurally valid by using a C program which tries to actually load it with gdiplus and sees if it get's compiled.
 
 
+{% raw %}
 ```
 cmake -A Win32 .. -DDynamoRIO_DIR=C:\Users\elsku\dynamorio2\DynamoRIO-Windows-11.3.0-1\cmake -DINTELPT=1 -DUSE_COLOR=1
 
  cmake --build . --config Release
 ```
+{% endraw %}
 
 Here is a program which checks if the image is actually valid or not:
 
+{% raw %}
 ```
 
 
@@ -4078,11 +4235,13 @@ int main(int argc, char** argv)
 
 
 ```
+{% endraw %}
 
 ## Fixing extra data bullshit...
 
 Ok, so I downloaded the example from microsoft from here:  https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-emf/2d7b37b4-e170-42f6-bd0b-3638d456549c and when trying to parse it, I get the following output:
 
+{% raw %}
 ```
 
 orig_data[:header_object.nSize[1]] == b'\x01\x00\x00\x00\xd4\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Y\x00\x00\x00Y\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00B\x0c\x00\x00A\x0c\x00\x00 EMF\x00\x00\x01\x00\xfc7\x00\x00\x16\x00\x00\x00\x05\x00\x00\x004\x00\x00\x00l\x00\x00\x00\x00\x00\x00\x00\x80\x07\x00\x00\xb0\x04\x00\x00\xa5\x02\x00\x00\xa7\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd5U\n\x00\xa5u\x06\x00S\x00a\x00m\x00p\x00l\x00e\x00 \x00E\x00M\x00F\x00 \x00t\x00h\x00a\x00t\x00 \x00h\x00a\x00s\x00 \x00a\x00 \x00b\x00r\x00u\x00s\x00h\x00 \x00f\x00i\x00l\x00l\x00,\x00 \x00b\x00i\x00t\x00m\x00a\x00p\x00,\x00 \x00a\x00n\x00d\x00 \x00t\x00e\x00x\x00t\x00\x00\x00\x00\x00'
@@ -4107,6 +4266,7 @@ Traceback (most recent call last):
 AssertionError
 
 ```
+{% endraw %}
 
 So therefore there seems to be bug in parsing of extra data in the headers and stuff.
 
@@ -4120,6 +4280,7 @@ The extra data mutation could be implemented with the generic mutator which we h
 
 Maybe try mutating like so?
 
+{% raw %}
 ```
 
 def mutate_extra_data(record) -> None: # This function mutates extra data in
@@ -4137,6 +4298,7 @@ def mutate_extra_data(record) -> None: # This function mutates extra data in
 	return
 
 ```
+{% endraw %}
 
 Let's try it out... ok, so this seems to work fine.
 
@@ -4148,6 +4310,7 @@ There is the smart way of doing this and then the not-so-smart way. See, I think
 
 Maybe something like this????
 
+{% raw %}
 ```
 
 
@@ -4189,6 +4352,7 @@ def add_random_record(obj: EMFFile) -> None: # Generates a random record for thi
     return
 
 ```
+{% endraw %}
 
 ## Figuring out some stuff.
 
@@ -4198,11 +4362,13 @@ I think I am going to implement a so called "Fix header" function, which as the 
 
 These are the fields in the header:
 
+{% raw %}
 ```
 
  fields = ['iType', 'nSize', 'rclBounds', 'rclFrame', 'dSignature', 'nVersion', 'nBytes', 'nRecords', 'nHandles', 'sReserved', 'nDescription', 'offDescription', 'nPalEntries', 'szlDevice', 'szlMillimeters', 'cbPixelFormat', 'offPixelFormat', 'bOpenGL', 'szlMicrometers']
 
 ```
+{% endraw %}
 
 the nBytes and nRecords are the ones which we want to modify.
 
@@ -4219,6 +4385,7 @@ Ok, so after benchmarking, it looks like this program seems to actually produce 
 First of all, we enter a trimming stage right after finding one good result. This is because we should have a loop in our dll adapter custom thing.
 
 
+{% raw %}
 ```
 
 #include <Python.h>
@@ -4322,11 +4489,13 @@ __declspec(dllexport) void afl_custom_deinit(void *data) {
 }
 
 ```
+{% endraw %}
 
 ## Profiling the code...
 
 Here is the cProfile stuff:
 
+{% raw %}
 ```
 
          4845991 function calls (4845209 primitive calls) in 41.332 seconds
@@ -4963,11 +5132,13 @@ Here is the cProfile stuff:
         1    0.000    0.000    0.000    0.000 {method '__init_subclass__' of 'object' objects}
 
 ```
+{% endraw %}
 
 ## Improving the fuzzer a bit more
 
 Ok, so some of the records aren't documented in the way we expect with the pdf parser, this means that if we try to initiate a record of type x, we get an error. I implemented a so called "dummy record" which encompasses these records, after this I get this error:
 
+{% raw %}
 ```
 
 Here is the size thing: 368, 368
@@ -4997,6 +5168,7 @@ Traceback (most recent call last):
 AttributeError: module 'autogenerated' has no attribute 'EMR_ENDPATH'. Did you mean: 'EMR_FILLPATH'?
 
 ```
+{% endraw %}
 
 Let's add a fallback for when we can not find the thing in the autogenerated stuff. There you go, now we should have it stuff.
 
@@ -5005,6 +5177,7 @@ Let's add a fallback for when we can not find the thing in the autogenerated stu
 
 Ok, so now our custom mutator is looking somewhat good, it is time to gather a better corpus... I think there is actually functionality in inkscape and other stuff, so I think we can gather a good corpus that way???
 
+{% raw %}
 ```
 
 
@@ -5415,6 +5588,7 @@ int main() {
 
 
 ```
+{% endraw %}
 
 Ok, so let's add a script to convert a shitload of svg files to EMF files which we can then pass to the fuzzer maybe???? I added it to my github here: https://github.com/personnumber3377/emfcorpusgen
 
@@ -5427,6 +5601,7 @@ Ok, so I think our script works quite well. I think the next step is to minimize
 
 During the generation of the corpus, I actually encountered a thing:
 
+{% raw %}
 ```
 
 'inkscape', './svg_files/hc_staff.svg', '--export-filename=./generated_emf/hc_staff.emf'
@@ -5493,6 +5668,7 @@ cmd: inkscape ./svg_files/standalone--0-auto--pct-0.svg --export-filename=./gene
 Error processing staffNS.svg: Command '['inkscape', './svg_files/staffNS.svg', '--export-filename=./generated_emf/staffNS.emf']' died with <Signals.SIGSEGV: 11>.
 cmd: inkscape ./svg_files/standalone--0-auto--pct-pct.svg --export-filename=./generated_emf/standalone--0-auto--pct-pct.emf
 ```
+{% endraw %}
 
 ## Analyzing the corpus results.
 
@@ -5504,6 +5680,7 @@ Ok, so it seems that our custom mutator generated a good corpus. This is good (I
 
 Here is my corpus generator:
 
+{% raw %}
 ```
 
 #include <windows.h>
@@ -6268,6 +6445,7 @@ int main() {
 
 
 ```
+{% endraw %}
 
 
 ## Making a dictionary of good records.

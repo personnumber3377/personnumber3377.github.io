@@ -9,6 +9,7 @@ Inspired by many writeups on hacker.one on ruby inbuilt functions, I decided to 
 
 Just compile the newest ruby main branch with asan and ubsan. Here is my fuzzing wrapper:
 
+{% raw %}
 ```
 
 
@@ -98,6 +99,7 @@ int main(int argc, char **argv) {
 
 
 ```
+{% endraw %}
 
 I had a bit of trouble with non-existent crashes. This was caused, because I didn't properly setup the ruby environment and I only called ruby_init and not all of those functions. Big thanks to this: https://stackoverflow.com/a/36388918/14577985 !!!!
 
@@ -107,6 +109,7 @@ Luckily for us, there is a file called `spec/ruby/language/numbers_spec.rb` in t
 
 To extract these testcases, I created this quick script:
 
+{% raw %}
 ```
 
 
@@ -148,6 +151,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 

@@ -16,6 +16,7 @@ Ok, so there is some bullshit going on which causes there to be no coverage for 
 This is because we are linking against the system libcurl version, not the version with coverage... FUck!
 
 
+{% raw %}
 ```
 
    0x7ffff7f41ec8 <curl_getdate+24>:	mov    %rsp,%rsi
@@ -47,6 +48,7 @@ Breakpoint 2, 0x00007ffff7f41ed3 in curl_getdate () from /lib/x86_64-linux-gnu/l
 
 
 ```
+{% endraw %}
 
 After adding `LD_LIBRARY_PATH` to our environment variables which points to the libcurl.so library...
 

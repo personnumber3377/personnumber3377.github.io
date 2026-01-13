@@ -14,6 +14,7 @@ I am going to program this just as a game would be programmed with a mainloop an
 After a bit of fiddling around I came up with this:
 
 
+{% raw %}
 ```
 
 
@@ -343,6 +344,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 One annoying bug which I had to fix in this which stumped me for a while was that the loop_counter variable was incremented in a weird way that it skipped the very last move in the sequence before looping and that is why I got the incorrect result. I forgot what code configuration caused that bug but that works now.
@@ -363,6 +365,7 @@ I think this is some sort of memoization: https://en.wikipedia.org/wiki/Memoizat
 After just straight up copying all of the stuff I came up with this:
 
 
+{% raw %}
 ```
 
 
@@ -609,10 +612,12 @@ def main_loop(game_map,moves):
 
 
 ```
+{% endraw %}
 
 This gives the right answer for part two, but it takes a while. Now, the process takes the most in the:
 
 
+{% raw %}
 ```
 
 			for i in range(MAP_WIDTH):
@@ -630,11 +635,13 @@ This gives the right answer for part two, but it takes a while. Now, the process
 			lowest = min(new_state)
 
 ```
+{% endraw %}
 
 Lines. To improve this algorithm I think I need to keep track of the maximum height on each of the "columns" on the fly so it doesn't need to be searched through here.
 
 After adding this instead:
 
+{% raw %}
 ```
 
 				h = 0
@@ -648,9 +655,11 @@ After adding this instead:
 
 
 ```
+{% endraw %}
 
 and update_col_heights :
 
+{% raw %}
 ```
 
 def update_col_heights(shape_num, x_coord, y_coord):
@@ -672,11 +681,13 @@ def update_col_heights(shape_num, x_coord, y_coord):
 			col_heights[i] = h + y_coord-1
 
 ```
+{% endraw %}
 
 This spedup the execution by a lot, but it still takes quite a few seconds to complete.
 
 After taking out the unused functions and the render_mat function I can speed up the program to 
 
+{% raw %}
 ```
 
 cyberhacker@cyberhacker-h8-1131sc:~/Asioita/Ohjelmointi/adventofcode2022/chapter_17$ time python3.8 tetrisfinal.py < actual.txt > out.txt
@@ -688,11 +699,13 @@ sys	0m0,448s
 
 
 ```
+{% endraw %}
 
 Around one and a half seconds. The blog post got an execution speed of only around two milliseconds. One optimization which I can do is in the check_col function. We do not need to bitwise and every element of the matrixes, but instead go through them one by one and then break if one intersection is found because it does not matter what the others are. Another optimization is to just skip ahead three steps without collision detection with the game map itself, because it is impossible to hit anything because the block spawns three units above the block stack.
 
 The output of the profiling is this:
 
+{% raw %}
 ```
 
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
@@ -715,12 +728,14 @@ The output of the profiling is this:
   338/337    0.006    0.000    0.020    0.000 {built-in method builtins.__build_class__}
 
 ```
+{% endraw %}
 
 The function which checks collision against the already placed blocks takes up most of the time. Now, lets try to implement the optimization which I described previously.
 
 After doing the skip thing which always skips the three first collision detections with the placed blocks, now it looks like this:
 
 
+{% raw %}
 ```
          495128 function calls (492808 primitive calls) in 1.073 seconds
 
@@ -736,11 +751,13 @@ After doing the skip thing which always skips the three first collision detectio
     30085    0.024    0.000    0.263    0.000 <__array_function__ internals>:177(all)
 
 ```
+{% endraw %}
 
 Now, the time spent inside check_col is much less. 
 
 After implementing the collision thing where we do not check each element separately:
 
+{% raw %}
 ```
 
          224363 function calls (222043 primitive calls) in 0.951 seconds
@@ -757,12 +774,14 @@ After implementing the collision thing where we do not check each element separa
      3445    0.007    0.000    0.007    0.000 tetrisfinal.py:133(update_col_heights)
 
 ```
+{% endraw %}
 
 Now another optimization is to remove the astype methods which take up a lot of computing power.
 
 This is now check_col :
 
 
+{% raw %}
 ```
 
 def check_col(shape, x_coord, y_coord, game_map):
@@ -817,9 +836,11 @@ def check_col(shape, x_coord, y_coord, game_map):
 
 
 ```
+{% endraw %}
 
 After improving the program by getting rid of the "astype" statements and improving some other stuff I got this:
 
+{% raw %}
 ```
 
          190832 function calls (188512 primitive calls) in 0.695 seconds
@@ -835,6 +856,7 @@ After improving the program by getting rid of the "astype" statements and improv
      3445    0.007    0.000    0.007    0.000 tetrisfinal.py:140(update_col_heights)
 
 ```
+{% endraw %}
 
 This is getting relatively fast for python standards.
 
@@ -848,6 +870,7 @@ I was initially suspicious about this optimization, but as it turns out, it spee
 
 I did a simple benchmark script which takes the average output of the cProfile output:
 
+{% raw %}
 ```
 
 import sys
@@ -886,6 +909,7 @@ if __name__=="__main__":
 	exit(0)
 
 ```
+{% endraw %}
 
 The output for this with the square things is this:
 
@@ -893,6 +917,7 @@ Average time took 0.6378999999999999 seconds.
 
 Without the range checking we get this:
 
+{% raw %}
 ```
 python3.8 run_bench.py tetrisfinal.py 
 
@@ -900,6 +925,7 @@ python3.8 run_bench.py tetrisfinal.py
 
 Average time took 0.67375 seconds.
 ```
+{% endraw %}
 
 So we can shave off another 35 milliseconds.
 

@@ -2,6 +2,7 @@
 
 Here is the suspected source code:
 
+{% raw %}
 ```
 
 void FUN_140001000(void)
@@ -69,6 +70,7 @@ LAB_140001115:
 }
 
 ```
+{% endraw %}
 
 
 

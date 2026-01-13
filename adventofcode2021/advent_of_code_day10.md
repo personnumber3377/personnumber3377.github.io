@@ -7,14 +7,17 @@ Ok so this is basically just a syntax check problem.
 
 Ok so my first thought is to make a "call stack" which basically just keeps track of what order we should close the markers, and then if the next closing thing is not the expected last seen closer marker, then it is invalid. If we reach the end of the string without encountering such a mismatch, then it is valid. I think I can explain this more thoroughly through an example:
 
+{% raw %}
 ```
 
 If we have a string {[}] , then first the "call stack " is initially a list which has the first character of the string in it. We take the second character and see if it is an opening marker (aka "{", "[", "(" or "<") then we can just append it to the list. We can see that the second character is "[" so therefore we add it to the list. Now the marker list is ["{", "["] , this means that if we are to encounter a closing marker next, then it should be "]" for the expression to be valid. This code does not take into account strings which are incomplete. (as the mission stated). We can see that the next character after the second character (aka third character) is "}" and it is not "[" so the expression is invalid. Now, if we put "[[{}<>]()]" instead, then it should return as true. 
 
 ```
+{% endraw %}
 
 Here is the final code for part one:
 
+{% raw %}
 ```
 
 import sys
@@ -70,6 +73,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 That was quite easy. There are obvious optimizations such as instead of calling points.keys() twice, we can just assign that to a variable instead, but let's first solve part two and then try to optimize this.
 
@@ -78,6 +82,7 @@ That was quite easy. There are obvious optimizations such as instead of calling 
 
 Ok so just correct the string? First we need to get rid of the invalid strings, we can either just remove the invalid strings while we iterate over the list or we can append the valid lines into another list. Due to the way python works (it stores pointers to strings, not the actual strings) I think it is more efficient to just copy the strings to another list (append the pointers to the strings). Then after we are done getting the incomplete strings out of the input, we can then just get the score for each completion string and then after that we just sort the list of the scores and get the middle one. Though it may actually be faster to insert the scores in their right places initially, and not sort it afterwards. I don't know if that is actually faster, anyway here is the final code:
 
+{% raw %}
 ```
 
 
@@ -224,6 +229,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 # Making it faster
 
@@ -231,6 +237,7 @@ Yeah I know that making fast programs python is a horrible tool for, but the bas
 
 Here is the cprofile output sorted by total time:
 
+{% raw %}
 ```
 
 3969823589
@@ -263,11 +270,13 @@ Here is the cprofile output sorted by total time:
 
 
 ```
+{% endraw %}
 
 and as you can see the part2 function takes quite a lot, so there is some space for optimizations. Removing the asserts we can speed it by a bit, but not that much.
 
 removing the ".keys()" call from the program and actually assigning to a variable instead of just calling .keys each time we can speed it up by quite a bit:
 
+{% raw %}
 ```
 
 3969823589
@@ -300,10 +309,12 @@ removing the ".keys()" call from the program and actually assigning to a variabl
 
 
 ```
+{% endraw %}
 
 another thing is that we do not even need to include the line in the tuple thing. Then another thing is to simplify the looping mechanism. Currently our code looks like this:
 
 
+{% raw %}
 ```
 
 import sys
@@ -452,9 +463,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and our cProfile report looks like this:
 
+{% raw %}
 ```
 
 3969823589
@@ -487,9 +500,11 @@ and our cProfile report looks like this:
 
 
 ```
+{% endraw %}
 
 Let's compare our solution to other peoples solutions: https://www.reddit.com/r/adventofcode/comments/rd0s54/comment/hohtmda/?utm_source=share&utm_medium=web2x&context=3 this seems to be quite a fast solution, lets see how it fares on my machine:
 
+{% raw %}
 ```
 
          4045 function calls (3982 primitive calls) in 0.006 seconds
@@ -523,6 +538,7 @@ Let's compare our solution to other peoples solutions: https://www.reddit.com/r/
 
 
 ```
+{% endraw %}
 
 and it fares slightly worse, but there is a lot of other shit going on in that for some reason. Now it is actually getting quite hard to tell which one is faster, so I think we may actually have to write a tool which generates inputs for us. I am quite pissed that the adventofcode website does not offer the programs which supply the inputs themselves, because I think by increasing the input size to the program you can figure out how fast your program actually is.
 
@@ -530,6 +546,7 @@ and it fares slightly worse, but there is a lot of other shit going on in that f
 
 
 
+{% raw %}
 ```
 
 
@@ -577,6 +594,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 This program generates test files. When running with a generated file, we can see that our implementation takes around six seconds to complete, when as the plagiarized version takes around ten seconds.
 
@@ -584,6 +602,7 @@ This program generates test files. When running with a generated file, we can se
 
 Here is an even more simplified plagiarized one:
 
+{% raw %}
 ```
 
 from collections import deque
@@ -611,6 +630,7 @@ print(part1)
 print(sorted(part2)[len(part2) // 2])
 
 ```
+{% endraw %}
 This actually gets the wrong answer for some reason, but it is still slower, so I think my code won.
 
 

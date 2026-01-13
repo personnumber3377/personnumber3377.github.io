@@ -3,6 +3,7 @@
 
 This problem is basically just a problem where we need to count the surface area of a formation made out of cubes. The neighbours of the cubes then add one to the area if they are vacant. The naive method would be to go throuh every spot and then check the neighbours of each block manually. This will probably work for part 1, but won't work for part2, but lets try it anyway.
 
+{% raw %}
 ```
 
 import sys
@@ -98,6 +99,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 The second part of the puzzle is actually not what I expected. I expected the input to be a lot bigger, but it requires us to find the outer surface-area of the object. My first thought is to use pathfinding to find all of the nooks and crannies of the shape and then create a sort of "mask" to mask off the actual outer shape and then calculate that. Another idea is to "walk" over the surface by just going through the neighbours of the outer pieces.
 
@@ -105,6 +107,7 @@ The second part of the puzzle is actually not what I expected. I expected the in
 Now here is my code:
 
 
+{% raw %}
 ```
 
 import sys
@@ -301,6 +304,7 @@ if __name__=="__main__":
 	exit(0)
 
 ```
+{% endraw %}
 
 For some reason it does not work. I have absolutely no idea why so I am going to add a "sanity check" which checks that the rock and the marked area becomes a shape which is all ones.
 

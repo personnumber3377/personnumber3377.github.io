@@ -2,12 +2,15 @@
 
 Ok, so I am getting these errors here:
 
+{% raw %}
 ```
 
 ```
+{% endraw %}
 
 And I think this is because we need to include the `"//third_party/blink/renderer/controller:blink_bindings_test_sources",` file in our `gn` script. This is because we need to include the file which includes the `v8_binding_for_testing.h` file and that seems to be the `"//third_party/blink/renderer/controller:blink_bindings_test_sources",` thing. Just to make sure, let's just include all the shit to be sure...
 
+{% raw %}
 ```
 oof@oof-h8-1440eo:~/chromiumstuff/source/src/third_party/blink/renderer/core$ grep -r "V8TestingScope" | grep "class"
 ^C^[[A^C^C^C^C^C^C^C^C^C^C^Chtml/custom/custom_element_test_helpers.h:class CustomElementTestingScope : public V8TestingScope {
@@ -38,11 +41,13 @@ bindings/modules/v8/v8_element_test.cc:#include "third_party/blink/renderer/bind
 bindings/modules/v8/v8_binding_for_modules_test.cc:#include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
 
 ```
+{% endraw %}
 
 Add the `"//third_party/blink/renderer/controller:blink_bindings_test_sources",` shit maybe???
 
 Here is the shit:
 
+{% raw %}
 ```
 
 
@@ -179,11 +184,13 @@ source_set("unit_tests") {
   ]
 
 ```
+{% endraw %}
 
 I am just going to take `"//third_party/blink/renderer/controller:blink_bindings_test_sources",` and slap it into the build file and see what happens. I am not going to assume that this is immediately succesful, but let's see...
 
 My current BUILD.gn looks like this:
 
+{% raw %}
 ```
 # Fuzzer for SVG document parsing
 fuzzer_test("svg_document_fuzzer") {
@@ -199,4 +206,5 @@ fuzzer_test("svg_document_fuzzer") {
 }
 
 ```
+{% endraw %}
 

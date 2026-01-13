@@ -2,6 +2,7 @@
 
 ## Ok, so I got these errors here when trying to compile the thing:
 
+{% raw %}
 ```
  debian/rules build
 dh build --parallel
@@ -184,6 +185,7 @@ make: *** [debian/rules:25: build] Error 2
 dpkg-buildpackage: error: debian/rules build subprocess returned exit status 2
 
 ```
+{% endraw %}
 
 to do the stuff, I think I need to do the thing...
 
@@ -192,6 +194,7 @@ To solve this, I had to first compile libabsl-dev from source, then install it u
 Then the next hurdle was to do this here:
 
 
+{% raw %}
 ```
 
 
@@ -321,11 +324,13 @@ oof@oof-h8-1440eo:~/android-bt/Bluetooth$ git submodule init
 
 
 ```
+{% endraw %}
 
 so we need to do the shitfuck maybe???
 
 This is because there actually exists a sysprop directory here:
 
+{% raw %}
 ```
 
 oof@oof-h8-1440eo:~/android-bt/Bluetooth/system/build/dpkg$ ls -lhS
@@ -340,11 +345,13 @@ oof@oof-h8-1440eo:~/android-bt/Bluetooth/system/build/dpkg$
 
 
 ```
+{% endraw %}
 
 but the README.md didn't bother to mention it anywhere, because of course not. That would be too easy anyway...
 
 After installing sysprop_cpp now I am getting this error here:
 
+{% raw %}
 ```
 
 arations=/home/oof/.floss/staging/bt/flags/vcp.aconfig --declarations=/home/oof/.floss/staging/bt/flags/vsc.aconfig
@@ -363,9 +370,11 @@ FileNotFoundError: [Errno 2] No such file or directory: 'aconfig'
 
 
 ```
+{% endraw %}
 
 and I am also missing the format header in c++ for some odd reason too:
 
+{% raw %}
 ```
 
 [16/719] CXX obj/bt/system/bta/aics/libaics.aics.o
@@ -379,9 +388,11 @@ In file included from ../../../staging/bt/system/bta/aics/aics.cc:16:
 
 
 ```
+{% endraw %}
 
 to get aconfig in this bullshit, I had to do this here: `repo init -u https://android.googlesource.com/platform/manifest -b main --depth=1` and then `repo sync -c prebuilts/build-tools` and now I have aconfig with me:
 
+{% raw %}
 ```
 oof@oof-h8-1440eo:~/aosp-brebuilts/prebuilts/build-tools$ cd linux-x86/bin/
 oof@oof-h8-1440eo:~/aosp-brebuilts/prebuilts/build-tools/linux-x86/bin$ file aconfig
@@ -390,9 +401,11 @@ oof@oof-h8-1440eo:~/aosp-brebuilts/prebuilts/build-tools/linux-x86/bin$ pwd
 /home/oof/aosp-brebuilts/prebuilts/build-tools/linux-x86/bin
 
 ```
+{% endraw %}
 
 Now, to fix the format header file error I ran these commands separately:
 
+{% raw %}
 ```
 #!/bin/sh
 
@@ -408,6 +421,7 @@ ninja -C /home/oof/.floss/output/out/Default -j 8 bt:all
 
 
 ```
+{% endraw %}
 
 
 
@@ -415,6 +429,7 @@ ninja -C /home/oof/.floss/output/out/Default -j 8 bt:all
 
 but now I am getting this kind of output here:
 
+{% raw %}
 ```
 :allocator<char> > const&)'
 /usr/bin/ld: language_y.cc:(.text+0x4ad8): undefined reference to `std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >::~basic_string()'
@@ -614,30 +629,37 @@ ninja: build stopped: subcommand failed.
 oof@oof-h8-1440eo:~/android-bt/Bluetooth$
 
 ```
+{% endraw %}
 
 so there is still something getting messed up with the aconfig stuff, but there is also a lot of linker errors probably related to the c++ stuff
 
 In addition, I also had to do this kind of bullshit here and get a slightly older thing:
 
+{% raw %}
 ```
 oof@oof-h8-1440eo:~/thing-prebuilts/prebuilts/build-tools/linux-x86/bin$ repo init -u https://android.googlesource.com/platform/manifest -b android-15.0.0_r1 --depth=1
 
 ```
+{% endraw %}
 
 Also there was this error here:
 
+{% raw %}
 ```
 
 
 
 ```
+{% endraw %}
 
 
 which was solved by simply using this here:
 
+{% raw %}
 ```
 oof@oof-h8-1440eo:~/thing-prebuilts$ repo sync -c prebuilts/clang/host/linux-x86
 ```
+{% endraw %}
 
 How should I actually compile the fuzzer?
 
@@ -647,14 +669,17 @@ The correct version of the prebuilts are in ~/thing-prebuilts
 
 And for the clang I just added this path here to my PATH environment variable:
 
+{% raw %}
 ```
 oof@oof-h8-1440eo:~/thing-prebuilts/prebuilts/clang/host/linux-x86/clang-r522817/bin$ pwd
 /home/oof/thing-prebuilts/prebuilts/clang/host/linux-x86/clang-r522817/bin
 oof@oof-h8-1440eo:~/thing-prebuilts/prebuilts/clang/host/linux-x86/clang-r522817/bin$
 ```
+{% endraw %}
 
 now, one final compile error which I got was this here:
 
+{% raw %}
 ```
 In file included from /usr/include/libchrome/base/containers/span.h:18:
 /usr/include/libchrome/base/containers/checked_iterators.h:248:8: error: no template named '__is_cpp17_contiguous_iterator'; did you mean '__libcpp_is_contiguous_iterator'?
@@ -671,11 +696,13 @@ oof@oof-h8-1440eo:~/android-bt/Bluetooth$
 
 
 ```
+{% endraw %}
 
 so let's just replace that with the other thing maybe???
 
 That seemed to have worked. Now I am getting this bullshit here:
 
+{% raw %}
 ```
 deprecated-pragma]
    57 |     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AacEncoderParam_mmc_5fconfig_2eproto}, {}};
@@ -712,12 +739,14 @@ gen/include/mmc/proto/mmc_config.pb.cc:117:7: error: macro 'ATOMIC_VAR_INIT' has
 ninja: build stopped: subcommand failed.
 
 ```
+{% endraw %}
 
 
 sooo just add that command line bullshit to the thing???
 
 Now my script looks something like this here:
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -737,6 +766,7 @@ ninja -C /home/oof/.floss/output/out/Default -j 8 bt:all
 
 
 ```
+{% endraw %}
 
 
 

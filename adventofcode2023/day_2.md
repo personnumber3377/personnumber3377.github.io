@@ -7,6 +7,7 @@ Ok, so just figure out which of these were possible and which weren't. This shou
 
 Here is my first attempt at parsing the input:
 
+{% raw %}
 ```
 
 def parse_input() -> list:
@@ -37,11 +38,13 @@ def parse_input() -> list:
 	return output
 
 ```
+{% endraw %}
 
 It is probably not that fast, but I am going to first make the program work and then I will optimize it.
 
 Now all is left to do is to check each game and check if each "round" is possible.
 
+{% raw %}
 ```
 def check_possible(game: list) -> bool:
 	# "if the bag contained only 12 red cubes, 13 green cubes, and 14 blue cubes."
@@ -68,6 +71,7 @@ def get_possible_count(games: list):
 			val += i+1 # Add the index of the game to the total sum if game is possible (we need to add one, because games start at index 1, not at index 0)
 	return val
 ```
+{% endraw %}
 
 Let's test the program...
 
@@ -85,6 +89,7 @@ So let's modify our "check_possible" function...
 
 Tada:
 
+{% raw %}
 ```
 def check_possible(game: list) -> bool:
 	# Here are the maximum number of each color encountered in the game so far.
@@ -103,9 +108,11 @@ def check_possible(game: list) -> bool:
 	# All rounds of one game are possible, hence that specific game is possible
 	return True
 ```
+{% endraw %}
 
 Now, this is horrible programming practice, since we are repeating stuff which we have already typed out, so let's simplify this a bit.
 
+{% raw %}
 ```
 def get_min(game: list) -> bool:
 	# Here are the maximum number of each color encountered in the game so far.
@@ -117,6 +124,7 @@ def get_min(game: list) -> bool:
 	res = reduce(mul, max_cubes, 1)
 	return res
 ```
+{% endraw %}
 
 There you go. I think you can make it even more compact by using map or lambda functions, but I do not really know anything about how to use those. I should probably learn how those works.
 
@@ -128,6 +136,7 @@ My code is slower. This is because I didn't use a hashmap (a dictionary).
 
 Let's use dictionaries instead, so we do not need to search through the lists...
 
+{% raw %}
 ```
 
 
@@ -209,6 +218,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Tada! Now it works quite fast. It actually works faster than the other code, which I plag.. erm.. "imported". ;)
 

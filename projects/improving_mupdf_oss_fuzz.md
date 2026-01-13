@@ -6,6 +6,7 @@ I also realized that the `mupdf` fuzzer had some poor coverage on the svg fuzzin
 
 Here is my current build.sh script:
 
+{% raw %}
 ```
 #!/bin/bash -eu
 # Copyright 2018 Google Inc.
@@ -61,12 +62,14 @@ if [ ! -f "${OUT}/${fuzz_target}.options" ]; then
   exit 1
 fi
 ```
+{% endraw %}
 
 I am using this here: `LDFLAGS="$CXXFLAGS" VERBOSE=1 make VERBOSE=1 -j8 HAVE_GLUT=no build=debug barcode=yes OUT=$WORK $WORK/libmupdf.a $WORK/libmupdf-third.a` .
 
 
 +And to emulate the ossfuzz fuzzing environment:
 
+{% raw %}
 ```
 export CXX=clang++
 export CC=clang
@@ -82,9 +85,11 @@ export SRC=/home/oof/newmu/mupdf
 
 ./build.sh
 ```
+{% endraw %}
 
 And now to make the svg fuzzer itself, I am just going to do this stuff here:
 
+{% raw %}
 ```
 /*
 # Copyright 2018 Google Inc.
@@ -351,6 +356,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   return 0;
 }
 ```
+{% endraw %}
 
 After gathering a fuzzing corpus, I am now fuzzing nicely. I actually realized that the default fuzzer for oss-fuzz is actually quite poorly written, since the program does the initialization on every possible run. With the oss-fuzz fuzzer I got roughly 20 execs a second, but now with the newer fuzzer I am getting over a thousand execs a second. After fuzzing for a day or so, I didn't find any crashes, so I decided to do a coverage build and see if there are any blindspots. I put it on a google cloud compute instance for now and it should finish in around a couple of days at most. (I used afl-cov with some modifications and it seems that the thing is quite slow although I think that just running every input file individually should also work nicely. idk)...
 
@@ -362,6 +368,7 @@ So there is this function here: `void fz_parse_css(fz_context *ctx, fz_css *css,
 
 Maybe it is just something like this here:
 
+{% raw %}
 ```
 /*
 # Copyright 2018 Google Inc.
@@ -550,6 +557,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
 
 ```
+{% endraw %}
 
 ?
 
@@ -557,6 +565,7 @@ Ok, so let's try it out...
 
 Whoops:
 
+{% raw %}
 ```
 
 oof@elskun-lppri:~/mupdf_out2$ ./fuzz_css.sh
@@ -588,9 +597,11 @@ Base64: Lm9aZEpYPip7ZGlzcGxheTpmbGV4O2hlaWdodDppbmhlcml0O3dpZHRoOmluaGVyaXR9Lm9a
 oof@elskun-lppri:~/mupdf_out2$
 
 ```
+{% endraw %}
 
 I think this here is better:
 
+{% raw %}
 ```
 
 /*
@@ -781,6 +792,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t *data, size_t size) { // Can not u
 }
 
 ```
+{% endraw %}
 
 ## Results
 

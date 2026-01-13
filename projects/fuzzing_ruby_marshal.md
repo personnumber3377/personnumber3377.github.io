@@ -11,6 +11,7 @@ The original blog post used a simple "./ruby unmarshal.rb"  to fuzz the unmarsha
 
 After a bit of tinkering, I came up with this:
 
+{% raw %}
 ```
 
 
@@ -109,6 +110,7 @@ int main(int argc, char** argv) {
 
 
 ```
+{% endraw %}
 
 
 This initially works, but after a while the fuzzer gets an out of memory error. This is because the code does not free the allocated object which gets alloc'ed by rb_marshal_load . The function rb_gc_unregister_address is used to mark an object as unused for the ruby virtual machine such that the object is no-longer used and that the object should be freed, but this does not seem to work. I still get an OOM error after a couple of minutes of fuzzing .
@@ -123,6 +125,7 @@ Looking through the source code gives atleast some clues as to how we may be abl
 
 in rb_marshal_load_with_proc:
 
+{% raw %}
 ```
 
     if (NIL_P(v))
@@ -131,9 +134,11 @@ in rb_marshal_load_with_proc:
         arg->buf = 0;
 
 ```
+{% endraw %}
 
 also
 
+{% raw %}
 ```
 
     v = r_object(arg);
@@ -142,10 +147,12 @@ also
 
     return v;
 ```
+{% endraw %}
 
 also also:
 
 
+{% raw %}
 ```
 
 static VALUE
@@ -154,11 +161,13 @@ r_object(struct load_arg *arg)
     return r_object0(arg, false, 0, Qnil);
 }
 ```
+{% endraw %}
 
 
 also also also:
 
 
+{% raw %}
 ```
 
 static VALUE
@@ -169,11 +178,13 @@ r_object0(struct load_arg *arg, bool partial, int *ivp, VALUE extmod)
 }
 
 ```
+{% endraw %}
 
 
 
 in r_object_for :
 
+{% raw %}
 ```
       case TYPE_STRING:
         v = r_entry(r_string(arg), arg);
@@ -181,12 +192,14 @@ in r_object_for :
         break;
 
 ```
+{% endraw %}
 
 
 in r_leave:
 
 
 
+{% raw %}
 ```
 
 
@@ -216,10 +229,12 @@ r_leave(VALUE v, struct load_arg *arg, bool partial)
 
 
 ```
+{% endraw %}
 
 and:
 
 
+{% raw %}
 ```
 
 static VALUE
@@ -241,6 +256,7 @@ r_fixup_compat(VALUE v, struct load_arg *arg)
 
 
 ```
+{% endraw %}
 
 
 
@@ -248,6 +264,7 @@ After looking at the code I still have no idea of how I can free the alloc'ed ob
 
 Now here are all of the possible types for the object:
 
+{% raw %}
 ```
 static void
 w_object(VALUE obj, struct dump_arg *arg, int limit)
@@ -534,6 +551,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
 }
 
 ```
+{% endraw %}
 
 
 

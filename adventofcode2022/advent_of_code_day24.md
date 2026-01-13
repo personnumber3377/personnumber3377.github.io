@@ -11,6 +11,7 @@ Now, the logic to check for the multiple blizzards in one spot is actually quite
 
 When implementing the logic with dictionaries I ran into this peculiar problem when trying to modify a dict in a loop:
 
+{% raw %}
 ```
 
 def update_blizzards(blizzards: dict, counter: int) -> list:
@@ -91,20 +92,24 @@ def update_blizzards(blizzards: dict, counter: int) -> list:
 
 
 ```
+{% endraw %}
 
 This returns this error:
 
+{% raw %}
 ```
 
 RuntimeError: dictionary changed size during iteration
 
 
 ```
+{% endraw %}
 
 Now, I know that dictionaries are basically hashmaps internally where the object is first hashed by a hashing function and then the object is placed into memory at an index indicated by the hash, but I do not really understand why I can not modify the dictionary like that. If I use `for coords in tuple(blizzards.keys()):` instead, then it works. I think the for x in dictionary: loop accesses the keys of the dictionary as a reference and not as a value and that screws things up. I think that this is also less efficient because I need to generate copies of the keys of the dictionary each time I run this loop, but oh well. I guess I will figure that out later.
 
 Now, I also wrote a quick test function to test the function to move the blizzards:
 
+{% raw %}
 ```
 
 from naive_part1 import update_blizzards
@@ -150,9 +155,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 And it now returns this:
 
+{% raw %}
 ```
 
 Before: {(3, 6): [[0, 0]], (4, 10): [[3, 0]], (0, 1): [[2, 0]]}
@@ -160,6 +167,7 @@ After: {}
 
 
 ```
+{% endraw %}
 
 So obviously something is going wrong. As it turns out the test function should be called like so: `update_blizzards(test_bliz, 1)` and then also I forgot to indent the `blizzards[coords].pop(ind)` line.
 
@@ -170,6 +178,7 @@ Now that I have actually parsed the input, it is time to actually get into the m
 
 After a bit of fiddling around I came up with this as the method to find the route:
 
+{% raw %}
 ```
 
 
@@ -623,6 +632,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 This works for the small example, but the efficiency is donkey shit. I had problems in the update_blizzards function with updating the dictionary, because you can not update elements in the lists in the dictionary when you are iterating over it. You can see my frustration through the commented out code.
@@ -633,6 +643,7 @@ Start with cProfile as usual.
 
 The program hangs when trying to process the big input, so I capped it to 1000 cycles and here it the report:
 
+{% raw %}
 ```
 
 Solution to puzzle: 1001
@@ -672,9 +683,11 @@ Solution to puzzle: 1001
 
 
 ```
+{% endraw %}
 
 There is quite an obvious optimization in the solve_part_one function when checking for the end. We should use another dictionary instead of a list instead. After that we have to optimize the function which moves the blizzards:
 
+{% raw %}
 ```
 
 def update_blizzards(blizzards: dict, counter: int, width: int, height: int) -> list:
@@ -794,6 +807,7 @@ def update_blizzards(blizzards: dict, counter: int, width: int, height: int) -> 
 
 
 ```
+{% endraw %}
 
 
 Now looking at this, I think we we could just use a three dimensional matrix instead of a dictionary, because our map is relatively small in size.

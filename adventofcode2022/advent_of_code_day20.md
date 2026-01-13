@@ -7,6 +7,7 @@ This is quite a fun challenge with modular arithmetic.
 
 Here is the skeleton for this puzzle:
 
+{% raw %}
 ```
 
 import sys
@@ -32,9 +33,11 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 I am going to program a helper function called `swap` which as the name suggests swaps two elements in a list by index.
 
+{% raw %}
 ```
 
 
@@ -44,11 +47,13 @@ def swap(in_list:list, ind_a: int, ind_b: int) -> None:
 	return
 
 ```
+{% endraw %}
 
 The tricky part of this is that we need to move the numbers in the order they originally appeared, that is that the mixing of the numbers do not affect the order in which we mix them around. Looking at the input and it looks like all of the numbers only occur once in the input, so that way we can just get the index of it, but it is still quite slow I think.
 
 Again, I have misunderstood the prompt. It does not swap the numbers, it places the number in that location. Here is the place location:
 
+{% raw %}
 ```
 
 def place(in_list: list, ind_a: int, ind_b: int) -> None:
@@ -94,9 +99,11 @@ def place(in_list: list, ind_a: int, ind_b: int) -> None:
 
 
 ```
+{% endraw %}
 
 As usual I had a bit of trouble to make it work, but I managed to do it in the end. Here is the code:
 
+{% raw %}
 ```
 
 
@@ -198,6 +205,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 ## Bug
 
@@ -211,6 +219,7 @@ I think we need to actually take the modulo of the length of the list - 1 becaus
 
 Now I have been at this for a couple of hours and I wrote a program which compares the output of the correct program to our program and here is the results:
 
+{% raw %}
 ```
 
 ==================================================
@@ -222,9 +231,11 @@ input_list: [1, 2, 0]
 
 
 ```
+{% endraw %}
 
 I fixed one thing and added more messages:
 
+{% raw %}
 ```
 
 The numbers only appear once!!!
@@ -260,9 +271,11 @@ input_list: [1, 0, 3, 2]
 
 
 ```
+{% endraw %}
 
 After doing some stuff now i get this:
 
+{% raw %}
 ```
 
 
@@ -294,20 +307,24 @@ input_list: [1, 3, 0, 2]
 
 
 ```
+{% endraw %}
 
 Ok, so after a bit of fiddling around I realized that there are duplicate numbers in the input. 🤦 Now this is the reason why our code sucks. So instead let's make the numbers array actually a list of tuples where the first element is the original index and the second index is the value.
 
 Here is our new input parsing function:
 
+{% raw %}
 ```
 
 def parse_input() -> list:
 	return [(i, int(x)) for i, x in enumerate(sys.stdin.read().split("\n"))]
 
 ```
+{% endraw %}
 
 The after searching the numbers list for the correct index, instead of the correct value:
 
+{% raw %}
 ```
 # snip
 
@@ -331,6 +348,7 @@ The after searching the numbers list for the correct index, instead of the corre
 		b_index = a_index + num
 # snip
 ```
+{% endraw %}
 
 Now our code works correctly.
 
@@ -342,6 +360,7 @@ I think that is not the case, so just do a for loop?
 
 Fuck! Our code does not work.
 
+{% raw %}
 ```
 
 
@@ -550,11 +569,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 This is weapons grade bullshit.
 
 After doing *SOME* debugging, I think I found the problem. It is an off-by-one error,because of course it is.
 
+{% raw %}
 ```
 
 
@@ -777,6 +798,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Here is the fixed code I think.
 
@@ -789,6 +811,7 @@ Now we get the correct output!
 Now, even though we have completed the challence, let's try to make it faster just for the fun of it. Something about cprofile blah blah blah...
 
 
+{% raw %}
 ```
 
 result == 4275451658004
@@ -820,21 +843,25 @@ Solution: 0
         2    0.000    0.000    0.000    0.000 {built-in method _imp.create_dynamic}
 
 ```
+{% endraw %}
 
 So we spend a lot of time in list comprehensions and accessing lists by index. This is obvious, because when we pop and insert an element into a list, it takes a lot of time to move the elements.
 
 This singular line takes up most of the time:
 
+{% raw %}
 ```
 
 		a_index = [x[0] for x in numbers].index(wanted_index) # get the numbers index
 
 ```
+{% endraw %}
 
 So I think the obvious optimization is to just separate the numbers and the indexes alltogether, such that we do not need to do such bullshit.
 
 Now currently my code looks like this:
 
+{% raw %}
 ```
 
 
@@ -1079,12 +1106,14 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Now it has some quite obvious bugs, because we are returning the numbers, not the indexes.
 
 
 Now after some fiddling around I came up with this:
 
+{% raw %}
 ```
 
 
@@ -1312,23 +1341,29 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Except that it has a bug. The bug is that 
 
+{% raw %}
 ```
 	if in_list[ind_a] == 0:
 ```
+{% endraw %}
 
 we are now checking if the index is zero, not the actual value, because previously this check was:
 
+{% raw %}
 ```
 	if in_list[ind_a][1] == 0:
 ```
+{% endraw %}
 
 which compares the number, so we actually need to pass in the number instead.
 
 When we pass the num parameter to the place function:
 
+{% raw %}
 ```
 
 import sys
@@ -1553,6 +1588,7 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 
 It now works. And it is a lot faster !
@@ -1562,6 +1598,7 @@ Now, I am wondering if the zero check is actually useless. I think there is a wa
 
 Now the cprofile output looks like this:
 
+{% raw %}
 ```
 
 Solution: 4275451658004
@@ -1585,9 +1622,11 @@ Solution: 4275451658004
 
 
 ```
+{% endraw %}
 
 So the vast amount of time is in the insert method. I am comparing my performance to this script: (thanks to https://www.reddit.com/r/adventofcode/comments/zqezkn/comment/j10rp2g/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button)
 
+{% raw %}
 ```
 import itertools
 lut = {tag: n * 811589153 for tag, n in enumerate(int(l) for l in open("input.txt"))}
@@ -1605,9 +1644,11 @@ nums = [lut[t] for t in tags]
 print(sum(nums[(nums.index(0) + o) % len(nums)] for o in [1000, 2000, 3000]))
 
 ```
+{% endraw %}
 
 which does it faster. Here is the output of that:
 
+{% raw %}
 ```
 
 4275451658004
@@ -1639,6 +1680,7 @@ which does it faster. Here is the output of that:
 
 
 ```
+{% endraw %}
 
 My implementation is still 50-100 ms slower, because of all of the other stuff I have inside my implementation. Anyway, I think this is good enough for my taste. I could remove redundant code and stuff to make it just as fast, but I can't be bothered to.
 

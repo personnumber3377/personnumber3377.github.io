@@ -2,6 +2,7 @@
 
 First the usual setup:
 
+{% raw %}
 ```
 FROM aflplusplus/aflplusplus
 
@@ -20,9 +21,11 @@ RUN meson setup _build  --prefix /fuzzing/build_libsoup && meson install -C _bui
 
 WORKDIR /fuzzing/
 ```
+{% endraw %}
 
 And maybe something like this here:
 
+{% raw %}
 ```
 // gmarkup_afl_fuzzer.c
 // Fuzz GLib's GMarkup parser w/o files. AFL++ persistent mode supported.
@@ -185,6 +188,7 @@ int main(void) {
 }
 #endif
 ```
+{% endraw %}
 
 
 

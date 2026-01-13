@@ -9,6 +9,7 @@ I played the game for a bit and recorded some of the packets which went through 
 
 When fuzzing with the Csgoprotofuzz script and with the PacketEntities packets, I don't get anything. After looking at the code I found this (inside ents_shared.h) :
 
+{% raw %}
 ```
 
 enum UpdateType
@@ -25,9 +26,11 @@ enum UpdateType
 };
 
 ```
+{% endraw %}
 
 and this:
 
+{% raw %}
 ```
 
 void CClientState::ReadPacketEntities( CEntityReadInfo &u )
@@ -162,9 +165,11 @@ void CClientState::ReadPacketEntities( CEntityReadInfo &u )
 }
 
 ```
+{% endraw %}
 
 So first our packet needs to pass this check `while ( updateType < Finished )` and then there is also a check for the update type which is calculated using this function:
 
+{% raw %}
 ```
 
 inline static UpdateType DetermineUpdateType( CEntityReadInfo &u, int oldEntity )
@@ -200,6 +205,7 @@ inline static UpdateType DetermineUpdateType( CEntityReadInfo &u, int oldEntity 
 
 
 ```
+{% endraw %}
 
 This could be a reason for poor coverage in our fuzzer. If we look at the `( !u.m_bIsEntity || ( u.m_nNewEntity > oldEntity ) )` and look where oldEntity gets updated...
 
@@ -209,6 +215,7 @@ After adding a couple of debug messages, I now get this message:
 
 `m_nDeltaTick == -1 . Returning straight away!` so we are actually failing in this part:
 
+{% raw %}
 ```
 
 bool CClientState::SVCMsg_PacketEntities( const CSVCMsg_PacketEntities &msg )
@@ -238,6 +245,7 @@ bool CClientState::SVCMsg_PacketEntities( const CSVCMsg_PacketEntities &msg )
 	}
 
 ```
+{% endraw %}
 
 The reason why the msg.is_delta thing always goes to the else case is that in the custom mutator, we don't even mutate the CSVCMsg_PacketEntities type of message. So the reason why our code coverage sucks is that because our mutator sucks! :D .
 
@@ -245,6 +253,7 @@ The reason why the msg.is_delta thing always goes to the else case is that in th
 
 Ok, so let's add a special case for the CSVCMsg_PacketEntities case:
 
+{% raw %}
 ```
 
 	'''
@@ -265,6 +274,7 @@ Ok, so let's add a special case for the CSVCMsg_PacketEntities case:
 
 
 ```
+{% endraw %}
 
 After adding this special case to our packet fuzzer we should now get better coverage and we should actually find some crashes. :)
 
@@ -276,6 +286,7 @@ For some reason I am not getting better coverage even after the changes. I think
 
 As it turns out, when the is_delta thing is false, then we go into this loop here:
 
+{% raw %}
 ```
 
 		for ( int i=0; i <= entitylist->GetHighestEntityIndex(); i++ )
@@ -286,6 +297,7 @@ As it turns out, when the is_delta thing is false, then we go into this loop her
 		}
 
 ```
+{% endraw %}
 
 and that loop takes a long while to complete, so we need to increase the timeout when fuzzing this specific type of packet.
 
@@ -298,6 +310,7 @@ Let's just comment out the for loop and see what happens?
 In the mean time let's explore other possible exploitation routes. The source engine enables transfer of files with NETMsg_File. This 
 
 
+{% raw %}
 ```
 
 
@@ -319,9 +332,11 @@ bool CNetChan::NETMsg_File( const CNETMsg_File& msg )
 
 
 ```
+{% endraw %}
 
 The IsValidFileForTransfer is a function which checks that the request doesn't try to read any of the players personal files etc etc.. So maybe there is something which the devs overlooked there?
 
+{% raw %}
 ```
 
 bool CNetChan::IsValidFileForTransfer( const char *pszFilename )
@@ -405,9 +420,11 @@ bool CNetChan::IsValidFileForTransfer( const char *pszFilename )
 
 
 ```
+{% endraw %}
 
 and here is COM_IsValidPath: 
 
+{% raw %}
 ```
 
 bool COM_IsValidPath( const char *pszFilename )
@@ -431,11 +448,13 @@ bool COM_IsValidPath( const char *pszFilename )
 }
 
 ```
+{% endraw %}
 
 So we need to figure out a way to get COM_IsValidPath to return true even though the path itself is an absolute path.
 
 and here is the absolute path check:
 
+{% raw %}
 ```
 
 bool V_IsAbsolutePath( const char *pStr )
@@ -460,6 +479,7 @@ bool V_IsAbsolutePath( const char *pStr )
 
 
 ```
+{% endraw %}
 
 While browsing, I discovered this: https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats
 
@@ -467,6 +487,7 @@ and there is a quote: "All forward slashes (/) are converted into the standard W
 
 Now, I think we need to learn about how the game actually internally loads the files.
 
+{% raw %}
 ```
 
 bool CNetChan::SendFile(const char *filename, unsigned int transferID, bool bIsReplayDemoFile )
@@ -503,6 +524,7 @@ bool CNetChan::SendFile(const char *filename, unsigned int transferID, bool bIsR
 }
 
 ```
+{% endraw %}
 
 
 So there is the `while( sendfile[0] && PATHSEPARATOR( sendfile[0] ) )` thing which seems a bit sus. That probably messes our exploit attempt, but I am going to try anyways.
@@ -518,6 +540,7 @@ Let's just keep exploring the entity parsing code to see if it has some interest
 
 There is this piece of code:
 
+{% raw %}
 ```
 
 void CL_PreserveExistingEntity( int nOldEntity )
@@ -534,6 +557,7 @@ void CL_PreserveExistingEntity( int nOldEntity )
 
 
 ```
+{% endraw %}
 
 Which seeoms quite odd. Looking at the code there is absolutely no references to this function, so this may be a dead end. See, this blog post: https://ctf.re/source-engine/exploitation/2021/05/01/source-engine-2/ describes an exploit which uses the CL_CopyExistingEntity function because it takes an attacker controlled index, which is then used to access an OOB memory address and then a method is called on that address, which basically means RIP control.
 
@@ -545,6 +569,7 @@ Let's investigate the fix for the CL_CopyExistingEntity bug...
 Here is the decompiled version (thanks ghidra)...
 
 
+{% raw %}
 ```
 
 void FUN_003b01c0(long param_1)
@@ -589,9 +614,11 @@ void FUN_003b01c0(long param_1)
   }
 
 ```
+{% endraw %}
 
 This fix doesn't really make sense, because this block here:
 
+{% raw %}
 ```
 
   lVar8 = *(long *)(param_1 + 0x38);
@@ -612,6 +639,7 @@ This fix doesn't really make sense, because this block here:
   }
 
 ```
+{% endraw %}
 
 is somehow supposed to prevent exploitation? That is quite odd. That means that this vulnerability may exist in the game still. I am going to just assume that it got fixed and focus somewhere else first.
 
@@ -619,6 +647,7 @@ In very complex game engines, there are usually plenty of third party applicatio
 
 Here is the comment at the top of XZip.cpp :
 
+{% raw %}
 ```
 //========= Copyright 1996-2005, Valve Corporation, All rights reserved. ============//
 //
@@ -715,6 +744,7 @@ Here is the comment at the top of XZip.cpp :
 //
 ///////////////////////////////////////////////////////////////////////////////
 ```
+{% endraw %}
 
 So the version is 1.1 for xunzip. There are also plenty of other third party libraries which have outdated versions, which could have exploits for them.
 
@@ -726,6 +756,7 @@ One very nice thing is that lzss.cpp doesn't have that many external dependies, 
 
 The lzss decompression is pretty much only used in net_ws.cpp in the decompression of network packets. Instead of just allocating a local memory area, they use some CUtlMemory stuff:
 
+{% raw %}
 ```
 
 
@@ -740,6 +771,7 @@ The lzss decompression is pretty much only used in net_ws.cpp in the decompressi
 				}
 
 ```
+{% endraw %}
 
 This isn't even that easy to exploit, even if we find a vuln in SafeUncompress. Let's keep looking.
 

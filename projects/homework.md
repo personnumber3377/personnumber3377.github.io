@@ -19,6 +19,7 @@ I wanted this tool to be simple to use, but still give verbose output to the com
 
 I started the development of this tool from the different kinds of objects I wanted to include in my program. I started with a line:
 
+{% raw %}
 ```
 
 class line:
@@ -130,6 +131,7 @@ class line:
 		'''.format(self.a, self.b, self.c, self.name)
 		return return_string
 ```
+{% endraw %}
 
 
 That may seem overwhelming, but it actually isn't that bad. I wanted to include this raw version of the line object, because when you look at some code online, you may feel like you are somehow inadequate as a programmer, but the fact that that said code has been combed over hundreds if not thousands of times to make it better has to be taken in to account. The first version of said code was most likely a messy piece of code, which just barely worked and was later polished finer. Also I forgot to mention that my code uses the sympy library to actually do the heavy lifting of solving the intersection points for example, so in that sense my code is just a wrapper around sympy, which just formats the user input from abstract concepts like lines and circles to mathematical equations, but I decided that this is still a useful blog to write for some people idunno.
@@ -145,6 +147,7 @@ I wanted the command line to be as simplistic as possible, yet intuitive to use.
 
 Ok so after a bit of coding (now it is almost 2 am and the unix time now is 1677714427 (yeah, i live in gmt+2)), I have finally implemented a way to get an intersection of two lines. The funny thing is, that I haven't even implemented points properly. 😅 Anyway. Before I do that I want to show you the code for the command line handler:
 
+{% raw %}
 ```
 def command_mainloop(file=None):
 	print_banner()
@@ -199,6 +202,7 @@ def command_mainloop(file=None):
 
 
 ```
+{% endraw %}
 
 
 The "commands" is a list of all the commands as strings and "handle_functions" are the functions which handle the commands. A list of function pointers and then accessing the list by an index is probably asking for trouble, but I do not really give a shit. If the command is not in the commands list, then first assume that the command is either setting some attribute of an object or calling a method on an object. Now, I actually can not call the set_values_two_points method, because I haven't implemented points properly, but that will soon change.
@@ -221,6 +225,7 @@ After a bit of fiddling around, I found the bug. The bug is that because python 
 
 
 (python3 shell)
+{% raw %}
 ```
 
 >>> list1 = [1,2,3]
@@ -230,9 +235,11 @@ After a bit of fiddling around, I found the bug. The bug is that because python 
 [1, 2, 3, 4]
 
 ```
+{% endraw %}
 
 To make an actual copy of an object, instead of a copy of the pointer to the object, the "copy" library can be used. Like this:
 
+{% raw %}
 ```
 >>> import copy
 >>> list1 = [1,2,3]
@@ -241,8 +248,10 @@ To make an actual copy of an object, instead of a copy of the pointer to the obj
 >>> list2
 [1, 2, 3]
 ```
+{% endraw %}
 And even this in some cases is inadequate, and in some cases the deepcopy method should be used instead of just copy.copy , but for my purposes this is adequate. Actually I do not even need to do any copying, because the bug occurs here in my code:
 
+{% raw %}
 ```
 	objects.append(new_object)
 	print("gregregregrr")
@@ -250,10 +259,12 @@ And even this in some cases is inadequate, and in some cases the deepcopy method
 	print("objects after appending new_object: " + str(get_names(objects)))
 	global_objects.append(new_object) # <- bug occurs here
 ```
+{% endraw %}
 
 the "objects" object is a reference to "global_objects" and that is why when I append the object to first objects and then to global_objects , I am actually appending to the same list twice. The fix for this bug is to simply comment out the global_objects.append line like so:
 
 
+{% raw %}
 ```
 	objects.append(new_object)
 	print("gregregregrr")
@@ -261,11 +272,13 @@ the "objects" object is a reference to "global_objects" and that is why when I a
 	print("objects after appending new_object: " + str(get_names(objects)))
 	#global_objects.append(new_object) # <- no more bug :)
 ```
+{% endraw %}
 
 Now it is time to try to add this shared object creation code to the other objects, such as the circle and (yet to be implemented properly) points.
 
 Now after a while I have implemented the shared init code for every one of the objects, but I still have to make this method a bit nicer and also more modular such that the same code can be used in every object:
 
+{% raw %}
 ```
 	def run_method_on_self(method_string, command):
 		# global_objects
@@ -296,6 +309,7 @@ Now after a while I have implemented the shared init code for every one of the o
 			self.set_values_two_points(point1, point2)
 			return 0
 ```
+{% endraw %}
 
 This is the current code for the line object and run_method_on_self as the name suggests runs a method which belongs to the object with certain arguments. This is will ultimately be used for things like "line.set_values_point_line yourpoint1 yourpoint2" which can not currently yet be done. That command then should set the appropriate values for a, b and c such that the line passes through those two points.
 
@@ -305,6 +319,7 @@ Ok so it is the new day again. Time to implement the points. Finally.
 
 Currently the point object looks like this: (this is the very first version, before I decided to use sympy as my backend)
 
+{% raw %}
 ```
 
 class point:
@@ -332,6 +347,7 @@ class point:
 		return 0
 
 ```
+{% endraw %}
 
 The set_property_on_self is copied from the others, because it should a method of every geometric object. (Maybe I can achieve this with inheritance instead of copy pasting it everywhere?), but the init function is lacking.
 
@@ -340,6 +356,7 @@ Oh, by the way, the init function of the line for example now has been replaced 
 
 
 
+{% raw %}
 ```
 	def __init__(self,*arguments):
 
@@ -360,9 +377,11 @@ Oh, by the way, the init function of the line for example now has been replaced 
 		common_arg_stuff(self, *arguments)
 
 ```
+{% endraw %}
 
 The common_arg_stuff is the function which handles the arguments regardless of which object it is (circle, line etc), such that I can use the same template for everything instead of copy pasting stuff, for example the new init function for the circle is this:
 
+{% raw %}
 ```
 
 	def __init__(self, *arguments):
@@ -381,6 +400,7 @@ The common_arg_stuff is the function which handles the arguments regardless of w
 		common_arg_stuff(self, *arguments)
 
 ```
+{% endraw %}
 
 Looks pretty much the same, right? Pretty neat.
 
@@ -389,6 +409,7 @@ Anyway, back to the point(s). :)
 
 
 Now after a bit of coding, here is the finished point class:
+{% raw %}
 ```
 
 class point:
@@ -442,6 +463,7 @@ class point:
 		return '''=======================\nType: point\nx = {}\ny = {}\nname = {}\n=======================\n'''.format(self.x, self.y, self.name)
 
 ```
+{% endraw %}
 
 The set_point_to_values method is used to do a thing like mypoint.set_point_to_values x=1 y=2    to set the point to anything we want.
 
@@ -452,6 +474,7 @@ Actually I forgot the run_method_on_self method for the point, so I am adding it
 ...
 
 There. Now this works: "point0.set_point_to_values 1 2"  and then "point0" returns this:
+{% raw %}
 ```
 =======================
 Type: point
@@ -460,6 +483,7 @@ y = 2.0
 name = point0
 =======================
 ```
+{% endraw %}
 
 
 Now it is almost 2 am again and unix time 1677886826 and I have finally a somewhat functional program. Now you can solve the intersection between circles, lines and points. I had to tweak the intersection command, becasue the way Sympy handles variables and variable names was a bit wack.
@@ -467,6 +491,7 @@ Now it is almost 2 am again and unix time 1677886826 and I have finally a somewh
 
 
 
+{% raw %}
 ```
 def intersection(object1, object2):
 
@@ -509,6 +534,7 @@ def intersection(object1, object2):
 
 	return result
 ```
+{% endraw %}
 
 So it basically works by setting the x and y in each of the equations to one variable. Now thinking about it can I just solve the equations in one go without an intermediate variable??
 
@@ -520,6 +546,7 @@ This works all right too:
 
 
 
+{% raw %}
 ```
 def intersection(object1, object2):
 
@@ -533,6 +560,7 @@ def intersection(object1, object2):
 	return result
 
 ```
+{% endraw %}
 
 
 I should really stop overthinking stuff.
@@ -564,6 +592,7 @@ After a bit of digging I found this https://stackoverflow.com/questions/39192643
 
 Currently my code looks like this:
 
+{% raw %}
 ```
 def distance_min(object, point):
 
@@ -602,6 +631,7 @@ def distance_min(object, point):
 	return solution
 
 ```
+{% endraw %}
 
 Actually the sympy.minimum function gives the minimum value, not the value of x for the function which gives the minimum value. We can fix this problem by getting the intersection between a circle of that radius and the point as the center.
 
@@ -612,6 +642,7 @@ We can easily implement maxdistobjdot  by replacing minimum with maximum.
 Now while implementing the min distance function, I came across a bug (once again).
 
 
+{% raw %}
 ```
 
 def get_circle_eq(xc,yc,r):
@@ -619,17 +650,21 @@ def get_circle_eq(xc,yc,r):
 	return [Eq(parse_expr("(x-{})**2+(y-{})**2".format(xc,yc)), parse_expr("({})**2".format(r)))]
 
 ```
+{% endraw %}
 
 this code was originally this:
+{% raw %}
 ```
 def get_circle_eq(xc,yc,r):
 	print("Returning this: "+str("(x-{})**2+(y-{})**2=({})**2".format(xc,yc,r)))
 	return [Eq(parse_expr("(x-{})**2+(y-{})**2".format(xc,yc)), parse_expr("{}**2".format(r)))]
 ```
+{% endraw %}
 
 See the difference? There are braces in the top one which aren't in the bottom one. This caused the expression to be evaluated improperly leading to a wrong answer. Anyway, here is the complete code for the mindistobjdot:
 
 
+{% raw %}
 ```
 def mindistobjdot(command:str, objects:list):
 
@@ -655,9 +690,11 @@ def mindistobjdot(command:str, objects:list):
 
 
 ```
+{% endraw %}
 
 and distance_min:
 
+{% raw %}
 ```
 def distance_min(object, point, maximumthing=False):
 
@@ -696,11 +733,13 @@ def distance_min(object, point, maximumthing=False):
 	return solution
 
 ```
+{% endraw %}
 
 It uses the minimum and maximum functions, which basically internally do what I originally did, aka solve the equation f'(x)=0 and then output the value of the original function at that point, except that in addition to my original version of the program, it also checks that the answer is actually the minimum value, and not for example the maximum value. If the derivative is zero, then that means that it can also be the maximum or a saddle point in addition to the minimum value. I probably should have implemented that myself as an exercise but whatever.
 
 Note that this function returns the minimum or maximum distance, not the point which gives said distance. After a bit of digging I found out that the minimum function actually internally does something like this: (copied from the sympy source code)
 
+{% raw %}
 ```
 
     if isinstance(symbol, Symbol):
@@ -712,9 +751,11 @@ Note that this function returns the minimum or maximum distance, not the point w
         raise ValueError("%s is not a valid symbol." % symbol)
 
 ```
+{% endraw %}
 
 and function_range is this (only part of it):
 
+{% raw %}
 ```
 
 
@@ -752,9 +793,11 @@ and function_range is this (only part of it):
             range_int += Interval(vals.inf, vals.sup, left_open, right_open)
 
 ```
+{% endraw %}
 
 so I was actually right that it basically solves the equation f'(x)=0 , but it also has some extra checks to check that the answer which it gives is actually the minimum/maximum. This is done by finding the critical points in the interval. The critical points are basically just the solutions to that differential equation. the range_int is a range of all possible values which the function can get. The minimum value is therefore the lower bound of this range and the maximum value is the higher bound of this. the range_int in addition to the solutions to the differential eq also has these:
 
+{% raw %}
 ```
 
     for interval in interval_iter:
@@ -764,9 +807,11 @@ so I was actually right that it basically solves the equation f'(x)=0 , but it a
                     range_int += FiniteSet(f.subs(symbol, singleton))
 
 ```
+{% endraw %}
 
 and
 
+{% raw %}
 ```
 
     intervals = continuous_domain(f, symbol, domain)
@@ -778,12 +823,14 @@ and
         interval_iter = intervals.args
 
 ```
+{% endraw %}
 
 so the range_int is initialized to have the values of the function at the bounds of its domain aka the bounds where the function is defined. For example the maximum distance between a point and a line is obviously infinity, and the distance function is defined for every real x, so the interval_iter gets appended by -oo and +oo where oo means infinity. So this is all to just to say. that the maximum/minimum of a function is at either at the edge of its domain (the smallest or the largest value of x for which the function is defined) or at a point where its derivative equals zero. I hope I explained this clearly. Feel free to ask for clarification.
 
 To actually get the point which is the maximum or minimum distance away from the other point, we can just use the formula for a circle and set the radius as the distance. This is where the get_circle_eq function comes in:
 
 
+{% raw %}
 ```
 
 
@@ -822,9 +869,11 @@ def mindistpointobjdot(command:str, objects:list):
 
 
 ```
+{% endraw %}
 
 So this is another command to actually get the point which we want. It internally uses the mindistobjdot command to get the min distance and then just checks the intersection between a circle of that radius centered at the other dot and the other object. We can simply implement this also for the maximum, by replacing mindistobjdot by maxdistobjdot. Now we can finally run something like:
 
+{% raw %}
 ```
 
 line a=1 b=2 c=3
@@ -836,18 +885,22 @@ mindistpointobjdot myline mypoint
 quit
 
 ```
+{% endraw %}
 
 and this returns:
 
+{% raw %}
 ```
 Result: [(-3/5, -6/5)]
 ```
+{% endraw %}
 
 which is correct!
 
 # Solving the original problem
 
 Ok so to get the radius of the big circle which encompassesall the other circles, we need to get the maximum distance from the center of the three circles to any one of the other circles. First get the center of the third circle using two circles with radius 2 (one is at 0 0 and the other one is at 2 0). :
+{% raw %}
 ```
 circle
 circle0.name = mycircle1
@@ -863,18 +916,22 @@ mycircle2.r = 2
 
 intersect mycircle1 mycircle2
 ```
+{% endraw %}
 
 
 
 returns:
+{% raw %}
 ```
 Objects intersect atleast at one point.
 Intersections are at points: [(1, -sqrt(3)), (1, sqrt(3))]
 ```
+{% endraw %}
 
 Then we can calculate the center of the three circle middles which is just the sum of the x coordinates/3 and the sum of the y coordinates/3 (i should really program a feature which calulates this). After that just find the max distance of that point and one of the circles and that is the answer:
 
 
+{% raw %}
 ```
 circle
 circle0.name = mycircle1
@@ -886,12 +943,15 @@ point0.name = mypoint
 maxdistobjdot mycircle1 mypoint
 quit
 ```
+{% endraw %}
 
 And the result is......:
 
+{% raw %}
 ```
 Maximum distance: sqrt(12*sqrt(3) + 21)/3
 ```
+{% endraw %}
 which is roughly 2.15 , which is the right answer!
 
 # Is it actually useful?
@@ -909,6 +969,7 @@ First we want to figure out the points of the triangle. I am going to pick the 3
 
 
 
+{% raw %}
 ```
 circle xc=0 yc=0 r=762
 circle0.name = origincircle
@@ -918,12 +979,15 @@ intersect anothercircle origincircle
 quit
 
 ```
+{% endraw %}
 
 
 
+{% raw %}
 ```
 Intersections are at points: [(49502/89, -4*sqrt(134302070)/89), (49502/89, 4*sqrt(134302070)/89)]
 ```
+{% endraw %}
 
 There is our third point. Now we need to figure out the largest angle:
 
@@ -936,14 +1000,18 @@ and
 x+y+z=180 degrees
 
 Now if we solve these equations by just using a normal calculator:
+{% raw %}
 ```
 [sin(x)/356=sin(y)/558, sin(y)/558=sin(z)/762, x+y+z=180]
 ```
+{% endraw %}
 
 we get:
+{% raw %}
 ```
 [[25.854419252,43.1199594033,111.025621345]]
 ```
+{% endraw %}
 
 as x,y,z . Therefore angle z aka the angle which is opposite from the line which goes from the origin to the intersection point which we calculated. When the angle is halved, the intersection point is therefore halway of the intersecting line, therefore the point for the new triangle is (49502/89, 4*sqrt(134302070)/89)/2  because it is halway through the line. Now, there is a formula for the area of a triangle given its corners and it is:
 
@@ -953,17 +1021,22 @@ A = 1/2*(x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))
 so we just plug in the numbers:
 
 and we get a widly wrong answer. I was actually mistaken, going halfway through the line does not necessarily give you half the angle. We need to solve this using the angle. We know that the line passes through the point (356,0) and it impacts the x-axis in roughly 55.5 degrees. The derivative of the line is tan(55.5) . Lets solve it using a normal calculator:
+{% raw %}
 ```
 [m*356+b=0,m=tan(55.5)]
 ```
+{% endraw %}
+{% raw %}
 ```
 [[1.45500902867,-517.983214207]]
 ```
+{% endraw %}
 
 so the line is 1.455009*x-517=y  aka  1.455*x-y-517=0 aka a=1.455 b=-1 and c=517 . Now we need to find the intersection point between this and the side of the triangle which we can actually use our tool for with the set_values_two_points method.
 
 
 
+{% raw %}
 ```
 
 line a=1.455 b=-1 c=-517.0
@@ -977,13 +1050,16 @@ intersect side halwayline
 quit
 
 ```
+{% endraw %}
 
 
 
 
+{% raw %}
 ```
 Intersections are at points: {x: 216.190149213582, y: 202.443332894238}
 ```
+{% endraw %}
 
 
 Now we can use the triangle area formula:
@@ -1009,17 +1085,20 @@ So one thing which I would like to add is a way to pass a result of another comm
 
 I would really like to do something like
 
+{% raw %}
 ```
 point name=mypoint
 point x=3 y=4 name=anotherpoint
 set mypoint anotherpoint
 
 ```
+{% endraw %}
 
 To copy the values from anotherpoint to mypoint
 
 and also I would like to do something like:
 
+{% raw %}
 ```
 line a=1 b=2 c=3 name=myline1
 line a=4 b=5 c=6 name=myline2
@@ -1028,6 +1107,7 @@ point [resultlist] name=mypoint
 
 
 ```
+{% endraw %}
 
 To pass the values of resultlist as like a list and then the parser could expand it for us. Now I am thinking that the initial command parser looks up a list called declared_variables, which has a list of objects, which has a list of variables a user has defined. Variables are basically a list of values which are the result of an operation.
 
@@ -1041,6 +1121,7 @@ After a bit of coding I came up with this:
 
 
 def unpack_variables_in_command(command_string:str, user_defined_variables: list):
+{% raw %}
 ```
 	tokens = command_string.split(" ")
 	
@@ -1072,10 +1153,12 @@ def unpack_variables_in_command(command_string:str, user_defined_variables: list
 
 
 ```
+{% endraw %}
 
 
 and this:
 
+{% raw %}
 ```
 def variable_assignment_command(command_string: str, global_objects: list, max_arg_lengths: list, min_arg_lengths: list, commands: list) -> int:
 
@@ -1118,11 +1201,13 @@ def variable_assignment_command(command_string: str, global_objects: list, max_a
 	return 0
 
 ```
+{% endraw %}
 
 it basically runs the command after the ":=" part and then stores the result of that into the user_defined_variables list as a result. The user_defined_variables is just a global dictionary
 
 now we can run:
 
+{% raw %}
 ```
 line a=1 b=2 c=3
 line0.name = myline1
@@ -1136,11 +1221,13 @@ quit
 
 
 ```
+{% endraw %}
 
 and the result will be:
 
 
 
+{% raw %}
 ```
 =======================
 Type: point
@@ -1150,12 +1237,14 @@ name = mypoint
 =======================
 
 ```
+{% endraw %}
 , so it works. This assumes that the function actually returns the results of the operation. Now, I haven't yet implemented accessing the subscripts of these variables, for example you can not `access myvar[0]` yet, but I will probably implement that some time. Actually, I am going to implement it now.
 
 Ok so after a bit of tinkering I modified the unpack_variables_in_command function and added this to it:
 
 
 
+{% raw %}
 ```
 
 			if token.count("[") > 1 or token.count("]") > 1:
@@ -1200,6 +1289,7 @@ Ok so after a bit of tinkering I modified the unpack_variables_in_command functi
 				var_values = {k:var_values[k] for k in l if k in var_values}
 
 ```
+{% endraw %}
 
 
 Now, another feature which I would like to add is to get the area between two graphs from their other intersection point to the other.
@@ -1211,6 +1301,7 @@ The purple graph is basically the line-circle at that point and to get the area 
 
 
 
+{% raw %}
 ```
 
 def integrate_command(command: str, objects: list):
@@ -1262,6 +1353,7 @@ def integrate_command(command: str, objects: list):
 
 
 ```
+{% endraw %}
 
 
 
@@ -1269,6 +1361,7 @@ This seems adequate for now. Next I want to do the intersection thing:
 
 
 
+{% raw %}
 ```
 def area_between_intersections(command:str, objects:list):
 
@@ -1381,12 +1474,14 @@ def area_between_intersections(command:str, objects:list):
 	return resulting_area
 
 ```
+{% endraw %}
 
 I actually haven't tested that code yet that it works, so I am going to quickly draw up a command script file which tests it for me:
 
 
 
 
+{% raw %}
 ```
 line a=4 b=-2 c=3
 line0.name = myline
@@ -1394,10 +1489,12 @@ area_between_intersections myline y=x**2-10*x+10
 quit
 
 ```
+{% endraw %}
 
 and then running this we get an error:
 
 
+{% raw %}
 ```
 
 Traceback (most recent call last):
@@ -1411,6 +1508,7 @@ NameError: name 'selected_object' is not defined
 
 
 ```
+{% endraw %}
 
 I wanted to showcase just real quick how I debug a bug usually, because i dunno, I think that it is a good idea. I haven't described my debugging process in this blog post yet until not.
 
@@ -1420,6 +1518,7 @@ Except that this is a boring bug since that variable should just be the object_n
 After a couple of type fixes I get this error:
 
 
+{% raw %}
 ```
 
 Traceback (most recent call last):
@@ -1431,6 +1530,7 @@ Traceback (most recent call last):
     if functions_in_y_format[0].subs({'x':check_value}) > functions_in_y_format[1].subs({'x':check_value}):
 AttributeError: 'list' object has no attribute 'subs'
 ```
+{% endraw %}
 
 Then doing print("functions_in_y_format == "+str(functions_in_y_format))   before the crash shows this: `functions_in_y_format == [[2*x + 3/2], [x**2 - 10*x + 10]]` So instead of using only `[0]` as the index we should use `[0][0]` instead to get the actual element. This is quite a simple bug, but I just wanted to showcase how I debug stuff. Just slap a debug statement and the see the value and see how the way you are accessing that value goes wrong.
 
@@ -1455,6 +1555,7 @@ I implemented a method set_lines_from_points for the triangle object which takes
 
 A peculiar bug in my system which I came across is this:
 
+{% raw %}
 ```
 Traceback (most recent call last):
   File "geometrylib.py", line 1970, in <module>
@@ -1470,6 +1571,7 @@ Traceback (most recent call last):
 IndexError: list index out of range
 
 ```
+{% endraw %}
 
 when running python3 geometrylib.py --file thing.txt  .
 
@@ -1478,6 +1580,7 @@ I changed the way that arguments are handled and they no longer work correctly f
 To fix this I added this:
 
 
+{% raw %}
 ```
 
 	resulting_dict = {'x':result[0][0], 'y':result[0][1]}
@@ -1502,6 +1605,7 @@ To fix this I added this:
 	return final_dict
 	
 ```
+{% endraw %}
 
 To the mindistpointobjdot function and now it works well.
 
@@ -1509,6 +1613,7 @@ To implement the triangle object, we need to make a list of three line equations
 
 In the intersection command I need to do something like this:
 
+{% raw %}
 ```
 
 def intersection(object1, object2):
@@ -1587,10 +1692,12 @@ def intersection(object1, object2):
 			exit(1)
 	return result
 ```
+{% endraw %}
 
 
 This piece of code basically checks that if the equation in the equation list returned by get_equations is a list of equations, then get all the solutions which satisfy atleast of one of those equations and all of the other equations. This is used for the triangle object for example, because in the intersection command for example between a line and a triangle we check the intersection between each of the sides of the triangle and the line separately and then append those solutions to the final intersection result list. I actually need to do this for some other places like in distance_min , so instead of copypasting this function everywhere in the code, lets just define a function:
 
+{% raw %}
 ```
 
 def solve_equation_stuff(object_list, variable):
@@ -1640,6 +1747,7 @@ def solve_equation_stuff(object_list, variable):
 
 	return result
 ```
+{% endraw %}
 
 
 ## Writing a testsuite thing:
@@ -1649,6 +1757,7 @@ Now lets put the triangle thing on the backburner for a second, because I honest
 Now I just quickly hacked this together (the command mainloop function is starting to get quite cluttered I know):
 
 
+{% raw %}
 ```
 def command_mainloop(file=None, testsuite=None):
 	print_banner()
@@ -1774,11 +1883,13 @@ def command_mainloop(file=None, testsuite=None):
 		print_col(bcolors.OKGREEN, "Testsuite " +str(str(testsuite))+ " passed!")
 	return command_result
 ```
+{% endraw %}
 
 
 
 and this:
 
+{% raw %}
 ```
 if __name__=="__main__":
 	'''
@@ -1860,6 +1971,7 @@ if __name__=="__main__":
 			print_col(bcolors.OKGREEN, "All tests passed!\n\n")
 		print_col(bcolors.OKBLUE, "=================================================")
 ```
+{% endraw %}
 
 the --get-expected  flag gets all of the expected values for the testsuite files and then the --test-all checks all of them. The idea is that before making modifications you update the tests with the --get-expected values (which I should probably also automate, that the program automatically appends the expected values to the testsuite files but oh well) and then after you have done modifications to the program then you later run the test set with --test-all to see that it behaves similarly as to before, because if it doesn't then you have royally screwed something up.
 
@@ -1870,6 +1982,7 @@ Now that we have the triangle implemented lets actually try to use it:
 First we need to implement a command which lets us create a triangle:
 
 
+{% raw %}
 ```
 def triangle_command(command:str, objects:list):
 
@@ -1882,6 +1995,7 @@ def triangle_command(command:str, objects:list):
 	return 0
 
 ```
+{% endraw %}
 
 
 I am really glad that i programmed that common_object_creation_stuff  function so that I don't have to copy paste code. In fact I don't even think that the "line_command" and "triangle_command" functions are even necessary, because we could handle that stuff in the mainloop but idk.
@@ -1889,6 +2003,7 @@ I am really glad that i programmed that common_object_creation_stuff  function s
 Now lets create a quick file which uses this new command and tries to find intersections between the triangle and a line:
 
 
+{% raw %}
 ```
 
 triangle x0=0 y0=0 x1=1 y0=0 x2=1 y2=1
@@ -1896,10 +2011,12 @@ line a=0 b=1 c=-0.5
 intersect triangle0 line0
 quit
 ```
+{% endraw %}
 
 
 and as expected we get an error:
 
+{% raw %}
 ```
 
 oof
@@ -1924,11 +2041,13 @@ Traceback (most recent call last):
     symbols = set().union(*[fi.free_symbols for fi in f])
 AttributeError: 'list' object has no attribute 'free_symbols'
 ```
+{% endraw %}
 
 This is because the parse_expr function also evaluates the equations in addition to simply parsing them so an expression like "x>2" which is a constraint gets simplified to "1>2" if x is one and this of course evaluates to False.
 
 This peculiar bug was solved like this:
 
+{% raw %}
 ```
 
 			final_equation = Eq(parse_expr(equation))
@@ -1939,6 +2058,7 @@ This peculiar bug was solved like this:
 			print("Value of x: "+str(parse_expr('x')))
 
 ```
+{% endraw %}
 
 
 
@@ -1948,6 +2068,7 @@ Just simply parsing an expression like "x>2" makes it an equation so no need to 
 Now after that we observe that plain_eqs remains empty for some reason so lets investigate this code:
 
 
+{% raw %}
 ```
 
 		for eq in equations:
@@ -1964,12 +2085,14 @@ Now after that we observe that plain_eqs remains empty for some reason so lets i
 
 				result.append(solve([or_eq1]+plain_eqs), variables)
 ```
+{% endraw %}
 
 
 
 This was simply because we indented the code a bit too much it should be like this:
 
 
+{% raw %}
 ```
 
 
@@ -1989,16 +2112,20 @@ This was simply because we indented the code a bit too much it should be like th
 
 			result.append(solve(or_eq1+plain_eqs), variables)
 ```
+{% endraw %}
 
 Now running the code we end up with this:
 
+{% raw %}
 ```
 NotImplementedError: 
 inequality has more than one symbol of interest
 ```
+{% endraw %}
 
 Now, this error is because sympy can not handle inequalities in a certain way. If we try to do something like this:
 
+{% raw %}
 ```
 from sympy import *
 x = Symbol('x')
@@ -2006,6 +2133,7 @@ y = Symbol('y')
 solve([Eq(x + y - 0.5, 0), Eq(1 - 10.0*y, 0), x <= 1], [x,y])
 
 ```
+{% endraw %}
 
 We get the exact same error. This is complete bullshit because we obviously need this for this thing to work. One workaround which I can see is that we first compute the solution without any restrictions and then afterwards check them.
 
@@ -2014,6 +2142,7 @@ After a bit of tinkering I got it to work but the thing is that it now ignores t
 
 Ok so now after a bit of coding I finally came up with this:
 
+{% raw %}
 ```
 
 
@@ -2233,10 +2362,12 @@ def solve_equation_stuff(object_list, variables):
 
 	return result
 ```
+{% endraw %}
 
 
 Which is way more convoluted than it has to be, but it does the job. Now finally I can do this:
 
+{% raw %}
 ```
 
 triangle x0=0.4 y0=0.1 x1=1 y1=0.2 x2=1 y2=1
@@ -2244,20 +2375,25 @@ line a=0.1 b=1 c=-0.5
 intersect triangle0 line0
 quit
 ```
+{% endraw %}
 
 and it produces the right results:
 
+{% raw %}
 ```
 [{x: 0.625000000000000, y: 0.437500000000000}, {x: 1.00000000000000, y: 0.400000000000000}]
 ```
+{% endraw %}
 
 Now another thing which I would like to implement is a way to get an angle between two line objects, because that makes it a lot easier to calculate for example the angles inside a triangle.
 The angle between a line and the x axis is arctan(-a/b) therefore the line between two lines is:
 
+{% raw %}
 ```
 
 abs(abs(arctan(-a1/b1))-abs(arctan(-a2/b2)))
 ```
+{% endraw %}
 
 
 When the lines are a1*x+b1*y+c=0 and a2x*x+b2*y+c=0 
@@ -2275,12 +2411,15 @@ and the angle is around 12.09 degrees .
 
 Lets use the formula and check our work:
 
+{% raw %}
 ```
 abs(abs(arctan(-a1/b1))-abs(arctan(-a2/b2)))
 ```
+{% endraw %}
 
 in xcas:
 
+{% raw %}
 ```
 a1:=1
 b1:=2
@@ -2288,15 +2427,19 @@ a2:=4
 b2:=5
 abs(arctan(-a1/b1)-arctan(-a2/b2))
 ```
+{% endraw %}
 
 results is:
 
+{% raw %}
 ```
 12.094757077
 ```
+{% endraw %}
 
 so our formula works. Lets put it into the program:
 
+{% raw %}
 ```
 def angle_between_lines(line1, line2):
 
@@ -2308,9 +2451,11 @@ def angle_between_lines(line1, line2):
 	result /= 3.14159265358979323846 # pi
 	return result
 ```
+{% endraw %}
 
 and the command thing:
 
+{% raw %}
 ```
 def angle_between_lines_command(command:str, objects:list):
 
@@ -2328,10 +2473,12 @@ def angle_between_lines_command(command:str, objects:list):
 
 	return (final_result).evalf()
 ```
+{% endraw %}
 
 
 One thing which actually stood out to me was that the tests passed on the first try so I was a bit sceptical of that. Looking through the code the code was originally this:
 
+{% raw %}
 ```
 		for thing in os.listdir("tests/"):
 			if results[count]:
@@ -2349,9 +2496,11 @@ One thing which actually stood out to me was that the tests passed on the first 
 			print_col(bcolors.OKGREEN, "All tests passed!\n\n")
 		print_col(bcolors.OKBLUE, "=================================================")
 ```
+{% endraw %}
 
 We do not increment the "count" variable so if the first test passes then this code incorrectly reports that every test passed so we need to increment the count variable like so:
 
+{% raw %}
 ```
 
 		for thing in os.listdir("tests/"):
@@ -2370,6 +2519,7 @@ We do not increment the "count" variable so if the first test passes then this c
 			print_col(bcolors.OKGREEN, "All tests passed!\n\n")
 		print_col(bcolors.OKBLUE, "=================================================")
 ```
+{% endraw %}
 
 
 Also another issue which I faced was that the environment had to be reset in between each testsuite file because otherwise the definition of variables in the last testsuite screws stuff up in the next testsuite.
@@ -2381,6 +2531,7 @@ Another feature to add is adding tangents to this program. We get a tangentline 
 
 To do this just use the line passing through a point formula and the derivative of the function at that point for the derivative of the tangent:
 
+{% raw %}
 ```
 
 def get_tangents(objects:list):
@@ -2425,10 +2576,12 @@ def get_tangents(objects:list):
 		
 		return tangent_lines
 ```
+{% endraw %}
 
 
 and:
 
+{% raw %}
 ```
 
 def get_tangent_from_point_and_derivative(x0thing,fx0):
@@ -2448,9 +2601,11 @@ def get_tangent_from_point_and_derivative(x0thing,fx0):
 
 	return derivative_line
 ```
+{% endraw %}
 
 and here is a testuite which I made:
 
+{% raw %}
 ```
 circle xc=0 yc=0 r=1
 circle0.name = mycircle
@@ -2460,6 +2615,7 @@ quit
 
 #[(x*x0 - 1)/sqrt(1 - x0**2), (-x*x0 + 1)/sqrt(1 - x0**2)]
 ```
+{% endraw %}
 
 And it passes all of the tests. Nice! Now we can get a tangent of one object. In addition to getting a tangent of one object I would like to also get a shared tangent between two objects aka tangent lines which are tangent to two objects at the same time but I will save that for later.
 
@@ -2472,6 +2628,7 @@ Because an object may have multiple equations describing it, we need to run thro
 
 Now running this script:
 
+{% raw %}
 ```
 circle xc=0 yc=0 r=1
 circle0.name = circleone
@@ -2482,9 +2639,11 @@ tangents circleone circletwo
 quit
 
 ```
+{% endraw %}
 
 Results in this output:
 
+{% raw %}
 ```
 
 Welcome to geometrylib 1.0 !
@@ -2640,6 +2799,7 @@ Thank you for using geometrylib! See you again soon!
 
 
 ```
+{% endraw %}
 
 Obviously this is wrong.
 
@@ -2655,11 +2815,13 @@ t = (sqrt(1 - x0**2)/sqrt(-x1**2 + 4*x1 - 3)
 
 
 
+{% raw %}
 ```
 thing1: (x*x0 - 1)/sqrt(1 - x0**2)
 thing2: (x*x1 - 2*x - 2*x1 + 3)/sqrt(-x1**2 + 4*x1 - 3)
 Solution stuff: [(sqrt(1 - x0**2)/sqrt(-x1**2 + 4*x1 - 3), x0, y0, x1, y1)]
 ```
+{% endraw %}
 
 i am going to mark x0 as a, x1 as b, y0 as c and y1 as d
 
@@ -2685,6 +2847,7 @@ I think that this is because the approach I am taking for solving the tangents i
 
 Now, there is some peculiar behaviour:
 
+{% raw %}
 ```
 
 >>> simplify(Derivative(-sqrt(1 - x0**2), x0))
@@ -2749,6 +2912,7 @@ Eq(x0/sqrt(1 - x0**2), sqrt(-(x1 - 3)*(x1 - 1))*(2 - x1)/((x1 - 3)*(x1 - 1)))
 
 
 ```
+{% endraw %}
 
 Now, I came accross a very peculiar bug. This time the bug I think is actually in the sympy package instead of my own code. I filed this issue to the sympy github page: https://github.com/sympy/sympy/issues/25057 . Lets hope that the devs fix it soon. In the mean time we can just use the simplify for our purposes.
 
@@ -2757,21 +2921,25 @@ After doing that fix now we get some very strange behaviour. Our tangent in the 
 
 Ok I found the bug. Originally these lines:
 
+{% raw %}
 ```
 
 thing_y_1 = solve(thing_y_1, 'y')[counter1]
 thing_y_2 = solve(thing_y_2, 'y')[counter2]
 
 ```
+{% endraw %}
 
 where this:
 
+{% raw %}
 ```
 
 thing_y_1 = solve(thing_y_1, 'y')[0]
 thing_y_2 = solve(thing_y_2, 'y')[0]
 
 ```
+{% endraw %}
 
 because I made the assumption that every object had only one equation associated with them.
 
@@ -2794,9 +2962,11 @@ I have to actually remind myself how this tool (which I wrote myself) works.
 
 Does this work?
 
+{% raw %}
 ```
 circle xc=0 yc=0 r=r0
 ```
+{% endraw %}
 
 Yes, it works!
 
@@ -2806,6 +2976,7 @@ Let's simplify the problem a bit. We need to find out a point on the circle, suc
 
 sooo like this???
 
+{% raw %}
 ```
 point
 point0.name = firstlinepoint
@@ -2819,9 +2990,11 @@ helperline.set_values_two_points firstlinepoint secondlinepoint
 circle xc=0 yc=0 r=r0
 intersect circle helperline
 ```
+{% endraw %}
 
 Uh oh...
 
+{% raw %}
 ```
 
     arguments_for_method.append(float(arguments[i]))
@@ -2829,26 +3002,32 @@ Uh oh...
 ValueError: could not convert string to float: 'r0-1'
 
 ```
+{% endraw %}
 
 I programmed this tool in such a way that the functions always expect float inputs, so I should better make a change, such that expressions as inputs are allowed. There is even this comment: `# assumed to be a constant:` on the next before that line! I was quite dumb nine months ago.
 
 Ok, now I get this:
 
+{% raw %}
 ```
 Command result: [(-sqrt(5*r0**2 - 16)/5 - 8/5, 2*sqrt(5*r0**2 - 16)/5 - 4/5), (sqrt(5*r0**2 - 16)/5 - 8/5, -2*sqrt(5*r0**2 - 16)/5 - 4/5)]
 ```
+{% endraw %}
 
 which is this:
 
+{% raw %}
 ```
 (-3.6880613017821102, 3.3761226035642204)
 ```
+{% endraw %}
 
 
 I added a debug statement which prints helperline.
 
 Here is the output stuff:
 
+{% raw %}
 ```
 
 Welcome to geometrylib 1.0 !
@@ -3136,10 +3315,12 @@ Command result: [(-sqrt(5*r0**2 - 16)/5 - 8/5, 2*sqrt(5*r0**2 - 16)/5 - 4/5), (s
 
 
 ```
+{% endraw %}
 
 
 and here is the line:
 
+{% raw %}
 ```
 
 obj2: =======================
@@ -3151,6 +3332,7 @@ name = helperline
 =======================
 
 ```
+{% endraw %}
 
 ax + bx + c = 0
 
@@ -3158,6 +3340,7 @@ actually I had `r0+2` when `-r0+2` is actually correct.
 
 ok so here is the working prompt:
 
+{% raw %}
 ```
 
 point
@@ -3175,6 +3358,7 @@ intersect circle0 helperline
 
 
 ```
+{% endraw %}
 
 after that, it is trivial to get the area.
 

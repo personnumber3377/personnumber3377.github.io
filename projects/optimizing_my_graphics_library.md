@@ -11,6 +11,7 @@ Ok, so first things first let's try to run the program with the cProfile profile
 
 The vast majority of the time is spent inside this loop:
 
+{% raw %}
 ```
 
 	while "time 1" not in lines[oof]:
@@ -38,20 +39,24 @@ The vast majority of the time is spent inside this loop:
 	print("Done")
 
 ```
+{% endraw %}
 
 and the `remove_values_from_list` function...
 
+{% raw %}
 ```
 
 def remove_values_from_list(the_list, val):
 	return [value for value in the_list if value != val]
 
 ```
+{% endraw %}
 
 Let's put these code pieces in to an independent file. Let's called it `optimize_me.py`.
 
 Here:
 
+{% raw %}
 ```
 
 
@@ -157,6 +162,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 let's see what we can do...
 

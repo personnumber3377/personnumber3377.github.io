@@ -7,6 +7,7 @@ I looked at the libssh fuzzers and as it turns out, all of them are basically ju
 
 Let's take this example from my fuzzing harness which I have wrote up:
 
+{% raw %}
 ```
 
         do {
@@ -57,6 +58,7 @@ nwritten = send(socket_fds[1], data, size, 0);
         } while (ssh_channel_is_open(sdata.channel));
 
 ```
+{% endraw %}
 
 (this code is based on the ssh_server_fuzzer.c source code originally)...
 
@@ -64,6 +66,7 @@ I found this quick stackoverflow post: https://stackoverflow.com/a/1541821/14577
 
 actually this seems to be sufficient:
 
+{% raw %}
 ```
 
             byte *p = memmem(buf_pointer, lSize, needle, 4);
@@ -127,9 +130,11 @@ actually this seems to be sufficient:
         } while (ssh_channel_is_open(sdata.channel));
 
 ```
+{% endraw %}
 
 I added these to the start:
 
+{% raw %}
 ```
 
     byte needle[4] = {0x41, 0x41, 0x41, 0x41};
@@ -139,6 +144,7 @@ I added these to the start:
 
 
 ```
+{% endraw %}
 
 
 

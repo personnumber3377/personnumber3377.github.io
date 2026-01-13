@@ -25,6 +25,7 @@ My usual way of doing this would be to go by the functional way and just create 
 
 Here is my current Lloyd class skeleton:
 
+{% raw %}
 ```
 # This implements the Lloyd's algorithm, which evenly spaces out points.
 
@@ -38,6 +39,7 @@ class Lloyd:
 		y_vals = [p[1] for p in self.points]
 		return [min(x_vals), max(x_vals), min(y_vals), max(y_vals)]
 ```
+{% endraw %}
 
 As it turns out, the github code uses the scipy library to create the voronoi points, so that sucks. I don't really want to cheat that way, because I wan't to actually implement everything myself.
 
@@ -75,6 +77,7 @@ Ok, so I need to implement the circumcenter function. The circumcircle is the sm
 
 Ok, so now I have implemented the addPoint function, which adds a singular point to the delaunay graph:
 
+{% raw %}
 ```
 	def addPoint(self, p): # This method adds a point in the delaunay triangulation graph.
 		p = np.asarray(p)
@@ -151,11 +154,13 @@ Ok, so now I have implemented the addPoint function, which adds a singular point
 			self.triangles[T][2] = new_triangles[(i-1) % N] # previous.
 
 ```
+{% endraw %}
 
 Let's actually try to understand how it works. To wikipedia we go... actually this seems like a much more indepth explanation: https://paulbourke.net/papers/triangulate/ Let's read that instead. Ok, so I somewhat understand how it does it. Now, let's try to implement a test function for this and maybe a render function which renders the result after adding some points.
 
 Here is my driver code:
 
+{% raw %}
 ```
 # This is a driver file for the delaunay file.
 from delaunay import *
@@ -207,12 +212,15 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 Let's add a point inside that triangle.
 
+{% raw %}
 ```
 test_points = [(0,0),(0,1),(1,0),(0.4, 0.45)] # Should create a simple triangle
 ```
+{% endraw %}
 Result:
 ![Here is the result](pictures/delaunay.png)
 
@@ -230,6 +238,7 @@ https://en.wikipedia.org/wiki/Delaunay_triangulation#Relationship_with_the_Voron
 
 Here is my implementation of the voronoi shit:
 
+{% raw %}
 ```
 	def exportVoronoi(self): # This returns the vertexes and the edges of the corresponding voronoi shit.
 		useVertex = {i: [] for i in range(len(self.coords))} # This is the dictionary with the triangle index as a key and the value as the corresponding edges of that triangle. Construct this such that the key is always the last edge in the list.
@@ -264,9 +273,11 @@ Here is my implementation of the voronoi shit:
 		return vor_coords, regions # Regions is the dict where the key is the index of the center point and the value is just the list of the associated 
 
 ```
+{% endraw %}
 
 here is the fixed version stuff:
 
+{% raw %}
 ```
 	def exportVoronoi(self): # This returns the vertexes and the edges of the corresponding voronoi shit.
 		useVertex = {i: [] for i in range(len(self.coords))} # This is the dictionary with the triangle index as a key and the value as the corresponding edges of that triangle. Construct this such that the key is always the last edge in the list.
@@ -301,6 +312,7 @@ here is the fixed version stuff:
 		return vor_coords, regions # Regions is the dict where the key is the index of the center point and the value is just the list of the associated 
 
 ```
+{% endraw %}
 
 Ok, so that seems to work.
 
@@ -312,6 +324,7 @@ Now one thing is that I was actually a bit sussed out that if I should use the v
 
 Here was my first try at that:
 
+{% raw %}
 ```
 from delaunay import * # Import the Delaunay stuff
 
@@ -386,19 +399,23 @@ class Lloyd:
             t.penup()
 
 ```
+{% endraw %}
 
 this is quite largely based on this: https://editor.p5js.org/codingtrain/sketches/Z_YV25_4G which is basically the code in the coding train video.
 
 ## Debugging
 
+{% raw %}
 ```
     pts = [self.circumcenters[point_indexes[i]] for i in range(len(point_indexes))]
                                                                ^^^^^^^^^^^^^^^^^^
 TypeError: object of type 'int' has no len()
 ```
+{% endraw %}
 
 Here is my current implementation:
 
+{% raw %}
 ```
 # This is an implementation of Lloyd's algorithm with the Delaunay triangulation Voronoi diagram.  https://en.wikipedia.org/wiki/Lloyd%27s_algorithm
 
@@ -515,6 +532,7 @@ if __name__=="__main__": # Runs tests.
     exit(main())
 
 ```
+{% endraw %}
 
 and I think it somewhat works, but it just expands. This is because the bounds check isn't done by my code. See, in the website the guy used an external library to calculate the voronoi stuff: `voronoi = delaunay.voronoi([0, 0, width, height]);` and it causes us to somehow screw things up.
 
@@ -530,6 +548,7 @@ Here is the source code: https://github.com/d3/d3-delaunay
 
 Here is the constructor for the voronoi shit:
 
+{% raw %}
 ```
 export default class Voronoi {
   constructor(delaunay, [xmin, ymin, xmax, ymax] = [0, 0, 960, 500]) {
@@ -543,20 +562,24 @@ export default class Voronoi {
   }
   // SNIP
 ```
+{% endraw %}
 
 Here I actually realized the problem:
 
+{% raw %}
 ```
 delaunay.py:58: RuntimeWarning: invalid value encountered in scalar divide
   p_0 = (((a_0 - c_0) * (a_0 + c_0) + (a_1 - c_1) * (a_1 + c_1)) / 2 * (b_1 - c_1) -  ((b_0 - c_0) * (b_0 + c_0) + (b_1 - c_1) * (b_1 + c_1)) / 2 * (a_1 - c_1)) / D
 \delaunay.py:59: RuntimeWarning: divide by zero encountered in scalar divide
   p_1 = (((b_0 - c_0) * (b_0 + c_0) + (b_1 - c_1) * (b_1 + c_1)) / 2 * (a_0 - c_0) -  ((a_0 - c_0) * (a_0 + c_0) + (a_1 - c_1) * (a_1 + c_1)) / 2 * (b_0 - c_0)) / D
 ```
+{% endraw %}
 
 so we have degenerate cases where stuff goes haywire and breaks.
 
 Here is the bounds check in the library itself:
 
+{% raw %}
 ```
 if (Math.abs(ab) < 1e-9) {
         // For a degenerate triangle, the circumcenter is at the infinity, in a
@@ -572,20 +595,25 @@ if (Math.abs(ab) < 1e-9) {
         y = (y1 + y3) / 2 + a * ex;
       } else {
 ```
+{% endraw %}
 
 so let's add this to our code???
 Yeah, let's just set D to some tiny number if it is really small.
+{% raw %}
 ```
 		if D <= 10**(-9):
 			D = 0.01 # Just force it
 ```
+{% endraw %}
 ok, so now it runs for a bit and then I get this error:
 
+{% raw %}
 ```
     for i, neigh in enumerate(self.triangles[tri_op]):
                               ~~~~~~~~~~~~~~^^^^^^^^
 KeyError: (18, 15, 8)
 ```
+{% endraw %}
 
 It is quite hard to debug a bug, when you don't even know how the code works.
 
@@ -597,12 +625,15 @@ I think the reason for why my code doesn't work, is because my way of calculatin
 
 I added this to the render function:
 
+{% raw %}
 ```
 self.draw_points(t=t, points=self.prev_centroids)
 ```
+{% endraw %}
 
 and here is the current draw_points function:
 
+{% raw %}
 ```
     def draw_points(self, t=None, points=None): # This draws all of the points.
         
@@ -620,11 +651,13 @@ and here is the current draw_points function:
         turtle.update()
         return
 ```
+{% endraw %}
 
 So before calculating the centroids, we want to clip the coordinates to be inside the box.
 
 Here is my current code to calculate the centroids:
 
+{% raw %}
 ```
     def get_centroid(self, region) -> tuple: # This computes the rough centroid. (Using the average of all of the points in the region)
         # Ok so this assumes that the region is the value in the self.regions dictionary, so the region is a list of point indexes.
@@ -634,6 +667,7 @@ Here is my current code to calculate the centroids:
         # Now calculate rough centroid.
         return (sum([p[0] for p in pts])/len(pts), sum([p[1] for p in pts])/len(pts)) # Return the average of the coordinates. This is not the actual centroid, but close enough.
 ```
+{% endraw %}
 
 so, before calculating we need to put a clipping check before the return statement.
 
@@ -641,6 +675,7 @@ Ok, so that sure made it a bit better, but still not great. I think we should ju
 
 and the area algorithm is this:
 
+{% raw %}
 ```
   for (let poly of cells) {
     let area = 0;
@@ -658,8 +693,10 @@ and the area algorithm is this:
     centroids.push(centroid);
   }
 ```
+{% endraw %}
 
 So the pseudocode would be:
+{% raw %}
 ```
 For each polygon polygons:
 	initialize area to zero
@@ -670,6 +707,7 @@ For each polygon polygons:
 		initialize crossValue to the equation stuff.
 
 ```
+{% endraw %}
 
 I think the guy used this method: https://www.themathdoctors.org/polygon-coordinates-and-areas/ to calculate the area shit.
 
@@ -687,6 +725,7 @@ I am going to try to implement this: https://en.wikipedia.org/wiki/Sutherland%E2
 
 Here is a new file called triangle_clipping.py :
 
+{% raw %}
 ```
 def is_outside(point, radius):
     # This function checks if "point" is outside of the bounding box.
@@ -814,11 +853,13 @@ def main(): # Just run the tests in the main function
 if __name__=="__main__":
     exit(main())
 ```
+{% endraw %}
 
 and those test seem to pass, so we should be good.
 
 Then after implementing the sutherland hodgman stuff, I came up with this:
 
+{% raw %}
 ```
 
 import turtle
@@ -1047,6 +1088,7 @@ if __name__=="__main__":
     exit(main())
 
 ```
+{% endraw %}
 
 when you run it, it should show a triangle which is being clipped (the original triangle is in blue and the clipped polygon is in red.)
 
@@ -1066,6 +1108,7 @@ Ok, so after adding some debug statements it appears that this bug is caused by 
 
 It is caused by this:
 
+{% raw %}
 ```
 if vec[0] != 0:
 
@@ -1073,11 +1116,13 @@ if vec[0] != 0:
         else:
             k =  (x_coord - prev_point[0])
 ```
+{% endraw %}
 
 Let's fix it.
 
 Here:
 
+{% raw %}
 ```
 Checking y shit
 prev_point == (0, 50)
@@ -1085,6 +1130,7 @@ current_point == (0, 0)
 clipEdge[1] == 30
 intersec == (30.0, 30.0)
 ```
+{% endraw %}
 
 is the problem. the 
 
@@ -1098,6 +1144,7 @@ Done.
 
 Now I think it is time to improve the calculation of the centroid shit:
 
+{% raw %}
 ```
   for (let poly of cells) {
     let area = 0;
@@ -1115,9 +1162,11 @@ Now I think it is time to improve the calculation of the centroid shit:
     centroids.push(centroid);
   }
 ```
+{% endraw %}
 
 Here is my current code to get the centroid:
 
+{% raw %}
 ```
     def get_centroid(self, region) -> tuple: # This computes the rough centroid. (Using the average of all of the points in the region)
         # Ok so this assumes that the region is the value in the self.regions dictionary, so the region is a list of point indexes.
@@ -1140,11 +1189,13 @@ Here is my current code to get the centroid:
         # new_points
         return (sum([p[0] for p in new_points])/len(new_points), sum([p[1] for p in new_points])/len(new_points))
 ```
+{% endraw %}
 
 let's implement the stuff!!
 
 Here is my current get_centroid function:
 
+{% raw %}
 ```
     def get_centroid(self, region) -> tuple: # This computes the rough centroid. (Using the average of all of the points in the region)
         # Ok so this assumes that the region is the value in the self.regions dictionary, so the region is a list of point indexes.
@@ -1201,6 +1252,7 @@ Here is my current get_centroid function:
         centroid = (centroid[0]/(6*area), centroid[1]/(6*area))
         return centroid
 ```
+{% endraw %}
 
 I wondered why it didn't work. That is because there is this: `v0 = new_points[0]` when it should be: `v0 = new_points[i]` .
 
@@ -1228,6 +1280,7 @@ Done. Now I need to implement an algorithm to figure out which voronoi polygon a
 
 Ok, so after a bit of angry typing I came up with this:
 
+{% raw %}
 ```
 
 
@@ -1376,11 +1429,13 @@ if __name__=="__main__":
     exit(main())
 
 ```
+{% endraw %}
 
 and once again, a division by zero bug fucks up our day. Fantastic!
 
 Here is a simple function to account for the vertical lines which would otherwise cause a division by zero:
 
+{% raw %}
 ```
 def handle_vertical(p0, p1, point):
     y_range = [p0[1], p1[1]] # This is the y range to check against.
@@ -1389,9 +1444,11 @@ def handle_vertical(p0, p1, point):
         return True
     return False
 ```
+{% endraw %}
 
 After adding some very janky looking code, I now have this:
 
+{% raw %}
 ```
 
 
@@ -1580,6 +1637,7 @@ if __name__=="__main__":
     exit(main())
 
 ```
+{% endraw %}
 
 ## Integrating my polygon inside check to the main code.
 
@@ -1587,6 +1645,7 @@ Now that I have a working piece of code for the checking if a point is inside a 
 
 Ok, so after doing a bit of typing, I now have this:
 
+{% raw %}
 ```
 
 # This is an implementation of Lloyd's algorithm with the Delaunay triangulation Voronoi diagram.  https://en.wikipedia.org/wiki/Lloyd%27s_algorithm
@@ -2022,6 +2081,7 @@ if __name__=="__main__": # Runs tests.
 
 
 ```
+{% endraw %}
 
 Now, we just need to use the update_weighted function in the actual update loop.
 
@@ -2029,6 +2089,7 @@ Now, we just need to use the update_weighted function in the actual update loop.
 
 Ok, so I had to modify the get_polygon_index function. Currently it looks like this in lloyd.py:
 
+{% raw %}
 ```
     def get_polygon_index(self, point): # Get's the index in the current polygons, where the point is inside of .
         # Get's the index of the polygon in self.polygons which contains inside the point called "point"
@@ -2046,21 +2107,26 @@ Ok, so I had to modify the get_polygon_index function. Currently it looks like t
         assert False
         return 
 ```
+{% endraw %}
 
 after the modifications it looks like this:
 
+{% raw %}
 ```
 
 
 ```
+{% endraw %}
 
 then after doing all of that I get this error:
 
+{% raw %}
 ```
     centroids[cor_index][0] += (point[0])*weight
     ~~~~~~~~~~~~~~~~~~~~^^^
 TypeError: 'tuple' object does not support item assignment
 ```
+{% endraw %}
 
 fuuuuccckkk!!!
 
@@ -2068,12 +2134,14 @@ Ok, so after a couple of bug fixes it now atleast runs, but it runs slow as fuck
 
 After a minute of processing, I then get this error:
 
+{% raw %}
 ```
  line 219, in exportVoronoi
     v = useVertex[i][0][0]
         ~~~~~~~~~~~~^^^
 IndexError: list index out of range
 ```
+{% endraw %}
 
 FUCK MY LIFE!!!!
 
@@ -2085,10 +2153,12 @@ Maybe I should have used external stupid-ass libraries to do some of the calcula
 
 Let's just add this to the code:
 
+{% raw %}
 ```
 			if i not in useVertex:
 				continue # This is just to shut up the warning.
 ```
+{% endraw %}
 
 I think that I have to implement separate tests for each of these functions and files separately, because this is absolute donkey shit.
 
@@ -2100,15 +2170,18 @@ Ok, so instead of going through every pixel in the image, what if we just random
 
 I had to also change this:
 
+{% raw %}
 ```
         #for i in range(len(self.points)):
         for i in range(len(cur_centroids)):
 ```
+{% endraw %}
 
 because for some reason there are more points than there are centroids. I don't fucking know.
 
 Ok, so let's just do a minimal picture and see how it handles that. The vast majority of the time goes in this fucking loop:
 
+{% raw %}
 ```
         for i in range(len(image_data)):
             #print(str(tot_count/complete_count*100)+" percent done")
@@ -2129,6 +2202,7 @@ Ok, so let's just do a minimal picture and see how it handles that. The vast maj
 
                 tot_count += 1 # Add one to the counter.
 ```
+{% endraw %}
 
 Let's just do a small image, because then the calculation of the centroids is a lot less.
 Let's just create it in GIMP and let's set the resolution to 30x30 pixels.
@@ -2139,15 +2213,18 @@ Yeah, I bit off a lot more than what I could chew. There are many layers to this
 
 For example the reason why my code produces this error:
 
+{% raw %}
 ```
 line 130, in get_polygon_index
     assert False
 AssertionError
 
 ```
+{% endraw %}
 
 is because I clip the polygons when I calculate the shit normally, but when I update using the update_weighted method, I do not clip the polygons. This causes the invalid calculation of the shit and therefore shit goes haywire:
 
+{% raw %}
 ```
 def get_centroid(self, region) -> tuple: # This computes the rough centroid. (Using the average of all of the points in the region)
         # Ok so this assumes that the region is the value in the self.regions dictionary, so the region is a list of point indexes.
@@ -2161,6 +2238,7 @@ def get_centroid(self, region) -> tuple: # This computes the rough centroid. (Us
         new_points = clip_polygon(copy.deepcopy(pts), self.radius)
         # SNIP SNIP
 ```
+{% endraw %}
 
 ## Implementing a shitload of debug functions
 
@@ -2169,6 +2247,7 @@ Ok, so let's tackle this problem. First of all, instead of a false assertion, le
 
 Ok, so I added this garbage:
 
+{% raw %}
 ```
     def debug_polygon_shit(self): # This should show us the points which do not get assigned to any polygon.
         # First create a box of points.
@@ -2191,6 +2270,7 @@ Ok, so I added this garbage:
         time.sleep(50)
         return
 ```
+{% endraw %}
 
 and then if I run it, I get this:
 
@@ -2202,6 +2282,7 @@ This problem goes back to the way we clip the polygons, because once again, we d
 
 So I think we should add a thing here:
 
+{% raw %}
 ```
 def get_polygon_index(self, point): # Get's the index in the current polygons, where the point is inside of .
         # Get's the index of the polygon in self.polygons which contains inside the point called "point"
@@ -2220,6 +2301,7 @@ def get_polygon_index(self, point): # Get's the index in the current polygons, w
         #return 0 # Just shut up.
         return "oof"
 ```
+{% endraw %}
 
 which extends the polygons to cover the entire bounding box, instead of just leaving areas unassigned. Or maybe we can just ignore these cases and return None and in the calling function we could add an if check to check for None and if it is None, then just go to the next point. I don't really know. Anyway, I am going to probably continue this tomorrow.
 
@@ -2227,6 +2309,7 @@ Ok, so the coding train code just clips the polygons in a weird way where there 
 
 Here is the code in d3 which is responsible for the clipping of polygons:
 
+{% raw %}
 ```
  _clipInfinite(i, points, vx0, vy0, vxn, vyn) {
     let P = Array.from(points), p;
@@ -2243,16 +2326,19 @@ Here is the code in d3 which is responsible for the clipping of polygons:
     return P;
   }
 ```
+{% endraw %}
 
 Let's reverse engineer this function a bit.
 
 This is the interesting bit:
 
+{% raw %}
 ```
     } else if (this.contains(i, (this.xmin + this.xmax) / 2, (this.ymin + this.ymax) / 2)) {
       P = [this.xmin, this.ymin, this.xmax, this.ymin, this.xmax, this.ymax, this.xmin, this.ymax];
     }
 ```
+{% endraw %}
 
 So yeah, if the clipped stuff goes out of bounds, then I think we should default to such that that polygon encompasses the rest of the area too. This way there are no surprise stuff.
 
@@ -2262,6 +2348,7 @@ Here is how my code currently cuts the polygons: (the clipped out part is in red
 
 Here is the actual way to find  the correct index in d3:
 
+{% raw %}
 ```
   find(x, y, i = 0) {
     if ((x = +x, x !== x) || (y = +y, y !== y)) return -1;
@@ -2295,6 +2382,7 @@ Here is the actual way to find  the correct index in d3:
     return c;
   }
 ```
+{% endraw %}
 
 It actually doesn't use the voronoi shit, but instead it uses the other shit.
 
@@ -2306,6 +2394,7 @@ Ok, so I added random colors to show the different polygons, and as it turns out
 
 My debug function now looks like this:
 
+{% raw %}
 ```
     def debug_polygon_shit(self): # This should show us the points which do not get assigned to any polygon.
         # First create a box of points.
@@ -2345,6 +2434,7 @@ My debug function now looks like this:
         time.sleep(50)
         return
 ```
+{% endraw %}
 
 and here is the result:
 
@@ -2356,6 +2446,7 @@ Ok, so let's before drawing the points, let's render the polygons.
 
 Here is a debug function:
 
+{% raw %}
 ```
 
     def render_voronoi_debug(self, t):
@@ -2380,11 +2471,13 @@ Here is a debug function:
         return
 
 ```
+{% endraw %}
 
 which shows the polygons one by one. Looking at the output, the polygons look correct, therefore the bug is in the function which checks if the point is inside the polygon or not. Debugging time! Let's program some more testcases and see what happens.
 
 Here is my current test:
 
+{% raw %}
 ```
 def run_inside_test(): # A simple test which shows the points which are inside and which are outside of a certain polygon.
     #example_polygon = [(-1,-1), (-1,1), (1,1), (1,-1)] # A simple box.
@@ -2430,6 +2523,7 @@ def run_inside_test(): # A simple test which shows the points which are inside a
     time.sleep(3)
     return
 ```
+{% endraw %}
 
 Yeah, if I have this polygon as an example: `example_polygon = [(-51.666666666666664, 0.0), (0.0, -38.75), (0.0, 0.0), (-22.142857142857142, 22.142857142857142)]` , and try to run, I get the wrong answer in check_inside.py .
 
@@ -2439,6 +2533,7 @@ Because my code always casts a ray to the right, there is something going wrong 
 
 After adding a couple of debug statements, I have this:
 
+{% raw %}
 ```
 [DEBUG] p0 == (0.0, 0.0)
 [DEBUG] p1 == (0.0, -38.75)
@@ -2447,6 +2542,7 @@ Handled vertical line.
 res == False
 x_value == -38.333333333333336
 ```
+{% endraw %}
 
 ok, so the bug was on this line: `return point[0] >= p0[0]` this should be: `return point[0] <= p0[0]` , because we GO to the RIGHT, therefore we want to check if the start point is to the LEFT, then there is an intersection. I had it backwards.
 
@@ -2458,44 +2554,54 @@ Next up I will implement the optimization, where we start the polygon search fro
 
 Ok, so if I try running with a lot of points, then I get this error:
 
+{% raw %}
 ```
     for i, neigh in enumerate(self.triangles[tri_op]):
 KeyError: (19, 17, 18)
 
 ```
+{% endraw %}
 
 and I have no idea why this happens. Let's try to figure out the cause of this. First of all, I want a minimal testscenario, so let's just print the points and then assign the points to that every time.
 
 Here is an array of points which triggers this bug:
 
+{% raw %}
 ```
 
 [(31.935483870967744, 33.5), (16.451612903225808, -48.0), (-39.67741935483871, -16.5), (43.54838709677419, 45.5), (-17.741935483870968, -20.0), (35.80645161290322, 23.5), (-23.548387096774192, -41.5), (-22.258064516129032, -30.5), (26.77419354838709, 37.5), (-18.38709677419355, 12.5), (-5.483870967741936, 11.0), (43.54838709677419, -44.0), (-2.258064516129032, 32.0), (26.77419354838709, 25.0), (-0.32258064516128826, 20.5), (-41.61290322580645, 35.5), (-42.25806451612903, -14.0), (8.064516129032263, 48.5), (31.290322580645153, 49.5), (21.612903225806463, 14.0), (-40.96774193548387, 26.0), (35.16129032258064, 37.0), (-40.32258064516129, -46.5), (-46.12903225806451, 21.0), (-42.25806451612903, -2.5), (28.064516129032256, 24.5), (-6.1290322580645125, -35.0), (38.38709677419355, -48.0), (-48.70967741935484, 10.0), (-26.774193548387096, -49.0), (-8.064516129032256, 32.0), (8.064516129032263, -46.0), (-40.32258064516129, 41.5), (25.483870967741936, -36.0), (11.935483870967744, -8.0), (35.80645161290322, -34.5), (21.612903225806463, -43.5), (31.290322580645153, 44.5), (-37.74193548387097, -13.0), (46.12903225806451, -10.5), (-35.806451612903224, -37.5), (-42.25806451612903, -46.0), (31.935483870967744, -34.5), (-41.61290322580645, -3.5), (-36.45161290322581, -35.5), (-19.032258064516128, -31.5), (-39.67741935483871, -46.0), (25.483870967741936, -46.5), (-2.258064516129032, 17.5), (-41.61290322580645, -43.0), (41.61290322580645, -44.5), (-33.2258064516129, -38.5), (-22.258064516129032, 2.5), (15.806451612903231, -14.5), (41.61290322580645, 13.0), (-49.354838709677416, -34.5), (15.806451612903231, 20.5), (-46.774193548387096, -37.5), (46.12903225806451, -32.0), (-30.64516129032258, 33.5)]
 
 ```
+{% endraw %}
 
 Now, I actually need to minimize this bug. I think the best way to do is to just remove random points from the list and then see if the exception is there still. If yes, then remove that point, if now, then keep that point in the list.
 
 
 Here is the minimal list which reproduces the bug:
 
+{% raw %}
 ```
 
 [(29.354838709677423, 44.5), (-35.806451612903224, 46.0), (-11.29032258064516, 0.0), (-10.0, 10.5), (-20.322580645161292, 6.999999999999993), (-27.41935483870968, -34.0), (49.35483870967742, -41.0), (-44.193548387096776, -38.5), (25.483870967741936, 36.0), (23.548387096774192, 23.5), (-10.0, 28.0), (14.516129032258064, -14.5)]
 
 ```
+{% endraw %}
 
 actually here is an even smaller of a testcase:
 
+{% raw %}
 ```
 [(-35.806451612903224, 46.0), (-11.29032258064516, 0.0), (-10.0, 10.5), (-20.322580645161292, 6.999999999999993), (49.35483870967742, -41.0), (-44.193548387096776, -38.5), (25.483870967741936, 36.0), (23.548387096774192, 23.5), (-10.0, 28.0), (14.516129032258064, -14.5)]
 ```
+{% endraw %}
 
 and here is an even smaller testcase:
 
+{% raw %}
 ```
 [(-11.29032258064516, 0.0), (-20.322580645161292, 6.999999999999993), (49.35483870967742, -41.0), (-44.193548387096776, -38.5), (25.483870967741936, 36.0), (23.548387096774192, 23.5), (-10.0, 28.0), (14.516129032258064, -14.5)]
 ```
+{% endraw %}
 
 that seems to be the smallest testcase which crashes.
 
@@ -2505,18 +2611,22 @@ I actually suspect, that there are possibly some duplicate points in the list. I
 
 In util.py I added this:
 
+{% raw %}
 ```
 def check_multiple(lst): # This checks if there are duplicate elements in a list. Returns True if there are duplicates. False otherwsie
 	set_shit = set(lst)
 	return len(set_shit) != len(lst) # If the lengths are the same then there are NOT any duplicates.
 
 ```
+{% endraw %}
 
 and then I added a check for duplicate points in stippling.py:
 
+{% raw %}
 ```
 assert not check_multiple(all_points)
 ```
+{% endraw %}
 
 and that assert fails. This element here: `(0.9741935483870967, -0.26)` is the duplicate point. I think I should add a check to the init function of the Lloyd algorithm, which makes a list of UNIQUE points from a list of points (aka it removes the duplicate points.). An easy way to remove duplicates is to just do `points = list(set(points))` .
 
@@ -2530,18 +2640,22 @@ Also I found another bug.
 
 Here is another minimal testcase for the bug:
 
+{% raw %}
 ```
 [(-0.06666666666666665, 0.19999999999999996), (0.2666666666666666, 0.0), (0.1333333333333333, 0.2666666666666666), (0.06666666666666665, -0.2666666666666667), (0.19999999999999996, 0.19999999999999996), (0.0, -0.4), (0.33333333333333326, 0.06666666666666665), (0.19999999999999996, 0.1333333333333333), (0.19999999999999996, -0.19999999999999996), (0.2666666666666666, 0.19999999999999996), (0.1333333333333333, 0.1333333333333333), (-0.2666666666666667, 0.33333333333333326), (-0.19999999999999996, 0.19999999999999996), (-0.06666666666666665, -0.33333333333333337), (-0.4, 0.46666666666666656), (-0.2666666666666667, 0.2666666666666666), (0.0, 0.46666666666666656), (-0.19999999999999996, 0.46666666666666656), (-0.6, 0.19999999999999996), (-0.5333333333333333, -0.06666666666666665), (-0.2666666666666667, 0.19999999999999996)]
 ```
+{% endraw %}
 
 it crashes on the same exact spot, therefore I think there is an insufficient fix, because I think that the unique points fix wasn't enough.
 
 Let's debug some more!!!
 
 Here is an even smaller testcase:
+{% raw %}
 ```
 [(0.2666666666666666, 0.19999999999999996), (-0.2666666666666667, 0.2666666666666666), (0.1333333333333333, 0.1333333333333333), (0.0, 0.46666666666666656), (0.19999999999999996, 0.19999999999999996), (-0.19999999999999996, 0.46666666666666656), (-0.6, 0.19999999999999996), (-0.2666666666666667, 0.33333333333333326), (-0.06666666666666665, 0.19999999999999996), (0.2666666666666666, 0.0), (-0.19999999999999996, 0.19999999999999996), (0.1333333333333333, 0.2666666666666666), (-0.5333333333333333, -0.06666666666666665), (0.0, -0.4), (0.33333333333333326, 0.06666666666666665), (-0.06666666666666665, -0.33333333333333337), (-0.4, 0.46666666666666656), (0.06666666666666665, -0.2666666666666667), (-0.2666666666666667, 0.19999999999999996), (0.19999999999999996, 0.1333333333333333)]
 ```
+{% endraw %}
 
 I have absolutely no idea why it doesn't work. Let's try to move the problematic point a bit.
 
@@ -2576,12 +2690,14 @@ Let's investigate.
 
 Here is some debug info:
 
+{% raw %}
 ```
 poopoofuck!!!!
 p == [-0.06666667 -0.33333333]
 Here is the current value of polygon: [(6, 12, (15, 12, 6)), (12, 14, (14, 12, 11)), (14, 16, (16, 14, 5)), (16, 0, (16, 10, 0)), (0, 17, (17, 0, 1)), (17, 13, (17, 1, 13)), (13, 6, (13, 8, 6))]
 Here is the removed_shit: {(17, 6, 12), (17, 13, 6), (17, 12, 14), (17, 16, 0), (17, 14, 16)}
 ```
+{% endraw %}
 
 So the values in the polygon are first the start edge index, then the end edge index and then some random shit.
 
@@ -2595,11 +2711,13 @@ One thing at a time, let's clone the repo and try to run it.
 
 Uh oh...
 
+{% raw %}
 ```
     for i, neigh in enumerate(self.triangles[tri_op]):
 KeyError: (13, 8, 6)
 
 ```
+{% endraw %}
 
 There is a bug in the code which I plag.... eerrrmm I mean imported. Fan-fucking-tastic!
 

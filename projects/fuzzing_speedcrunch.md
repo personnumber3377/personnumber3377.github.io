@@ -11,6 +11,7 @@ Now compiling speedcrunch turned out to be quite a challenge, since building it 
 
 After compiling speedcrunch normally I then compiled it with afl-clang-fast as usual when fuzzing.
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -21,6 +22,7 @@ CC=afl-clang-fast CXX=afl-clang-fast++ cmake -D CMAKE_C_COMPILER=afl-clang-fast 
 #/home/cyberhacker/Asioita/Hakkerointi/Fuzzing/speedcrunch/qt/stuff/qt5-build/qtbase/lib/cmake/Qt5Help
 
 ```
+{% endraw %}
 
 Before compiling, I decided to add a target called "fuzzer" inside the tests directory:
 
@@ -30,6 +32,7 @@ First there is the CHECK_EVAL macro, which basically takes an expression and the
 
 
 
+{% raw %}
 ```
 #define EVAL(x) tryEval(__FILE__,__LINE__,#x,x,y)
 
@@ -85,6 +88,7 @@ static void tryEval(const char* file, int line, const char* msg, const QString& 
 
 
 ```
+{% endraw %}
 
 As you can see, the tryEval function is basically just setExpression() and then eval. 
 
@@ -92,6 +96,7 @@ As you can see, the tryEval function is basically just setExpression() and then 
 
 Collecting a usable corpus is actually quite easy. there is the testevaluator file and we can just copy all of the expressions from that by using a simply python script.
 
+{% raw %}
 ```
 
 
@@ -130,9 +135,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and this gets us quite a nice corpus. Now our fuzzing harness looks like this:
 
+{% raw %}
 ```
 
 // This file is part of the SpeedCrunch project
@@ -385,11 +392,13 @@ int main(int argc, char* argv[])
 
 
 ```
+{% endraw %}
 
 The problem is that this is quite slow because it loads the application on each cycle, so we should add persistent mode to this.
 
 Currently our fuzzing harness looks like this:
 
+{% raw %}
 ```
 
 // This file is part of the SpeedCrunch project
@@ -683,6 +692,7 @@ int main(int argc, char* argv[])
 
 
 ```
+{% endraw %}
 
 and seems to be reasonably fast so I am going to leave it at that. The fuzzing stability is quite poor, but I am not that worried about it.
 
@@ -698,6 +708,7 @@ There are quite a few functions in functions.cpp which aren't being tested for, 
 
 All of these functions have zero coverage:
 
+{% raw %}
 ```
 
    611           0 : Quantity function_binompmf(Function* f, const Function::ArgumentList& args)
@@ -799,6 +810,7 @@ All of these functions have zero coverage:
      707             : 
 
 ```
+{% endraw %}
 
 but I don't think that it is that much of a problem, because I doubt that those are actually interesting from a bug hunting point of view.
 

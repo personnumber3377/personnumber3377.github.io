@@ -9,6 +9,7 @@ I already fuzzed html_tokenizer which was another Shopifys ruby extension. I did
 
 Now my initial attempt at writing a fuzzing wrapper was this:
 
+{% raw %}
 ```
 static VALUE thing(VALUE self) {
     printf("Called thing");
@@ -65,6 +66,7 @@ int main(int argc, char** argv) {
 
 
 ```
+{% endraw %}
 
 (just append that to the onigmo.c file in the source code)
 
@@ -72,6 +74,7 @@ but it didn't work. This is because it crashed on this line in build_node: `retu
 
 This is because there is the initialization function which looks like this: 
 
+{% raw %}
 ```
 
 void
@@ -113,11 +116,13 @@ Init_onigmo(void) {
 }
 
 ```
+{% endraw %}
 
 so I think that I need to copy all of that to my fuzzing harness and then create an instance of the rb_cOnigmo object and then call parse on that function... let's see.
 
 Here is my current wrapper:
 
+{% raw %}
 ```
 
 static VALUE thing(VALUE self) {
@@ -236,11 +241,13 @@ int main(int argc, char** argv) {
 
 
 ```
+{% endraw %}
 
 and it crashes on this line: `VALUE obj3 = rb_class_new_instance(0, NULL, rb_cOnigmo);`
 
 here is the gdb backtrace:
 
+{% raw %}
 ```
 
 Reading symbols from ./fuzzer...
@@ -262,6 +269,7 @@ Program received signal SIGSEGV, Segmentation fault.
 
 
 ```
+{% endraw %}
 
 as you can see, there is a call to rb_check_type which I guess checks the type???? Therefore I think that I am somehow calling the rb_class_new_instance function wrong. See, I am calling the function with a module as argument.
 
@@ -273,6 +281,7 @@ I looked absolutely everywhere on how to call a module from c code, but I can't 
 
 After doing some code cleanup, I now have this as my wrapper code:
 
+{% raw %}
 ```
 
 int main(int argc, char** argv) {
@@ -336,12 +345,15 @@ int main(int argc, char** argv) {
 }
 
 ```
+{% endraw %}
 
 Let's ask a question! Basically we want to accomplish this:
 
+{% raw %}
 ```
 Onigmo.parse("a")
 ```
+{% endraw %}
 
 After a bit of formatting, I now have this: https://stackoverflow.com/questions/78215259/how-to-call-a-method-of-a-module-properly-in-ruby-c-api . Feel free to answer if you know what to do.
 
@@ -351,6 +363,7 @@ Now I am just going to wait until someone (hopefully) answers my question...
 
 Ok, so I wasn't patient enough to wait for an answer, so I modified the source code of the onigmo library to just skip all of the parts where we create an instance of a class, I just returned Qnil instead. Here is the entire onigmo.c file :
 
+{% raw %}
 ```
 #include <ruby.h>
 #include <ruby/onigmo.h>
@@ -1582,6 +1595,7 @@ int main(int argc, char** argv) {
 
 
 ```
+{% endraw %}
 
 and it seems to fuzz just fine.
 

@@ -12,6 +12,7 @@ Ok so I am probably two hours in and I am still trying to figure out how to pars
 
 After a bit of typing here is basically my first attempt to program rust: (I have read some rust code but never wrote.) :
 
+{% raw %}
 ```
 
 
@@ -172,9 +173,11 @@ fn main() {
 
 
 ```
+{% endraw %}
 
 This code results in these errors:
 
+{% raw %}
 ```
 
 error: expected `;`, found keyword `loop`
@@ -403,11 +406,13 @@ error: could not compile `solution` due to 20 previous errors
 
 
 ```
+{% endraw %}
 
 Only 20 errors? That is surprisingly good for our first ever program.
 
 After a bit of modifying I ended up with this:
 
+{% raw %}
 ```
 
 //use std::io;
@@ -585,9 +590,11 @@ fn main() {
 
 
 ```
+{% endraw %}
 
 This generates more errors:
 
+{% raw %}
 ```
 
    Compiling solution v0.1.0 (/home/cyberhacker/Asioita/Ohjelmointi/adventofcode2022/chapter_22/solution)
@@ -674,10 +681,12 @@ error[E0384]: cannot assign twice to immutable variable `count`
 
 
 ```
+{% endraw %}
 
 Here is the final version of the program which actually works:
 
 
+{% raw %}
 ```
 
 
@@ -856,6 +865,7 @@ fn main() {
 
 
 ```
+{% endraw %}
 
 
 Now it is time to move on to actually solving the problem! :)
@@ -874,6 +884,7 @@ Ok so lets just skip ahead a bit.
 My first thought was to use modulos when computing the position for every step, but then I realized that when moving from columns which are of different lengths, this method "teleports". This was my first attempt:
 
 
+{% raw %}
 ```
 
 
@@ -998,6 +1009,7 @@ fn main_loop(game_map: Vec<Vec<i32>>, line_offsets: Vec<i32>, mut moves: Vec<i32
 
 
 ```
+{% endraw %}
 
 
 the reason why my code did not work wasn't because of some singular bug, but that my understanding of the movement itself was flawed from the start.
@@ -1005,6 +1017,7 @@ the reason why my code did not work wasn't because of some singular bug, but tha
 The next idea was to just instead of using modulos the calculate the position and keeping the coordinates to be "free floating" aka we could be at x -1000 and y 200000, instead of that and then using modular arithmetic to get the "actual" position, i just simply decided to modify the coordinates themselves and teleport. We can do this because we know the length of each row and column and their offsets. This assumes that there is only one continues segment of places where we can be at any row or column, for example this pattern would not be allowed:
 
 
+{% raw %}
 ```
 
 ...
@@ -1013,6 +1026,7 @@ The next idea was to just instead of using modulos the calculate the position an
 ...
 
 ```
+{% endraw %}
 
 because there is an empty space where we can not go and then spaces where we can go again  on the same column.
 
@@ -1020,6 +1034,7 @@ because there is an empty space where we can not go and then spaces where we can
 Here is my final code which was a lot simpler than my initial approach:
 
 
+{% raw %}
 ```
 
 
@@ -1271,10 +1286,12 @@ fn main_loop(game_map: Vec<Vec<i32>>, line_offsets: Vec<i32>, mut moves: Vec<i32
 
 
 ```
+{% endraw %}
 
 Here is the complete code which solves part 1:
 
 
+{% raw %}
 ```
 
 //use std::io;
@@ -1760,6 +1777,7 @@ fn main() {
 
 
 ```
+{% endraw %}
 
 
 It is quite ugly, but for my basically first ever rust program it does not seem that bad.

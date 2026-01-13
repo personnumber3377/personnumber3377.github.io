@@ -30,6 +30,7 @@ I think the best strategy is to use some kind of bitreader class type thing?????
 
 Something like this??
 
+{% raw %}
 ```
 
 func parse(data []byte) []byte { // Parse the bullshit
@@ -68,6 +69,7 @@ func parse(data []byte) []byte { // Parse the bullshit
 }
 
 ```
+{% endraw %}
 
 that seems quite succifient at a first glance...
 
@@ -79,6 +81,7 @@ I think a good idea is to add an absolute maximum to our input and also add a ha
 
 Something like this???
 
+{% raw %}
 ```
 
 
@@ -140,6 +143,7 @@ func parse(data []byte) []byte { // Parse the bullshit
 
 
 ```
+{% endraw %}
 
 
 

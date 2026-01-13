@@ -4,6 +4,7 @@ I was inspired by this blog post here: https://offsec.almond.consulting/ghostscr
 
 I wrote up this thing here:
 
+{% raw %}
 ```
 #include <stddef.h>
 #include <stdlib.h>
@@ -182,9 +183,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 #endif
 
 ```
+{% endraw %}
 
 and then I wrote up this custom mutator here:
 
+{% raw %}
 ```
 
 import subprocess
@@ -437,6 +440,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 This works nicely, but we need to make a fuzzing corpus... and that is quite the problem since we can not use the raw PS files.
 
@@ -450,6 +454,7 @@ Let's start something:
 
 Ok, so actually I made the entire IR stuff again because the IR I had previously was too complex. Here is my current stuff:
 
+{% raw %}
 ```
 # tiny_ps_ir.py
 from typing import Tuple, List
@@ -683,9 +688,11 @@ if __name__=="__main__":
         test()
         exit(0)
 ```
+{% endraw %}
 
 and here is the inverse function:
 
+{% raw %}
 ```
 # ps_to_ir.py
 import re
@@ -1014,6 +1021,7 @@ if __name__=="__main__":
         test()
         exit(0)
 ```
+{% endraw %}
 
 ## Iterating over the coverage and making further improvements.
 
@@ -1027,6 +1035,7 @@ So it looks like we need to improve our fuzzer and the corpus a bit maybe? There
 
 Also there is the calls to this here:
 
+{% raw %}
 ```
 
   112              : /* <width> <height> <data> .imagepath - */
@@ -1051,15 +1060,18 @@ Also there is the calls to this here:
      131              : }
 
 ```
+{% endraw %}
 
 which take in raw data and then makes a path out of them. This seems interesting, but no such cases were ever found. This is the only place in the entire codebase where the gs_imagepath is supposed to be called... There is also string continuation thing here:
 
+{% raw %}
 ```
     453            0 :         case t_string:
      454            0 :             check_read(*obj);
      455            0 :             make_op_estack(cproc, string_continue);
      456            0 :             break;
 ```
+{% endraw %}
 
 which was never hit. So maybe make a case for that too?
 
@@ -1070,6 +1082,7 @@ which was never hit. So maybe make a case for that too?
 
 So here is a list of stuff that we need to implement for better fuzzing:
 
+{% raw %}
 ```
 /* <width> <height> <data> .imagepath - */ for .imagepath data parsing...
 
@@ -1699,6 +1712,7 @@ the zcolor.c file is over 3k lines, but since it mainly deals with the colorspac
 
 
 ```
+{% endraw %}
 
 ## Looking at existing POC files.
 
@@ -1708,6 +1722,7 @@ so let's download one of them and see if it does anything...
 
 Here is one poc file for a certain bug:
 
+{% raw %}
 ```
 % gs -q -sDEVICE=txtwrite -sOutputFile=/dev/null textbuffer.ps
 
@@ -1884,11 +1899,13 @@ TEXT show
 MAIN
 quit
 ```
+{% endraw %}
 
 let's run it through our ir generator and then seeing if the call to .buildfont1 actually happens...
 
 Here is the generated from ir and the original version side by side:
 
+{% raw %}
 ```
 
 oof@elskun-lppri:~/newghost/ghostpdl$ cat poc.ps
@@ -2085,6 +2102,7 @@ MAIN
 quit
 
 ```
+{% endraw %}
 
 first of all the setvmthreshold call just disappeared for some reason. and also our null handling doesn't seem to work correctly. Let's tackle the null thing first...
 
@@ -2094,12 +2112,14 @@ first of all the setvmthreshold call just disappeared for some reason. and also 
 
 So there is a load of bugs in the way I represent the stuff. Even roundtripping the snowflak.ps in the ghostpdl doesn't work. Here is a minimal example:
 
+{% raw %}
 ```
 /a
 {
 /b [1] def
 } def
 ```
+{% endraw %}
 
 this is because I vibecoded the entire thing and there is this here: ```# (ignore nested arrays/procs here for brevity; could recurse)``` in the code since I vibecoded it. Time to fix it maybe???
 
@@ -2107,6 +2127,7 @@ this is because I vibecoded the entire thing and there is this here: ```# (ignor
 
 Ok, so I decided to vibecode this regression testing tool:
 
+{% raw %}
 ```
 #!/usr/bin/env python3
 """
@@ -2332,9 +2353,11 @@ if __name__ == "__main__":
     main()
 
 ```
+{% endraw %}
 
 which runs all of the files and then reports any roundtrip bugs. This should shake out some of them atleast. One bug which I ran into is this here:
 
+{% raw %}
 ```
 Traceback (most recent call last):
   File "/home/oof/ghostscript_mutator/newstuff/newreverse.py", line 300, in <module>
@@ -2350,11 +2373,13 @@ Traceback (most recent call last):
         ^^^^^^^^^^^^^^^^^^^
 UnicodeEncodeError: 'latin-1' codec can't encode character '\ufeff' in position 50900: ordinal not in range(256)
 ```
+{% endraw %}
 
 because there are invalid bytes in some postscript files. A "fix" is to just ignore these runes maybe??? Now it works!!!!
 
 Here is my fix:
 
+{% raw %}
 ```
 def _split_expressions(ps: str) -> List[str]:
 	"""Split PS into logical expressions. If a line starts with /name, keep reading until top-level 'def'."""
@@ -2364,6 +2389,7 @@ def _split_expressions(ps: str) -> List[str]:
 	in_def = False
 	while i < n:
 ```
+{% endraw %}
 
 ## Fixing roundtrip bugs
 
@@ -2373,6 +2399,7 @@ Actually the file was too large to copy paste here. Whoops.
 
 I used generative AI to write this minimization tool here:
 
+{% raw %}
 ```
 #!/usr/bin/env python3
 """
@@ -2573,6 +2600,7 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+{% endraw %}
 
 I am going to modify it a little bit to check the actual error instead of the return values etc...
 
@@ -2580,6 +2608,7 @@ I am going to modify it a little bit to check the actual error instead of the re
 
 ok, so I managed to find this here:
 
+{% raw %}
 ```
 <<
   /PageOffset [0 0]
@@ -2634,6 +2663,7 @@ where
 
 showpage
 ```
+{% endraw %}
 
 which causes the roundtrip error minimally...
 
@@ -2643,6 +2673,7 @@ So I found a potential bug but it only happens in the debug mode in ghostscript 
 
 I also noticed that my ir language thing doesn't handle these cases:
 
+{% raw %}
 ```
 oof@elskun-lppri:~/ghostscript_mutator/newstuff$ cat more_minimal.ps
 
@@ -2656,19 +2687,23 @@ Let the
 %END
 showpage
 ```
+{% endraw %}
 
 which outputs this:
 
+{% raw %}
 ```
 /S 80 string def
 108 480 moveto
 /Helvetica 12 selectfont { currentfile S readline pop dup (%END) eq { pop exit} if gsave show grestore 0 -15 rmoveto} loop Let the showpage
 ```
+{% endraw %}
 
 and the other `%END` disappears. This is because strings starting with a percent are treated as comments, even though they are not. So I am thinking of adding a function which checks if the string is a special string and then do not remove it.
 
 So I made this somewhat hacky fix to do the thing:
 
+{% raw %}
 ```
 
 # ps_to_ir.py
@@ -3044,11 +3079,13 @@ if __name__=="__main__":
 	exit(0)
 
 ```
+{% endraw %}
 
 Now, it really sucks that the percent sign is used for both comments and some special markers. This is bad design in my opinion, but too bad I guess...
 
 There was another bug or actually my own design choice which made the fuzzer bad. I was under the assumption that newlines were only for show and didn't affect program execution, but I was painfully mistaken and as a result I now have this:
 
+{% raw %}
 ```
 
 # ps_to_ir.py
@@ -3436,9 +3473,11 @@ if __name__=="__main__":
 	exit(0)
 
 ```
+{% endraw %}
 
 which should preserve the stuff and now this here:
 
+{% raw %}
 ```
 /S 80 string def
 108 480 moveto
@@ -3457,6 +3496,7 @@ and bottom of the vertical line be T and B respectively
 
 showpage
 ```
+{% endraw %}
 
 roundtrips correctly. Before the lines were joined together which lead to crashes...
 
@@ -3484,6 +3524,7 @@ Ok, so there are plenty of devices and stuff which I can try to fuzz and let's s
 
 Looking at the oss-fuzz stuff initially:
 
+{% raw %}
 ```
 oof@elskun-lppri:~/ghostscript_mutator/pdf_fuzzing/original$ ls -lhS
 total 96K
@@ -3511,12 +3552,15 @@ total 96K
 -rw-r--r-- 1 oof oof   43 Aug 20 03:19 gstoraster_ps_fuzzer.options
 -rw-r--r-- 1 oof oof   28 Aug 20 03:19 gstoraster_fuzzer_all_colors.options
 ```
+{% endraw %}
 
 those device files are basically for different target devices, but there are a lot of them missing. Here is a full list:
 
+{% raw %}
 ```
 [/npdl /itk24i /appledmp /jpeg /lp9400 /hpdj340 /tiffgray /bmp16 /pnggray /lp7500 /epl5800 /ppm /rpdl /lj250 /cdj970 /pdfimage8 /oce9050 /itk38 /atx23 /jpegcmyk /lp9500c /hpdj400 /tifflzw /bmp16m /pngmono /lp7700 /epl5900 /ppmraw /samsunggdi /lj3100sw /cdjcolor /pgm /oki182 /iwhi /atx24 /jpeggray /lp9600 /hpdj500 /tiffpack /bmp256 /pngmonod /lp7900 /epl6100 /ps2write /sj48 /lj4dith /cdjmono /pgmraw /oki4w /iwlo /atx38 /mgr4 /lp9600s /hpdj500c /tiffscaled /bmp32b /ocr /lp8000 /epl6200 /pdfwrite /display /st800 /lj4dithp /cdnj500 /pgnm /okiibm /iwlq /bj10e /mgr8 /lp9800c /hpdj510 /tiffscaled24 /bmpgray /hocr /lp8000c /eplcolor /psdcmyk /x11 /stcolor /lj5gray /chp2200 /pgnmraw /oprp /jetp3852 /bj10v /mgrgray2 /lps4500 /hpdj520 /tiffscaled32 /bmpmono /pdfocr8 /lp8100 /eplmono /psdcmyk16 /x11alpha /t4693d2 /lj5mono /cljet5 /pkm /opvp /jj100 /bj10vh /mgrgray4 /lps6500 /hpdj540 /tiffscaled4 /bmpsep1 /pdfocr24 /lp8200c /eps9high /psdcmykog /x11cmyk /t4693d4 /ljet2p /cljet5c /pkmraw /paintjet /la50 /bj200 /mgrgray8 /lq850 /hpdj550c /tiffscaled8 /bmpsep8 /pdfocr32 /lp8300c /eps9mid /psdcmyktags /x11cmyk2 /t4693d8 /ljet3 /cljet5pr /pksm /pcl3 /la70 /bjc600 /mgrmono /lxm3200 /hpdj560c /tiffsep /ccr /nullpage /lp8300f /epson /psdcmyktags16 /x11cmyk4 /tek4696 /ljet3d /coslw2p /pksmraw /photoex /la75 /bjc800 /miff24 /lxm5700m /hpdj600 /tiffsep1 /cfax /lp8400f /epsonc /psdrgb /x11cmyk8 /uniprint /ljet4 /coslwxl /plan /picty180 /la75plus /bjc880j /pam /m8510 /hpdj660c /txtwrite /cif /lp8500c /escp /psdrgb16 /x11gray2 /xes /ljet4d /declj250 /plan9bm /pj /laserjet /bjccmyk /pamcmyk32 /md1xMono /hpdj670c /xcf /devicen /lp8600 /escpage /psdrgbtags /x11gray4 /appleraster /ljet4pjl /deskjet /planc /pjetxl /lbp310 /bjccolor /pamcmyk4 /md2k /hpdj680c /xcfcmyk /dfaxhigh /lp8600f /fmlbp /spotcmyk /x11mono /cups /ljetplus /dj505j /plang /pjxl /lbp320 /bjcgray /pbm /md50Eco /hpdj690c /xpswrite /dfaxlow /lp8700 /fmpr /tiff12nc /x11rg16x /pwgraster /ln03 /djet500 /plank /pjxl300 /lbp8 /bjcmono /pbmraw /md50Mono /hpdj850c /alc1900 /eps2write /lp8800c /fs600 /tiff24nc /x11rg32x /urf /lp1800 /djet500c /planm /pr1000 /lex2050 /cdeskjet /pcx16 /md5k /hpdj855c /alc2000 /faxg3 /lp8900 /gdi /tiff32nc /pclm /ijs /lp1900 /dl2100 /plib /pr1000_4 /lex3200 /cdj1600 /pcx24b /mj500c /hpdj870c /alc4000 /faxg32d /lp9000b /hl1240 /tiff48nc /pclm8 /png16 /lp2000 /dnj650c /plibc /pr150 /lex5700 /cdj500 /pcx256 /mj6000c /hpdj890c /alc4100 /faxg4 /lp9000c /hl1250 /tiff64nc /bbox /png16m /lp2200 /epl2050 /plibg /pr201 /lex7000 /cdj550 /pcxcmyk /mj700v2c /hpdjplus /alc8500 /fpng /lp9100 /hl7x0 /tiffcrle /bit /png16malpha /lp2400 /epl2050p /plibk /pxlcolor /lips2p /cdj670 /pcxgray /mj8000c /hpdjportable /alc8600 /inferno /lp9200b /hpdj1120c /tiffg3 /bitcmyk /png256 /lp2500 /epl2120 /plibm /pxlmono /lips3 /cdj850 /pcxmono /ml600 /ibmpro /alc9100 /ink_cov /lp9200c /hpdj310 /tiffg32d /bitrgb /png48 /lp2563 /epl2500 /pnm /r4081 /lips4 /cdj880 /pdfimage24 /necp6 /imagen /ap3250 /inkcov /lp9300 /hpdj320 /tiffg4 /bitrgbtags /pngalpha /lp3000c /epl2750 /pnmraw /rinkj /lips4v /cdj890 /pdfimage32]
 ```
+{% endraw %}
 
 and there are plenty of them there, so I am basically wondering how can I fuzz all of these different devices. First idea is to just use the first byte as the target device.
 
@@ -3524,6 +3568,7 @@ Looking at the other files, there is also the all colours..
 
 Here:
 
+{% raw %}
 ```
 #include "gs_fuzzlib.h"
 
@@ -3541,11 +3586,13 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         return 0;
 }
 ```
+{% endraw %}
 
 so I am thinking of just doing one which fuzzes all of the target devices maybe????
 
 This is something which I came up with:
 
+{% raw %}
 ```
 #include <stddef.h>
 #include <stdlib.h>
@@ -3788,6 +3835,7 @@ int main(int argc, char **argv) {
 #endif
 
 ```
+{% endraw %}
 
 now, I need to gather a corpus for this which just sets the first bytes to default values for each pdf file, because then our corpus actually does something...
 
@@ -3795,6 +3843,7 @@ now, I need to gather a corpus for this which just sets the first bytes to defau
 
 Ok, so I now have this fuzzer here:
 
+{% raw %}
 ```
 
 #include <stddef.h>
@@ -4162,17 +4211,20 @@ int main(int argc, char **argv) {
 
 
 ```
+{% endraw %}
 
 but there are some certain problems with it. First of all, it doesn't reuse the instance of gs on the next iterations and instead it just does the thing... also there are still some devices still missing. I actually need to download some libraries for all of the output devices to be installed correctly, so I need to do that.
 
 Here are the libraries which I need:
 
+{% raw %}
 ```
 configure expects:
 ghostpdl/extract
 ghostpdl/leptonica
 ghostpdl/tesseract
 ```
+{% endraw %}
 
 so I downloaded all of them and now I am going to try to compile again...
 
@@ -4180,6 +4232,7 @@ so I downloaded all of them and now I am going to try to compile again...
 
 I also made this script here:
 
+{% raw %}
 ```
 oof@elskun-lppri:~/ghostpdlafl$ cat probe_devices.py
 #!/usr/bin/env python3
@@ -4310,6 +4363,7 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+{% endraw %}
 
 to check the different supported devices...
 
@@ -4317,6 +4371,7 @@ to check the different supported devices...
 
 Ok, so I compiled the ghostpdl library with those extra libs, and now I have this here:
 
+{% raw %}
 ```
 #include <stddef.h>
 #include <stdlib.h>
@@ -4683,6 +4738,7 @@ int main(int argc, char **argv) {
 #endif
 
 ```
+{% endraw %}
 
 and it compiles.
 
@@ -4690,6 +4746,7 @@ I am going to investigate the devices and see what is wrong with it...
 
 Here is the current device list:
 
+{% raw %}
 ```
 oof@elskun-lppri:~/ghostscript_mutator/pdf_fuzzing$ cat newest_device_output.txt | grep "\->"
 [  0] lp9800c         -> OK
@@ -5063,11 +5120,13 @@ oof@elskun-lppri:~/ghostscript_mutator/pdf_fuzzing$ cat newest_device_output.txt
 [368] miff24          -> OK
 oof@elskun-lppri:~/ghostscript_mutator/pdf_fuzzing$
 ```
+{% endraw %}
 
 ## Fixing output device problems
 
 So I ran the script and now I have this output here:
 
+{% raw %}
 ```
 [  0] lp9800c         -> OK
 [  1] hpdj550c        -> UNKNOWN (string)
@@ -5439,11 +5498,13 @@ So I ran the script and now I have this output here:
 [367] bj200           -> OK
 [368] miff24          -> OK
 ```
+{% endraw %}
 
 so we essentially have to go through each of these and try to solve the problems in each of the failing output devices. Usually the error occurs because that output device needs a specific command line parameter to work and I do not have that.
 
 Here is an example:
 
+{% raw %}
 ```
 oof@elskun-lppri:~/ghostpdlafl$ ./debug_fuzzer md1xMono < sample_pdf/sample.pdf
 base/scommon.h:127:31: runtime error: index -1 out of bounds for type 'byte[1]' (aka 'unsigned char[1]')
@@ -5473,11 +5534,13 @@ base/fapi_ft.c:1951:42: runtime error: member access within null pointer of type
 SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/fapi_ft.c:1951:42
 oof@elskun-lppri:~/ghostpdlafl$
 ```
+{% endraw %}
 
 so this is fixed, by just adding `-r600x600` to the command line. I had 200x200 by default. I should probably make an override function which overwrites the command line parameters and it checks that output device...
 
 I now have this here:
 
+{% raw %}
 ```
 #include <stddef.h>
 #include <stdlib.h>
@@ -5790,9 +5853,11 @@ int main(int argc, char **argv) {
 #endif
 
 ```
+{% endraw %}
 
 whoops there is a memory leak:
 
+{% raw %}
 ```
 =================================================================
 ==406996==ERROR: LeakSanitizer: detected memory leaks
@@ -5810,11 +5875,13 @@ Direct leak of 10 byte(s) in 1 object(s) allocated from:
 
 SUMMARY: AddressSanitizer: 10 byte(s) leaked in 1 allocation(s).
 ```
+{% endraw %}
 
 I fixed that and now it works...
 
 These are the devices which we go through:
 
+{% raw %}
 ```
 "display" (doesn't work for whatever reason, not really sure why)
 
@@ -6123,9 +6190,11 @@ also the appledmp stuff also causes this here:
 [248] appledmp        -> ERR 241
 
 ```
+{% endraw %}
 
 Ok, so after doing those fixes, I think that the harness now currently works good enough for fuzzing purposes. There is still a small thing which we need to implement, some of the output devices need a seekable output file, but if we pipe everything to /dev/null , then it fails, see:
 
+{% raw %}
 ```
 SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/scfe.c:499:17
 I/O Error: Output File "/dev/null" must be seekable
@@ -6138,9 +6207,11 @@ SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior base/fapi_ft.c:1951:42
 
 [252] tiffpack        -> OK
 ```
+{% endraw %}
 
 in the original fuzzing harness code, there is this here:
 
+{% raw %}
 ```
 oof@elskun-lppri:~/ghostscript_mutator/pdf_fuzzing/original$ cat gs_device_tiffsep1_fuzzer.cc
 /* Copyright 2022 Google LLC
@@ -6170,9 +6241,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         return 0;
 }
 ```
+{% endraw %}
 
 Here is my final list of supported fuzzed devices:
 
+{% raw %}
 ```
 [  0] lp9800c         -> OK
 [  1] hpdj550c        -> UNKNOWN (string)
@@ -6544,6 +6617,7 @@ Here is my final list of supported fuzzed devices:
 [367] bj200           -> OK
 [368] miff24          -> OK
 ```
+{% endraw %}
 
 so over 90% are now covered nicely. I don't want to bother supporting all of them and I think this is good enough for now...
 
@@ -6559,6 +6633,7 @@ Ok, so I did some testing and it appears that the initialization cost of the fuz
 
 So first of all, I am compiling the fuzzer in debug mode, which limits performance significantly... after that I am going to take a good corpus of pdf files and I now have this here:
 
+{% raw %}
 ```
 Each sample counts as 0.01 seconds.
   %   cumulative   self              self     total
@@ -6593,9 +6668,11 @@ Each sample counts as 0.01 seconds.
   0.69    171.22     1.81 69768502     0.00     0.00  mem_mono_copy_mono
   0.67    173.00     1.78  8297581     0.00     0.00  mark_fill_rect_add3_common
 ```
+{% endraw %}
 
 so there are a couple of functions which take the most amount of time. Here is one:
 
+{% raw %}
 ```
 int
 gx_render_device_DeviceN(frac * pcolor,
@@ -6668,9 +6745,11 @@ gx_render_device_DeviceN(frac * pcolor,
     return 1;
 }
 ```
+{% endraw %}
 
 this loop here is maybe to blame???
 
+{% raw %}
 ```
 
     for (i=0; i<num_colors; i++) {
@@ -6692,11 +6771,13 @@ this loop here is maybe to blame???
     }
 
 ```
+{% endraw %}
 
 Let's just try to modify that a bit and see what happens...
 
 Here is the patched version:
 
+{% raw %}
 ```
 /*
  * Render DeviceN possibly by halftoning.
@@ -6766,9 +6847,11 @@ gx_render_device_DeviceN(frac * pcolor,
         return 0;
     }
 ```
+{% endraw %}
 
 Ok, so I just patched that out and now it is slightly faster. I also think that just disabling sanitization in performance critical functions should be good, because asan adds overhead...
 
+{% raw %}
 ```
 
 int
@@ -6851,10 +6934,12 @@ gx_render_device_DeviceN(frac * pcolor,
 
 
 ```
+{% endraw %}
 
 
 the original is here:
 
+{% raw %}
 ```
 
 /*
@@ -6940,11 +7025,13 @@ gx_render_device_DeviceN(frac * pcolor,
 }
 
 ```
+{% endraw %}
 
 so it looks like if you just return 0 from that function instead of 1, then it skips some stuff maybe???
 
 So I did some digging and the call to that function does something called halftoning:
 
+{% raw %}
 ```
 static void
 cmapper_transfer_halftone_add(gx_cmapper_t *data)
@@ -6969,11 +7056,13 @@ cmapper_transfer_halftone_add(gx_cmapper_t *data)
         gx_color_load_select(&data->devc, pgs, dev, select);
 }
 ```
+{% endraw %}
 
 So disabling that to always return 0 instead is actually the way to go maybe???
 
 Here is the current thing:
 
+{% raw %}
 ```
  time   seconds   seconds    calls  ms/call  ms/call  name
   8.77      8.26     8.26     8199     1.01    10.61  gs_call_interp
@@ -6991,6 +7080,7 @@ Here is the current thing:
   1.67     41.50     1.57     3063     0.51     5.95  cmsStageSampleCLut16bit
   1.58     42.99     1.49 12056886     0.00     0.00  igc_reloc_ref_ptr_nocheck
 ```
+{% endraw %}
 
 maybe I can disable the address sanitization from the gs_call_interp
 
@@ -6998,6 +7088,7 @@ maybe I can disable the address sanitization from the gs_call_interp
 
 When looking at the coverage which the fuzzer found, there appears to be this interesting looking section:
 
+{% raw %}
 ```
      375              : /******************************************************************************
      376              :
@@ -7229,11 +7320,13 @@ When looking at the coverage which the fuzzer found, there appears to be this in
      602              : }
      603              :
 ```
+{% endraw %}
 
 which has zero coverage...
 
 We also should patch this code out:
 
+{% raw %}
 ```
 
         /* Here, it would be very Apple-ish to delete the
@@ -7255,6 +7348,7 @@ We also should patch this code out:
 
 
 ```
+{% endraw %}
 
 from the gdevadmp.c file...
 

@@ -7,12 +7,15 @@ The article goes into detail about discretization and stuff like that.
 
 The guy goes into the maths and derives a discretized equation for the heat at spot x after n timesteps and it is this:
 
+{% raw %}
 ```
 u(t+dt,x) = k*(dt/(dx**2)*(u(t, x + dx)) - 2 * u(t,x) + u(t, x - dx)) + u(t, x)
 ```
+{% endraw %}
 
 Here is the python code for it:
 
+{% raw %}
 ```
 
 import numpy
@@ -51,6 +54,7 @@ pyplot.ylabel("Temperature (C˚)")
 pyplot.xlabel("Distance Along Rod (m)")
 pyplot.show()
 ```
+{% endraw %}
 
 
 

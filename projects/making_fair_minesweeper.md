@@ -9,6 +9,7 @@ Now, numpy didn't want to cooperate with me initially, because I initially used 
 
 Here is the error which I am getting:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Asioita/Ohjelmointi/Fair_minesweeper/minesweeper$ python3.10 main.py 
 Traceback (most recent call last):
@@ -17,6 +18,7 @@ Traceback (most recent call last):
 ModuleNotFoundError: No module named 'pynput'
 
 ```
+{% endraw %}
 
 After running `apt install python3-pip` and then running `python3.10 -m pip install pynput` . We should be good.
 
@@ -24,15 +26,19 @@ After running `apt install python3-pip` and then running `python3.10 -m pip inst
 
 First of all, there is a tiny bug in the game, that it doesn't actually let you win. This is because in the have_won function we have this check:
 
+{% raw %}
 ```
 if [j,i] not in self.mine_positions:
 ```
+{% endraw %}
 
 The reason why this is wrong is because the i and j are the wrong way around. It should be this:
 
+{% raw %}
 ```
 if [i,j] not in self.mine_positions:
 ```
+{% endraw %}
 
 and now it works. This fix is in the c0972a7e5e24e9cf11ab3b4e6bb3fdd92d6cb5db commit.
 
@@ -48,6 +54,7 @@ How do we do that? After some googling, I found this: https://stackoverflow.com/
 
 Here are the initial steps:
 
+{% raw %}
 ```
 We'll use the following numbers to indicate certain conditions:
 
@@ -57,11 +64,13 @@ We'll use the following numbers to indicate certain conditions:
 2 to indicate a permanent mine position (permanent).
 The first step is to reserve the starting position and the surrounding 8 spaces with -1 and then randomly generate a board filled with possible mines. This is the easy part. The key is to then solve the board internally before presenting it to the user.
 ```
+{% endraw %}
 
 ok, so now let's create the function skeleton:
 
 Actually fuck that. I am going to do it my own way instead. Here is the start:
 
+{% raw %}
 ```
 
 
@@ -78,6 +87,7 @@ def can_solve(board: np.array, start_pos: list) -> bool: # Checks if the board c
 	
 
 ```
+{% endraw %}
 
 Ok, so we need to program a main loop which loops over all of the new interesting spots and decides if they aren't solvable without luck or not. One way to solve this is to brute force all of the mine positions and see if there are more than one configuration in which the bombs are valid. Another way to solve this problem is to just make plenty of rules which then we loop over on each bomb spot.
 
@@ -86,6 +96,7 @@ Ok, so what if we just bruteforce all of the bomb positions and check if they ar
 
 Here is my current code:
 
+{% raw %}
 ```
 
 
@@ -243,11 +254,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 My strategy is to just bruteforce all of the mine positions and see if there are more than two valid positions, then just push it back and try to solve the other mines first (they may give us the needed information to solve the mine problem)...
 
 Here is my current code:
 
+{% raw %}
 ```
 
 
@@ -441,11 +454,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and it shows the spaces correctly, now it is time to actually make the solver. Now, when trying to solve the position, I decided to actually go with the rule based thing.
 
 After a bit of fiddling around, I came up with this:
 
+{% raw %}
 ```
 
 
@@ -746,9 +761,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and it basically just detects places where there are corners and there is a bomb in the corner. This handles this scenario for example:
 
+{% raw %}
 ```
 ------
 |  1#|
@@ -757,6 +774,7 @@ and it basically just detects places where there are corners and there is a bomb
 |    |
 ------
 ```
+{% endraw %}
 
 Now, we just need to implement basically all sorts of rules for every possible scenario. Fun!
 

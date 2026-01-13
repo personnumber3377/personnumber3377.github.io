@@ -18,6 +18,7 @@ Let's just program the keypad shit first.
 
 Ok, so I asked ChatGPT and it said that my idea is shit and memory inefficient and it gave this answer:
 
+{% raw %}
 ```
 
 from collections import deque
@@ -124,6 +125,7 @@ if __name__ == "__main__":
 
 
 ```
+{% endraw %}
 
 let's try to understand how it works... except it doesn't because it assumes that the numpad is starts always at (2,2) fuck.
 
@@ -133,6 +135,7 @@ Ok, so this legit actually has me stumped. Let's try atleast something. My think
 
 Ok, so now I have a table for the initial numpad for the shortest bullshit:
 
+{% raw %}
 ```
 
 
@@ -239,9 +242,11 @@ if __name__ == "__main__":
         print(path)
 
 ```
+{% endraw %}
 
 and here is the test program:
 
+{% raw %}
 ```
 
 
@@ -268,14 +273,17 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and here is the output:
 
+{% raw %}
 ```
 
 Shortest paths from A to 7: ['^<<^^', '^<^<^', '^<^^<', '^^<<^', '^^<^<', '^^^<<']
 
 ```
+{% endraw %}
 
 which seems correct. Note that the initialization of these tables is a one time cost only, so we don't really need to be concerned about performance all that much.
 
@@ -297,6 +305,7 @@ Ok, so now it is already december 28th after AOC, so it is time to finish this a
 
 This is my current code:
 
+{% raw %}
 ```
 
 
@@ -458,6 +467,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Now we need to iterate over the shortest paths in the numpad paths.
 
@@ -465,6 +475,7 @@ Actually fuck that. Let's just generate all of the shortest paths in the initial
 
 Ok so here is what I have so far:
 
+{% raw %}
 ```
 
 
@@ -505,9 +516,11 @@ def get_shortest_path(code) -> str: # Generates the shortest path which types th
 	exit(1)
 
 ```
+{% endraw %}
 
 The numpad_path_stuff is a variable which holds all of the shortest path segments in the original keypad. For 029A it produces this:
 
+{% raw %}
 ```
 from : to == A, 0
 numpad_paths == ['<']
@@ -519,21 +532,27 @@ from : to == 9, A
 numpad_paths == ['vvv']
 [['<'], ['^'], ['>^^', '^>^', '^^>'], ['vvv']]
 ```
+{% endraw %}
 
 which seems correct. Now we want to iterate over this list and all of the combinations of this. How do we do that? Well let's ask chatgpt. "I have a lis"
+{% raw %}
 ```
 I have a list of lists of strings. Some of these only contain one element while others contain many elements. It is guaranteed that all of the lists are nonempty and that the main list is also nonempty. How to loop over all of the permutations of these strings? For example given a list like so: [["a", "b"], ["c", "d"]] how to iterate over the strings "ac", "ad", "bc", and "bd"?
 ```
+{% endraw %}
 ok so the answer is just:
 
+{% raw %}
 ```
 for combination in itertools.product(*lists):
     # Join the elements of each combination into a string
     print(''.join(combination))
 ```
+{% endraw %}
 
 Here is my current function:
 
+{% raw %}
 ```
 
 def get_shortest_path(code) -> str: # Generates the shortest path which types this code.
@@ -580,9 +599,11 @@ def get_shortest_path(code) -> str: # Generates the shortest path which types th
 
 
 ```
+{% endraw %}
 
 and here is the output:
 
+{% raw %}
 ```
 
 Here are all of the paths on the keypad:
@@ -591,6 +612,7 @@ Path: <A^A^>^Avvv
 Path: <A^A^^>Avvv
 
 ```
+{% endraw %}
 
 which seems correct.
 
@@ -602,6 +624,7 @@ One thing to note is that when we go one layer "up" we put the "A" character bet
 
 Here is my current code:
 
+{% raw %}
 ```
 def get_shortest_path(code) -> str: # Generates the shortest path which types this code.
 	cache = dict() # This is to memoieze the shortest shit such that we do not need to compute it every time.
@@ -681,9 +704,11 @@ def get_shortest_path(code) -> str: # Generates the shortest path which types th
 
 	exit(1)
 ```
+{% endraw %}
 
 here is a part of the output:
 
+{% raw %}
 ```
 
 Here is another possible path: v<<A>>^A<A>A<A>A<A>AvA^Av<A>^Av<A>^Av<
@@ -816,10 +841,12 @@ Here is another possible path: <v<A>^>A<A>A<A>A<A>AvA^A<vA^>A<vA^>Av<
 Here is another possible path: <v<A>^>A<A>A<A>A<A>AvA^A<vA^>A<vA^>A<v
 
 ```
+{% endraw %}
 
 
 in some cases it starts off nice:
 
+{% raw %}
 ```
 
 Here is another possible path: v<<A>>^A<A>AvA^A<A>A<A>Av<A>^Av<A>^Av<
@@ -857,6 +884,7 @@ Here is another possible path: v<<A>>^A<A>AvA^A<A>A<A>A<vA^>A<vA^>A<v
 oof@elskun-lppri:~/newadventofcode/adventofcode2024/day21$ python3 main.py | grep "v<<A>>\^A<A>AvA<"
 
 ```
+{% endraw %}
 
 but then something goes wrong and it produces the wrong answer. It starts off being correct but then it goes wrong somehow.
 
@@ -866,6 +894,7 @@ Ok, so the problem is because I am missing the A from the end:
 
 Here is my current code:
 
+{% raw %}
 ```
 
 def get_shortest_path(code) -> str: # Generates the shortest path which types this code.
@@ -951,38 +980,48 @@ def get_shortest_path(code) -> str: # Generates the shortest path which types th
 	exit(1)
 
 ```
+{% endraw %}
 
 This program produces such answers:
 
+{% raw %}
 ```
 
 v<<>>^<>v<^A>v<AA>^
 
 ```
+{% endraw %}
 
 now if I join each part with the character "A" I get this:
 
+{% raw %}
 ```
 path2 = 'A'.join(combination2)
 path2 = path2 + "A" # Add the final enter.
 ```
+{% endraw %}
 
 I get this:
 
+{% raw %}
 ```
 
 v<<A>>^A<A>AvA<^AAA>Av<AAAAA>^A
 
 ```
+{% endraw %}
 
 which is almost correct. The issue is that when the previous character thing ends with A or the next thing starts with A, then we actually put an extra A character. We want a conditional join which checks for this. Let's ask chatgpt:
 
+{% raw %}
 ```
 I have a list of strings some of which contains the character 'A'. How do I conditionally join with the character A when the preceding string does not end with A and the next string does not start with A and otherwise join with the empty string?
 ```
+{% endraw %}
 
 here is the answer it gave:
 
+{% raw %}
 ```
 
 def conditional_join(strings):
@@ -1003,9 +1042,11 @@ joined = conditional_join(strings)
 print(joined)
 
 ```
+{% endraw %}
 
 fuck
 
+{% raw %}
 ```
 v<<A>>^A<A>AvA<^AAA>Av<AAAAA>^A
 
@@ -1013,9 +1054,11 @@ v<<A>>^A<A>AvA<^AA>Av<AAA>^A
 
 
 ```
+{% endraw %}
 
 Let's just go over this manually on paper:
 
+{% raw %}
 ```
 
 
@@ -1029,20 +1072,24 @@ v<<A >>^A <A >A  vA<^AA>A<vAAA>^A
 
 
 ```
+{% endraw %}
 
 
 I think there is the missing A because here:
 
+{% raw %}
 ```
 combination2 == ('v<<', '>>^', '<', '>', 'v', '<^', 'A', '>', 'v<', 'A', 'A', '>^')
 Here is another possible path: Av<<A>>^A<A>Av<^A>v<AA>^A
 
 ```
+{% endraw %}
 
 so the bug is in the conditional_join logic.
 
 Ok, so here is the fixed version:
 
+{% raw %}
 ```
 
 
@@ -1065,9 +1112,11 @@ def conditional_join(strings):
 	return ''.join(result)
 
 ```
+{% endraw %}
 
 let's clean it up a bit:
 
+{% raw %}
 ```
 
 def conditional_join(strings):
@@ -1080,9 +1129,11 @@ def conditional_join(strings):
 	return ''.join(result)
 
 ```
+{% endraw %}
 
 ok so here is my current code which produces the correct path for layer one:
 
+{% raw %}
 ```
 
 
@@ -1381,6 +1432,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 git commit e79b7b2fda0057d326a388fdb32cd85a11bafb3a
 
@@ -1388,6 +1440,7 @@ Now we just need to basically do one more pass and we should be good maybe??????
 
 Ok, so this is the correct answer:
 
+{% raw %}
 ```
 
 # Dictionary which maps the moves and initial positions to end positions, if the move is not in this dictionary, then it is invalid: "In particular, if a robot arm is ever aimed at a gap where no button is present on the keypad, even for an instant, the robot will panic unrecoverably."
@@ -1769,6 +1822,7 @@ if __name__=="__main__":
 	exit(0)
 
 ```
+{% endraw %}
 
 
 it works, but obviously it is inefficient as hell.
@@ -1779,6 +1833,7 @@ Ok, so now let's try to atleast get it down to say 100ms .
 
 I asked chatgpt to try to optimize it and let's see what it returned:
 
+{% raw %}
 ```
 
 def get_shortest_path(code: str) -> str:
@@ -1835,11 +1890,13 @@ def _generate_arrowpad_paths(path: str):
     return arrowpad_path_options
 
 ```
+{% endraw %}
 
 let's see...
 
 Here is my current code:
 
+{% raw %}
 ```
 
 # Dictionary which maps the moves and initial positions to end positions, if the move is not in this dictionary, then it is invalid: "In particular, if a robot arm is ever aimed at a gap where no button is present on the keypad, even for an instant, the robot will panic unrecoverably."
@@ -2177,6 +2234,7 @@ if __name__=="__main__":
 	exit(0)
 
 ```
+{% endraw %}
 
 maybe we should add a verify function which verifies if this solution makes sense by just simulating the shit?
 
@@ -2186,6 +2244,7 @@ Also the code is still slow as hell, let's improve it further.
 
 Let's take a look at the cProfile shit:
 
+{% raw %}
 ```
 
 
@@ -2322,11 +2381,13 @@ Let's take a look at the cProfile shit:
         2    0.000    0.000    0.000    0.000 <frozen importlib._bootstrap_external>:71(_relax_case)
 
 ```
+{% endraw %}
 
 so the conditional_join function is the obvious bottleneck
 
 Here is the original version:
 
+{% raw %}
 ```
 
 def conditional_join(strings):
@@ -2339,14 +2400,17 @@ def conditional_join(strings):
 	return ''.join(result)
 
 ```
+{% endraw %}
 
 actually this code seems to work just fine:
 
+{% raw %}
 ```
 
 
 
 ```
+{% endraw %}
 
 
 

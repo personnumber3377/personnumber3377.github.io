@@ -46,6 +46,7 @@ Ok, so now let's just program a fuzzing harness:
 
 Here is the method which parses the multipart request:
 
+{% raw %}
 ```
 
     def parse_file_upload(self, META, post_data):
@@ -61,6 +62,7 @@ Here is the method which parses the multipart request:
         return parser.parse()
 
 ```
+{% endraw %}
 
 and seems quite a nice little function...
 
@@ -68,6 +70,7 @@ let's create an instance of the `class HttpRequest:` class and then try to call 
 
 something like this:
 
+{% raw %}
 ```
 
 
@@ -101,12 +104,14 @@ if __name__=="__main__":
 	exit(0)
 
 ```
+{% endraw %}
 
 seems to work as a fuzzing target. Now, let's craft some initial inputs for this target and see what we can cause.
 
 
 Let's seed our corpus with this simple filething:
 
+{% raw %}
 ```
 ------a
 Content-Disposition: form-data; name="csrfmiddlewaretoken"
@@ -119,10 +124,12 @@ Content-Type: text/plain
 this is just some text whatever.
 ------a--
 ```
+{% endraw %}
 
 
 here is the final fuzzing harness:
 
+{% raw %}
 ```
 
 import atheris
@@ -206,9 +213,11 @@ atheris.Fuzz()
 
 
 ```
+{% endraw %}
 
 when I run the fuzzer with my custom mutator (the one for finding dos bugs), I get this crash:
 
+{% raw %}
 ```
 
 oof.py: Running 1 inputs 1 time(s) each.
@@ -232,11 +241,13 @@ SUMMARY: libFuzzer: fuzz target exited
 
 
 ```
+{% endraw %}
 
 this may not seem interesting, but when you do a quick google search: https://www.djangoproject.com/weblog/2023/feb/14/security-releases/  you can find out, that this was actually a DOS vector!!!!!! This means that if we used an unpatched version of django, we could have found this same bug!!!!! This is fantastic! (here is the commit which fixed this: https://github.com/django/django/commit/628b33a854a9c68ec8a0c51f382f304a0044ec92)
 
 Let's ignore some errors:
 
+{% raw %}
 ```
 @atheris.instrument_func
 def TestOneInput(data):
@@ -247,11 +258,13 @@ def TestOneInput(data):
 		# Just pass the exceptions
 		return
 ```
+{% endraw %}
 
 and add a timeout on the command line: `python3 oof.py -max_len=10000000 -timeout=1 final_corp/` (this stops execution if it takes more than one second to process a specific input... (aka DOS!!!))!!
 
 Whoops, found another bug:
 
+{% raw %}
 ```
 #2905	NEW    cov: 341 ft: 1761 corp: 99/5344Kb lim: 10000000 exec/s: 121 rss: 82Mb L: 126550/2098963 MS: 4 CrossOver-Custom-ChangeBinInt-Custom-
 #3081	REDUCE cov: 341 ft: 1761 corp: 99/5331Kb lim: 10000000 exec/s: 123 rss: 82Mb L: 112957/2098963 MS: 2 ChangeBinInt-Custom-
@@ -280,11 +293,13 @@ MS: 8 ShuffleBytes-Custom-ChangeBinInt-Custom-ChangeByte-Custom-CMP-Custom- DE: 
 artifact_prefix='./'; Test unit written to ./crash-210c4e86ddf264e239b905370c0e238a54e9d874
 
 ```
+{% endraw %}
 
 Let's ignore that exception too (for now...)
 
 Fuck! Another uncaught exception:
 
+{% raw %}
 ```
 
 #25037	REDUCE cov: 343 ft: 1790 corp: 115/5447Kb lim: 10000000 exec/s: 108 rss: 82Mb L: 9058/2098963 MS: 6 PersAutoDict-Custom-CopyPart-Custom-ChangeASCIIInt-Custom- DE: "\001\000"-
@@ -318,9 +333,11 @@ artifact_prefix='./'; Test unit written to ./crash-a9f7cbf6b5c2d029d3d0410513815
 
 
 ```
+{% endraw %}
 
 the interesting thing is that the uploadhandler should make sure that such a scenario never happens???? That is quite odd.. or maybe not:
 
+{% raw %}
 ```
 class TemporaryUploadedFile(UploadedFile):
     """
@@ -347,6 +364,7 @@ class TemporaryUploadedFile(UploadedFile):
             # self.file.file.close() before the exception.
             pass
 ```
+{% endraw %}
 
 
 
@@ -367,6 +385,7 @@ Ok, so I think here is some stuff which may help us: https://github.com/MozillaS
 
 I actually modified the python bridge with this diff:
 
+{% raw %}
 ```
 diff --git a/python_bridge.cpp b/python_bridge.cpp
 index 1c3cb84..e44176b 100644
@@ -413,6 +432,7 @@ index 1c3cb84..e44176b 100644
        PyErr_Print();
 
 ```
+{% endraw %}
 
 now, we need to add this code to the ruzzy ruby fuzzer.
 

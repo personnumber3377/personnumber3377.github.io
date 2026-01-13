@@ -13,6 +13,7 @@ Let's create the inkdrop object in a file called inkdrop.py .
 
 Here is my very primitive start of the inkdrop object:
 
+{% raw %}
 ```
 
 class InkDrop:
@@ -29,6 +30,7 @@ class InkDrop:
 
 
 ```
+{% endraw %}
 
 ## Implementing the algorithm...
 
@@ -38,6 +40,7 @@ First of all, we need to modify our inkdrop class to have a list of points which
 
 Here is the new modified inkdrop object:
 
+{% raw %}
 ```
 
 
@@ -90,11 +93,13 @@ class InkDrop:
 
 
 ```
+{% endraw %}
 
 let's test it out!
 
 Here is the contents of my main.py file (for now) ... :
 
+{% raw %}
 ```
 
 
@@ -126,6 +131,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and it seems to work! Good!
 
@@ -136,6 +142,7 @@ Let's create a loop, which just shows all of the circles over and over again... 
 
 After a bit of fiddling around, I now have this as my main function:
 
+{% raw %}
 ```
 
 
@@ -219,6 +226,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and it seems to work fine.
 
@@ -232,6 +240,7 @@ Let's program a method for our inkdrop object which updates the vertices with th
 
 Here:
 
+{% raw %}
 ```
 
 	def marble(self, other) -> None: # This methods updates the vertices of this drop object using the other circle object.
@@ -248,6 +257,7 @@ Here:
 
 
 ```
+{% endraw %}
 
 That seems to do the trick!
 
@@ -261,6 +271,7 @@ To implement tinge lines, we first need a way to get user defined lines. I am go
 
 Here is my current code (it actually works with the "a" key):
 
+{% raw %}
 ```
 
 
@@ -418,6 +429,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Now let's implement the process_tine function!
 
@@ -427,6 +439,7 @@ Ok, so what do we need for the formula?
 
 I think we need these:
 
+{% raw %}
 ```
 
 	def tine(self, a, l, A, M) -> None: # This method applies the tine line transformation to this ink drop
@@ -440,11 +453,13 @@ I think we need these:
 
 
 ```
+{% endraw %}
 
 Ok, so let's craft these arguments.
 
 Maybe something like this????
 
+{% raw %}
 ```
 
 def process_tine(drops, p0, p1) -> None: # This applies the tine transformation to each of the drops.
@@ -468,9 +483,11 @@ def process_tine(drops, p0, p1) -> None: # This applies the tine transformation 
 	return
 
 ```
+{% endraw %}
 
 now let's code the method for the ink drop object:
 
+{% raw %}
 ```
 
 
@@ -512,6 +529,7 @@ def perpendicular(a):
 
 
 ```
+{% endraw %}
 
 and it seems to work okay. One issue with this, is that it also moves the entire inkdrop in addition to drawing a streak through it, but maybe that is just a feature and not a bug maybe???? idk..
 

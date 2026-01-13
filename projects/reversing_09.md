@@ -5,6 +5,7 @@ Ok, so I am going to continue on my reverse engineering journey. I found this cr
 
 Here is the ghidra decompilation of the main function:
 
+{% raw %}
 ```
 undefined8 UndefinedFunction_00401090(void)
 
@@ -28,11 +29,13 @@ undefined8 UndefinedFunction_00401090(void)
   return 0;
 }
 ```
+{% endraw %}
 
 This line here: `FUN_00401294(acStack84,0x76,0x5c,0x4a,0x40,0x50,0x50,0x4c,0x12,0x65,0x52,0x4b,0x41,0x42,0x5c,0x4a,0x56,0x14);` basically sets up the acStack84 variable which we compare against.
 
 Here is the source code:
 
+{% raw %}
 ```
 /* WARNING: Could not reconcile some variable overlaps */
 
@@ -76,11 +79,13 @@ void FUN_00401294(char *param_1,undefined8 param_2,undefined8 param_3,undefined8
 }
 
 ```
+{% endraw %}
 
 Notice that this function is completely independent of our input. Therefore we can just drop into a debugger and then get the output value ourselves.
 
 Here is some of the disassembly in gdb of the main function:
 
+{% raw %}
 ```
    0x4010a2:	lea    rbx,[rsp+0x4]
    0x4010a7:	push   0x14
@@ -131,6 +136,7 @@ Here is some of the disassembly in gdb of the main function:
    0x401146:	ret    
 
 ```
+{% endraw %}
 
 We call the scrambling function here: `0x4010df:	call   0x401294`
 
@@ -138,10 +144,12 @@ After the call, the result of the "scrambling" is pointed to by the rbx register
 
 Let's set a breakpoint to after the returning from the scrambling function:
 
+{% raw %}
 ```
 (gdb) x/10wx $rbx
 0x7fffffffda14:	0x404a5c76	0x124c5050	0x414b5265	0x564a5c42
 ```
+{% endraw %}
 
 and this is actually completely independent of our input, therefore we can just write this down somewhere.
 
@@ -149,6 +157,7 @@ So `acStack84 == 0x124c5050404a5c76	0x564a5c42414b5265  and 0x14`
 
 Here is the corresponding python code:
 
+{% raw %}
 ```
 
 def as_hex(list_of_ints: list) -> None:
@@ -179,6 +188,7 @@ print(acStack84)
 as_hex(acStack84)
 
 ```
+{% endraw %}
 
 therefore `765c4a4050504c1265524b41425c4a5614` is the scrambled stuff.
 
@@ -190,6 +200,7 @@ The `FUN_0040124a(acStack84,acStack54);` is basically the checking function I as
 
 Here:
 
+{% raw %}
 ```
 
 undefined8 FUN_0040124a(char *param_1,long param_2,undefined8 param_3)
@@ -209,6 +220,7 @@ undefined8 FUN_0040124a(char *param_1,long param_2,undefined8 param_3)
 
 
 ```
+{% endraw %}
 
 remember that param_1 is  acStack84 which is 765c4a4050504c1265524b41425c4a5614 .
 
@@ -220,6 +232,7 @@ So basically we cyclically xor our four byte input with the scrambled stuff to g
 
 Then, we pass the result of this cyclic xor operation to this function:
 
+{% raw %}
 ```
 
 int FUN_00401274(char *param_1)
@@ -242,11 +255,13 @@ int FUN_00401274(char *param_1)
 }
 
 ```
+{% endraw %}
 
 This function basically just sums up the bytes of the result of the cyclic xor. and then this value should be 0x666
 
 Because we loop every four bytes, we can create groups:
 
+{% raw %}
 ```
 def generate_groups() -> list:
 	byte_stuff = bytes.fromhex("765c4a4050504c1265524b41425c4a5614")
@@ -255,6 +270,7 @@ def generate_groups() -> list:
 		groups[i&3].append(x)
 	return groups
 ```
+{% endraw %}
 
 `groups[0]` is the numbers which are xored with the first input byte, then `groups[1]` is the bytes which are xored with the second byte and so on.
 
@@ -264,6 +280,7 @@ Ok, so because the correct flag is assumedly ascii, we can just bruteforce the a
 
 Here is my bruteforcing algorithm:
 
+{% raw %}
 ```
 
 alphabet = "0123456789"
@@ -315,6 +332,7 @@ while True:
 
 
 ```
+{% endraw %}
 
 but it doesn't work. I don't really understand why.
 
@@ -322,19 +340,23 @@ That is because I use the wrong index here: `d_sum = sum([d ^ x for x in group_b
 
 Let's print the solution too:
 
+{% raw %}
 ```
 	if total_sum == 0x666:
 		print("ooof")
 		print(chr(a)+chr(b)+chr(c)+chr(d))
 		break
 ```
+{% endraw %}
 
 Tada:
 
+{% raw %}
 ```
 ooof
 1180
 ```
+{% endraw %}
 
 Now, it is the moment of truth... is this the solution??? Yes it is!
 

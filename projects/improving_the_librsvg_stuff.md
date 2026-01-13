@@ -16,6 +16,7 @@ Ok, so compiling yielded some quite bad results for me, and I decided to actuall
 
 I solved it by using this `Cargo.toml` in the `afl-fuzz/` directory:
 
+{% raw %}
 ```
 
 [package]
@@ -41,6 +42,7 @@ lto = true
 
 
 ```
+{% endraw %}
 
 and it seems to do fine...
 
@@ -58,6 +60,7 @@ Now, the fuzzing readme warns that afl can not use dictionaries larger than 128 
 
 The dictionary which comes with afl-fuzz looks like this:
 
+{% raw %}
 ```
 # Keywords taken from
 #  - https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Introduction
@@ -231,12 +234,14 @@ The dictionary which comes with afl-fuzz looks like this:
 "matrix("
 
 ```
+{% endraw %}
 
 
 I think I should program an autodictionary tool, which generates fuzzing dictionaries from the source code without having to manually look at it. That I think already exists for clang, but it would be nice to have it with other programming languages as well: https://github.com/AFLplusplus/AFLplusplus/blob/stable/instrumentation/README.lto.md#autodictionary-feature
 
 For simplicity, I just ran `grep -r "\" =>"` on the source code, because the match operator is quite often used to match strings and this is the output:
 
+{% raw %}
 ```
 
 property_macros.rs:///     "miter" => Miter,
@@ -490,12 +495,14 @@ angle.rs:                        "turn" => Angle::from_degrees(value * 360.0),
 
 
 ```
+{% endraw %}
 
 
 seems quite nice!
 
 Let's just take the first argument and then put it into a list. Here is a quick python script:
 
+{% raw %}
 ```
 
 
@@ -552,11 +559,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 which parses the output and the existing dictionary and spits out an entirely new dictionary with the other terms added! Hooray!
 
 Here is the final dictionary:
 
+{% raw %}
 ```
 "soft-light"
 "spreadMethod"
@@ -899,6 +908,7 @@ Here is the final dictionary:
 "\\"
 
 ```
+{% endraw %}
 
 ## Starting fuzzing
 
@@ -906,6 +916,7 @@ Let the fuzzing commence with our advanced weaponry!
 
 Here is my final fuzzing command:
 
+{% raw %}
 ```
 export PYTHONPATH="."
 export AFL_PYTHON_MODULE="mutator"
@@ -913,6 +924,7 @@ export AFL_PYTHON_MODULE="mutator"
 
 AFL_PYTHON_MODULE="mutator" PYTHONPATH="." cargo afl fuzz -x final_dict.dict -i minimized/ -t 300 -m 0 -o output2 -M master01 target/release/rsvg-afl-fuzz
 ```
+{% endraw %}
 
 ## Results
 
@@ -929,6 +941,7 @@ Ok, so the guy actually responded: https://gitlab.gnome.org/GNOME/librsvg/-/issu
 
 The original dictionary was this:
 
+{% raw %}
 ```
 
 # Keywords taken from
@@ -1103,6 +1116,7 @@ The original dictionary was this:
 "matrix("
 
 ```
+{% endraw %}
 
 let's figure out which entries aren't in that list.
 
@@ -1110,6 +1124,7 @@ Let's modify our script. I also noticed a bug with the escaped double quote char
 
 Here is a quick little script which I cooked up to figure out the missing entries (aka the entries which we found which weren't in the svg dictionary in the first place!)
 
+{% raw %}
 ```
 
 
@@ -1198,9 +1213,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 the only existing entries (which were already in the dictionary) (`python3 compare.py | grep "\.\.\."`) were:
 
+{% raw %}
 ```
 "miter" was in the existing dictionary...
 "round" was in the existing dictionary...
@@ -1221,9 +1238,11 @@ the only existing entries (which were already in the dictionary) (`python3 compa
 "objectBoundingBox" was in the existing dictionary...
 "color" was in the existing dictionary...
 ```
+{% endraw %}
 
 the new added entries were:
 
+{% raw %}
 ```
 "color-interpolation-filters"
 "pad"
@@ -1454,6 +1473,7 @@ the new added entries were:
 "rad"
 "turn"
 ```
+{% endraw %}
 
 Ok, so apparently, the added entries must be in alphabetical order, and we need to separate them into sections. There is no way I am going to spend like 30 min to sort them to individual categories. Fuck that.
 
@@ -1473,6 +1493,7 @@ I only know python fluently, so I am going to use python to program the custom m
 
 This seems like a good start:
 
+{% raw %}
 ```
 
 
@@ -1519,6 +1540,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 my plan is to basically mutate each node in the tree with equal probability. See: https://www.geeksforgeeks.org/select-random-node-tree-equal-probability/ . After that we are going to select a mutation strategy. The three most basic ones are basically: adding a child node, removing that node entirely and modifying the node (modifying the attributes, aka changing the values or adding new attributes or removing attributes or doing the same to the actual content).
 
@@ -1530,6 +1552,7 @@ Ok, so let's create a file called `select_random_node.py` where we implement thi
 
 Something like this:
 
+{% raw %}
 ```
 
 def get_all_paths_recursive(cur_node, current_path):
@@ -1545,9 +1568,11 @@ def get_all_paths(tree):
 	return get_all_paths_recursive(tree, [])
 
 ```
+{% endraw %}
 
 then we can select a random node with this:
 
+{% raw %}
 ```
 def get_all_paths(tree):
 	return get_all_paths_recursive(tree, [])
@@ -1560,6 +1585,7 @@ def select_random_node(tree): # Select a random node with equal probability.
 		out = out[ind] # Traverse the tree according to the randomly chosen path.
 	return out
 ```
+{% endraw %}
 
 seems nice.
 
@@ -1578,6 +1604,7 @@ Let's see what happens, when we run it against librsvg.
 
 This was quite an interesting bug. My program seemed to generate invalid xml for some odd reason, even though I specifically designed the mutator to always create valid xml (aka SVG). This is because I didn't actually return the data which I mutated. My fuzz function looked something like this:
 
+{% raw %}
 ```
 
 def fuzz(buf, add_buf, max_size): # Main mutation function.
@@ -1609,9 +1636,11 @@ def fuzz(buf, add_buf, max_size): # Main mutation function.
 		return buf # Just return the original shit.
 
 ```
+{% endraw %}
 
 after adding the `return contents` line like so:
 
+{% raw %}
 ```
 
 def fuzz(buf, add_buf, max_size): # Main mutation function.
@@ -1644,6 +1673,7 @@ def fuzz(buf, add_buf, max_size): # Main mutation function.
 		return buf # Just return the original shit.
 
 ```
+{% endraw %}
 
 and it now seems to work perfectly fine... also it took a bit of effort to figure out that the type returned must be `bytearray` . Now I am in the commit number: `8d2805942e771572af607fd8cf1ee76e29c7a35e` .
 
@@ -1657,6 +1687,7 @@ Here is a complete reference for all attributes: https://www.geeksforgeeks.org/s
 
 Just first run a curl and then grep for the links (grep for `<td><a href="https://www.geeksforgeeks.org/`) and here are all of the attribute links:
 
+{% raw %}
 ```
 <td><a href="https://www.geeksforgeeks.org/svg-by-attribute/" target="_blank">by</a></td>
 <td><a href="https://www.geeksforgeeks.org/svg-cx-attribute/" target="_blank">cx</a></td>
@@ -1744,6 +1775,7 @@ Just first run a curl and then grep for the links (grep for `<td><a href="https:
 <td><a href="https://www.geeksforgeeks.org/svg-ychannelselector-attribute/" target="_blank">yChannelSelector</a></td>
 <td><a href="https://www.geeksforgeeks.org/svg-z-attribute/" target="_blank">z</a></td>
 ```
+{% endraw %}
 
 easy eh?
 
@@ -1751,6 +1783,7 @@ Now do a curl on each one of those, then grep for the syntax and then if there i
 
 This should do the job to get the webpages:
 
+{% raw %}
 ```
 
 import os
@@ -1780,11 +1813,13 @@ if __name__=="__main__":
 
 	exit(0)
 ```
+{% endraw %}
 
 now just iterate over them and see which of them have set strings.
 
 Here is my quick and dirty script to find the stuff:
 
+{% raw %}
 ```
 
 import os
@@ -1876,18 +1911,22 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and here is the result:
 
+{% raw %}
 ```
 Here are the strict values:
 {'shape-rendering': ['auto', 'optimizeLegibility', 'geometricPrecision', 'optimizeSpeed '], 'lighting-color': ['currentcolor', 'color', 'icccolor '], 'text-anchor': ['auto', 'optimizeLegibility', 'geometricPrecision', 'optimizeSpeed '], 'letter-spacing': ['normal', 'length', 'initial', 'inherit'], 'stop-opacity': ['currentcolor', 'color', 'icccolor '], 'word-spacing': ['length', 'initial', 'inherit'], 'stroke-linecap': ['butt', 'round', 'square', 'initial', 'inherit'], 'text-decoration': ['none', 'underline', 'overline', 'line-through', 'initial', 'inherit'], 'pointer-events': ['auto', 'none'], 'flood-color': ['currentcolor', 'color', 'icccolor ']}
 ```
+{% endraw %}
 
 then I need to add manually a couple of entries::
 
 Here is the result:
 
+{% raw %}
 ```
 
 
@@ -1896,6 +1935,7 @@ strict_values = {'shape-rendering': ['auto', 'optimizeLegibility', 'geometricPre
 
 
 ```
+{% endraw %}
 
 I don't know. That seems like quite little. Let's see if we are missing something... No? That actually seems like all there are!! Great!
 
@@ -1905,6 +1945,7 @@ Ok, so instead of just randomly generating a random string each time when mutati
 
 Here is a quick little demo:
 
+{% raw %}
 ```
 
 import random
@@ -1948,9 +1989,11 @@ def mutate(string: str) -> str: # Mutate a string.
 
 
 ```
+{% endraw %}
 
 then after a bit of testing, here is the final result:
 
+{% raw %}
 ```
 
 
@@ -1999,6 +2042,7 @@ def mutate_generic(string: str) -> str: # Mutate a string.
 
 
 ```
+{% endraw %}
 
 ## Fuzzing results.
 

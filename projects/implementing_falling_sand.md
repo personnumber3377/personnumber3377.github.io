@@ -9,6 +9,7 @@ I am going to make an Object Oriented solution to this problem and I am going to
 
 Here is the initial skeleton:
 
+{% raw %}
 ```
 
 class SandSim:
@@ -26,9 +27,11 @@ class SandSim:
 		return # just a stub for now.
 
 ```
+{% endraw %}
 
 Here is my update function. It just simply checks the points which are below the point which we are currently checking. Then it also checks if we are on the ground...
 
+{% raw %}
 ```
 class SandSim:
 	
@@ -68,6 +71,7 @@ class SandSim:
 	def render(self) -> None:
 		return # just a stub for now.
 ```
+{% endraw %}
 
 ## Fucking around with matplotlib
 
@@ -75,6 +79,7 @@ Ok, so I am now trying to render the bullshit, but because matplotlib is fucking
 
 Here is my current code:
 
+{% raw %}
 ```
 
 import matplotlib.pyplot as plt
@@ -147,11 +152,13 @@ class SandSim:
 
 
 ```
+{% endraw %}
 
 now, when I call render , it waits until I close the window before it shows the next step.
 
 Ok, so I got it to work. Here is the current code:
 
+{% raw %}
 ```
 	def render(self) -> None:
 		# First convert the current point list to a grayscale matrix
@@ -166,6 +173,7 @@ Ok, so I got it to work. Here is the current code:
 		plt.pause(0.01)
 		plt.clf()
 ```
+{% endraw %}
 
 ## Making it faster
 

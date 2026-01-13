@@ -11,6 +11,7 @@ There actually exists quite a helpful piece of documentation for the APDU format
 
 There are some additionals quirks with this thing. First of all, the actual inputs which we pass to the tcpsigner binary is actually a collection of messages, not just one of these messages. You can observe the function:
 
+{% raw %}
 ```
 
 /* This function emulates the HOST device, reading bytes from a file instead
@@ -86,9 +87,11 @@ static unsigned short io_exchange_file(unsigned char tx, FILE *input_file) {
 
 
 ```
+{% endraw %}
 
 also I made this quick script to run a an arbitrary file with the tcpsigner binary:
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -141,9 +144,11 @@ docker run -ti --rm --env AFL_AUTORESUME=1 --env AFL_TESTCACHE_SIZE=500 --env AF
 
 
 ```
+{% endraw %}
 
 which inputs an arbitrary file and shows the debug output. After running this file, we get this output from it:
 
+{% raw %}
 ```
 TCPSigner starting.
 Signer version: 5.2.0
@@ -221,9 +226,11 @@ Dongle =>  0x6a8f
 Server: EOF
 
 ```
+{% endraw %}
 
 if we look at the input file itself:
 
+{% raw %}
 ```
 00000000: 02 80 06 17 80 04 05 2c 00 00 80 89 00 00 80 00  .......,........
 00000010: 00 00 80 00 00 00 00 00 00 00 00 1c 80 02 01 05  ................
@@ -239,11 +246,13 @@ if we look at the input file itself:
 000000b0: a1 00 00 00 80 00 00 00 00 01 00 00 00 38 80 02  .............8..
 # SNIP
 ```
+{% endraw %}
 
 You can see the structure.
 
 The first byte is the amount of bytes to be read after:
 
+{% raw %}
 ```
 Dongle =>  EMPTY
 Server: reading 2 (announced: 2) bytes at index: 0
@@ -251,11 +260,13 @@ Dongle <=  0x8006
 Dongle =>  0x80010502009000
 Server: reading 23 (announced: 23) bytes at index: 3
 ```
+{% endraw %}
 
 So the very first message is just the bytes `80 06` . As we can see from the protocol.txt file, the 0x80 byte at the start is the CLA field of the message:
 
 https://github.com/rsksmart/rsk-powhsm/blob/master/firmware/src/powhsm/src/protocol.txt
 
+{% raw %}
 ```
       HOST->LEDGER APDU format
           0                   1                   2                   3
@@ -264,9 +275,11 @@ https://github.com/rsksmart/rsk-powhsm/blob/master/firmware/src/powhsm/src/proto
       |    CLA        |      CMD      |     OP        |     DATA           |
       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ ...+
 ```
+{% endraw %}
 
 and then there is the CMD field which is the command (duh). If we go through the source code, the CMD field here is just `RSK_IS_ONBOARD = 0x06` , in fact, there is the entire list of them in `instructions.h`:
 
+{% raw %}
 ```
 
 typedef enum {
@@ -294,9 +307,11 @@ typedef enum {
 } apdu_instruction_t;
 
 ```
+{% endraw %}
 
 so setting the CMD field to any other than any of those is basically pointless. There is just a big switch statement in the source code which does just that:
 
+{% raw %}
 ```
 
     switch (APDU_CMD()) {
@@ -436,6 +451,7 @@ so setting the CMD field to any other than any of those is basically pointless. 
     }
 
 ```
+{% endraw %}
 
 So I think the best way to implement a custom mutator is to just write a file parser for this file which parses each block and then after that it chooses a random message in that file to mutate, mutates it, then returns that thing. Then we can multiply messages (aka add copies of them to the file), delete them and modify them etc etc..
 
@@ -445,13 +461,16 @@ You can follow along (and suggest changes) at https://github.com/personnumber337
 
 Here is the output when I run with the original sample:
 
+{% raw %}
 ```
 You should use this with AFL or libfuzzer. When running standalone, this just runs some tests. See https://aflplus.plus/docs/custom_mutators/ for details.
 b'\x02\x80\x06\x17\x80\x04\x05,\x00\x00\x80\x89\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x008\x80\x02\x01\x05,\x00\x00\x80\x89\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\x17\x80\x04\x05,\x00\x00\x80\x89\x00\x00\x80\x01\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x008\x80\x02\x01\x05,\x00\x00\x80\x89\x00\x00\x80\x01\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\x17\x80\x04\x05,\x00\x00\x80\x89\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x01\x00\x00\x008\x80\x02\x01\x05,\x00\x00\x80\x89\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x01\x00\x00\x00\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\x17\x80\x04\x05,\x00\x00\x80\x01\x00\x00\x80\x01\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x008\x80\x02\x01\x05,\x00\x00\x80\x01\x00\x00\x80\x01\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\x17\x80\x04\x05,\x00\x00\x80\x01\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x01\x00\x00\x008\x80\x02\x01\x05,\x00\x00\x80\x01\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x01\x00\x00\x00\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\x17\x80\x04\x05,\x00\x00\x80\x01\x00\x00\x80\x02\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x008\x80\x02\x01\x05,\x00\x00\x80\x01\x00\x00\x80\x02\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\x17\x80\x04\x05,\x00\x00\x80\x01\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x02\x00\x00\x008\x80\x02\x01\x05,\x00\x00\x80\x01\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x02\x00\x00\x00\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa'
 ```
+{% endraw %}
 
 which doesn't seem promising. There is a bug in my code here:
 
+{% raw %}
 ```
 
 
@@ -485,11 +504,13 @@ def try_parse_input(input_stuff: bytes): # This tries to parse the input bytes..
 	return apdu_chunks
 
 ```
+{% endraw %}
 
 The bug was here: `if cur_byte_idx + length >= len(file_data):` this should actually just be this: `if cur_byte_idx + length > len(file_data):`
 
 Now this looks better!
 
+{% raw %}
 ```
 b'\x80\x06'
 b'\x80\x04\x05,\x00\x00\x80\x89\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00'
@@ -507,6 +528,7 @@ b'\x80\x02\x01\x05,\x00\x00\x80\x01\x00\x00\x80\x02\x00\x00\x80\x00\x00\x00\x00\
 b'\x80\x04\x05,\x00\x00\x80\x01\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x02\x00\x00\x00'
 b'\x80\x02\x01\x05,\x00\x00\x80\x01\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x02\x00\x00\x00\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa'
 ```
+{% endraw %}
 
 Now the next step is to parse these bytearrays to a message object...
 
@@ -516,6 +538,7 @@ This message is a `INS_GET_PUBLIC_KEY = 0x04` message. The next bytes are just d
 
 Here in the source code:
 
+{% raw %}
 ```
     // Derives and returns the corresponding public key for the given path
     case INS_GET_PUBLIC_KEY:
@@ -560,13 +583,16 @@ Here in the source code:
 
         break;
 ```
+{% endraw %}
 
 Here: `if (rx != DATA + sizeof(uint32_t) * BIP32_PATH_NUMPARTS)` we see that the data section must be 20 bytes, because `common/src/apdu.h:#define DATA 3` and `hal/include/hal/constants.h:#define BIP32_PATH_NUMPARTS 5` which basically means that rx must be 23. 3 bytes are the CLA CMD OP trio. If we check:
 
+{% raw %}
 ```
 >>> len('\x80\x04\x05,\x00\x00\x80\x01\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x01\x00\x00\x00')
 23
 ```
+{% endraw %}
 
 we can see that this makes sense.
 
@@ -574,6 +600,7 @@ With this information, we can now write a deserializer.
 
 Maybe something like this?
 
+{% raw %}
 ```
 
 def deserialize_to_obj(message_bytes: bytes) -> APDUMsg: # This deserializes a single message to a APDUMsg object.
@@ -617,6 +644,7 @@ class APDUMsg:
 
 
 ```
+{% endraw %}
 
 Now we can modify the message data in the object. Then we just need to write a serializer, which also takes into account that the length of the data may change. Then we can just serialize the messages back into bytes and that is our final input to the program!!!
 
@@ -624,16 +652,19 @@ Now we can modify the message data in the object. Then we just need to write a s
 
 I mean maybe it is just something like this?????
 
+{% raw %}
 ```
 def serialize_to_bytes(msg: APDUMsg) -> bytes:
 	return bytes([msg.CLA]) + bytes([msg.CMD]) + bytes([msg.OP]) + msg.data # Maybe something like this???
 
 ```
+{% endraw %}
 
 idk...
 
 Then because the file input also has the length fields, we can just write a serializer with the length field like so:
 
+{% raw %}
 ```
 
 def serialize_with_length(msg: APDUMsg) -> bytes:
@@ -643,11 +674,13 @@ def serialize_with_length(msg: APDUMsg) -> bytes:
 		exit(1)
 	return bytes([len(msg_bytes)]) + msg_bytes # Just something like this maybe???
 ```
+{% endraw %}
 
 let's test these functions out!!!
 
 Like this???
 
+{% raw %}
 ```
 	for chunk in chunks: # Try to parse the chunks from the input file.
 		# print(chunk)
@@ -657,9 +690,11 @@ Like this???
 		new_bytes = serialize_to_bytes(msg)
 		assert chunk == new_bytes # Should be the same
 ```
+{% endraw %}
 
 I had to do a couple of bugfixes, because there are messages which do not have OP or cmd_data fields:
 
+{% raw %}
 ```
 class APDUMsg:
 	# https://en.wikipedia.org/wiki/Smart_card_application_protocol_data_unit
@@ -730,11 +765,13 @@ def must_be_byte(value: int) -> None: # Checks that an integer can fit in one by
 
 
 ```
+{% endraw %}
 
 Now it works!
 
 Now we can just serialize with the length and we are golden:
 
+{% raw %}
 ```
 
 def test_mutator():
@@ -770,6 +807,7 @@ def test_mutator():
 	return
 
 ```
+{% endraw %}
 
 It passes!!!
 
@@ -781,6 +819,7 @@ Now, to mutate the data and stuff, I am just going to use my generic mutator, wh
 
 Here is the main mutator function:
 
+{% raw %}
 ```
 def mutate_contents(databytes: bytes) -> bytes: # Mutates bytes
 	fh = open("input.bin", "rb") # Read the file "input.bin"
@@ -804,11 +843,13 @@ def mutate_contents(databytes: bytes) -> bytes: # Mutates bytes
 		thing += new_bytes_with_length # Add it to that.
 	return thing # Return the final thing
 ```
+{% endraw %}
 
 it first tries to deserialize the bytes to the message objects, then it mutates those objects and then after that it tries to just serialize them back to the input file thing... Now, we just need to implement mutate_messages !
 
 Something like this???
 
+{% raw %}
 ```
 
 def mutate_messages(messages: list) -> list: # Mutates the messages.
@@ -822,6 +863,7 @@ def mutate_messages(messages: list) -> list: # Mutates the messages.
 
 
 ```
+{% endraw %}
 
 Actually let's program a test function called `test_mutating` which takes the file contents, then mutates them like a thousand times just for the lulz...
 
@@ -833,6 +875,7 @@ First of all, my fuzz_count function always returns 1000 no matter what the inpu
 
 Something like this maybe?
 
+{% raw %}
 ```
 
 def fuzz_count(buf):
@@ -842,11 +885,13 @@ def fuzz_count(buf):
 		return 1 # Just fuzz once, because reasons...
 
 ```
+{% endraw %}
 
 then we should also add some fuzzing strategies. For example multiplying messages seems quite promising...
 
 Something like this????
 
+{% raw %}
 ```
 	elif mut_strat == 2:
 		# Copy message
@@ -856,6 +901,7 @@ Something like this????
 		# Now insert it into the list at a random location...
 		messages.insert(random.randrange(len(messages)), new_msg) # Add a copy of the messages to the list thing..
 ```
+{% endraw %}
 
 In addition, we should add instruction specific mutations, for example we look at the cmd and mutate the message based on that.
 
@@ -864,6 +910,7 @@ Also we sould change the instruction to some random thing that could also be pla
 
 One idea i have is to have hardcoded lengths for the data portion for some of the commands. There is this shit in the `bc_advance.c` file:
 
+{% raw %}
 ```
 
 
@@ -904,6 +951,7 @@ unsigned int bc_advance(volatile unsigned int rx) {
     }
 
 ```
+{% endraw %}
 
 
 Done! I implemented these in the commit abbf014eb0be280c277255a342e9ee488b23f8d1 !
@@ -918,6 +966,7 @@ Done!
 
 There is this very interesting function in trie_auth.c:
 
+{% raw %}
 ```
 
  * @ret             number of transmited bytes to the host
@@ -941,10 +990,12 @@ unsigned int auth_sign_handle_merkleproof(volatile unsigned int rx) {
         }
 
 ```
+{% endraw %}
 
 and looking at the source code this function is called from this:
 
 
+{% raw %}
 ```
 
 
@@ -991,10 +1042,12 @@ unsigned int auth_sign(volatile unsigned int rx) {
     }
 
 ```
+{% endraw %}
 
 
 so the current state must be `STETE_AUTH_MERKLEPROOF` and that is actually set in the receipt phase of the thing:
 
+{% raw %}
 ```
 
 
@@ -1051,10 +1104,12 @@ unsigned int auth_sign_handle_receipt(volatile unsigned int rx) {
     }
 
 ```
+{% endraw %}
 
 
 this function then assumes that the state:
 
+{% raw %}
 ```
 
 unsigned int auth_sign_handle_receipt(volatile unsigned int rx) {
@@ -1064,11 +1119,13 @@ unsigned int auth_sign_handle_receipt(volatile unsigned int rx) {
     }
 
 ```
+{% endraw %}
 
 is set.
 
 It is actually then set in this function here:
 
+{% raw %}
 ```
 
 /*
@@ -1219,10 +1276,12 @@ unsigned int auth_sign_handle_btctx(volatile unsigned int rx) {
     }
 
 ```
+{% endraw %}
 
 So we must call this function first.
 
 
+{% raw %}
 ```
 
 /*
@@ -1268,6 +1327,7 @@ unsigned int auth_sign(volatile unsigned int rx) {
     }
 
 ```
+{% endraw %}
 
 
 which is also called in the auth_sign thing..
@@ -1285,21 +1345,25 @@ We actually want to trigger this path: `    if (pathRequireAuth(APDU_DATA_PTR)) 
 
 Now looking at `authPath.c` we can see that the path:
 
+{% raw %}
 ```
 
 "\x05\x2c\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00"
 
 ```
+{% endraw %}
 
 requires authentication
 
 let's check the length of this path, it should be 21 I think...
 
+{% raw %}
 ```
 >>> len("\x05\x2c\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00")
 21
 
 ```
+{% endraw %}
 
 yeah, that checks out...
 
@@ -1307,6 +1371,7 @@ So therefore, the first bytes of the data must be some of the paths which requir
 
 This quick little program here generates the required message thing:
 
+{% raw %}
 ```
     # hal/include/hal/constants.h:#define HASH_LENGTH 32
 
@@ -1330,23 +1395,27 @@ This quick little program here generates the required message thing:
     # Now at this point we should trigger the authorized path thing...
     messages.append(handle_path_msg) # Append this message to the messages...
 ```
+{% endraw %}
 
 Onto the next one...
 
 The next one is the
 
+{% raw %}
 ```
 
     case P1_BTC:
         return auth_sign_handle_btctx(rx);
 
 ```
+{% endraw %}
 
 message.
 
 
 This function here:
 
+{% raw %}
 ```
 
 /*
@@ -1502,6 +1571,7 @@ unsigned int auth_sign_handle_btctx(volatile unsigned int rx) {
 }
 
 ```
+{% endraw %}
 
 
 basically does that. I have no fucking clue as to how this works. Let's just try it with some random data and see what happens????

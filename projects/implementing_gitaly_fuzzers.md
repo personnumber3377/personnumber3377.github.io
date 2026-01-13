@@ -23,6 +23,7 @@ We had to modify /home/oof/.asdf/installs/golang/1.22.6/go/src/crypto/internal/b
 
 The original contents were these:
 
+{% raw %}
 ```
 // Copyright 2023 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -54,9 +55,11 @@ func addMulVVW1536(z, x *uint, y uint) (c uint)
 func addMulVVW2048(z, x *uint, y uint) (c uint)
 
 ```
+{% endraw %}
 
 the new contents are these:
 
+{% raw %}
 ```
 // Copyright 2023 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
@@ -88,6 +91,7 @@ func addMulVVW1536(z, x *uint, y uint) (c uint)
 func addMulVVW2048(z, x *uint, y uint) (c uint)
 
 ```
+{% endraw %}
 
 
 The bullshit which we probably want to implement is ReadIndex
@@ -101,6 +105,7 @@ The bullshit which we probably want to implement is ReadIndex
 
 
 
+{% raw %}
 ```
 
 //go:build gofuzz
@@ -148,6 +153,7 @@ func Fuzz(data []byte) int {
 
 
 ```
+{% endraw %}
 
 
 ## Adding custom mutators for go-fuzz

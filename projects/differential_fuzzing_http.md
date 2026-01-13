@@ -2,6 +2,7 @@
 
 We have this code here:
 
+{% raw %}
 ```
 
 #include "llhttp.h"
@@ -51,6 +52,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 }
 
 ```
+{% endraw %}
 
 to parse a http request using llhttp. My plan is to parse a request using this library here and then try to do the thing...
 

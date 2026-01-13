@@ -7,6 +7,7 @@ Today I realized that there is a bug bounty program set in place for cosmos whic
 
 This is a quick deserialization function which I quickly wrote up:
 
+{% raw %}
 ```
 // Deserialize a program from a bytebuffer
 func deserializeProgram(data []byte) *program {
@@ -55,6 +56,7 @@ func deserializeProgram(data []byte) *program {
 }
 
 ```
+{% endraw %}
 
 ## Results
 

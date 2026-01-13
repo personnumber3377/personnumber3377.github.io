@@ -7,6 +7,7 @@ AES encrypts stuff in 16 byte segments called "states" which are basically matri
 
 Here is the code in that said website:
 
+{% raw %}
 ```
 
 func encrypt(state, expkey []uint32, rounds int) {
@@ -26,6 +27,7 @@ func encrypt(state, expkey []uint32, rounds int) {
 }
 
 ```
+{% endraw %}
 
 You may also want to take a look at https://en.wikipedia.org/wiki/Advanced_Encryption_Standard#High-level_description_of_the_algorithm
 
@@ -37,6 +39,7 @@ The reason why we have the key expansion function is to make the key for each ro
 
 Ok, so I am going to actually support all of the key sizes. Here is my current code:
 
+{% raw %}
 ```
 
 
@@ -138,9 +141,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 The function name keyExpansion is a bit bad, because I am actually going to encrypt with it and then I should move the key expansion to some other function. Ok, so NIST actually released example vectors: https://csrc.nist.gov/files/pubs/fips/197/final/docs/fips-197.pdf . It seems that my key expansion works! Great! Here is my current code:
 
+{% raw %}
 ```
 
 
@@ -283,6 +288,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Now that I have implemented the key expansion, it is time to actually implement the encryption function.
 
@@ -294,6 +300,7 @@ I am going to write out every matrix manipulation function first then I am going
 
 Here is my current code.
 
+{% raw %}
 ```
 
 import numpy as np
@@ -619,9 +626,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and here is some of the output.
 
+{% raw %}
 ```
 Here is the key: b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f'
 Here is the expanded key: [[b'\x00\x01\x02\x03', b'\x04\x05\x06\x07', b'\x08\t\n\x0b', b'\x0c\r\x0e\x0f'], [b'\xd6\xaat\xfd', b'\xd2\xafr\xfa', b'\xda\xa6x\xf1', b'\xd6\xabv\xfe'], [b'\xb6\x92\xcf\x0b', b'd=\xbd\xf1', b'\xbe\x9b\xc5\x00', b'h0\xb3\xfe'], [b'\xb6\xfftN', b'\xd2\xc2\xc9\xbf', b'lY\x0c\xbf', b'\x04i\xbfA'], [b'G\xf7\xf7\xbc', b'\x955>\x03', b'\xf9l2\xbc', b'\xfd\x05\x8d\xfd'], [b'<\xaa\xa3\xe8', b'\xa9\x9f\x9d\xeb', b'P\xf3\xafW', b'\xad\xf6"\xaa'], [b'^9\x0f}', b'\xf7\xa6\x92\x96', b'\xa7U=\xc1', b'\n\xa3\x1fk'], [b'\x14\xf9p\x1a', b'\xe3_\xe2\x8c', b'D\n\xdfM', b'N\xa9\xc0&'], [b'GC\x875', b'\xa4\x1ce\xb9', b'\xe0\x16\xba\xf4', b'\xae\xbfz\xd2'], [b'T\x992\xd1', b'\xf0\x85Wh', b'\x10\x93\xed\x9c', b'\xbe,\x97N'], [b'\x13\x11\x1d\x7f', b'\xe3\x94J\x17', b'\xf3\x07\xa7\x8b', b'M+0\xc5']]
@@ -636,6 +645,7 @@ round[1].s_box == 63cab7040953d051cd60e0e7ba70e18c
 round[1].s_row == 63cab70453d05109510953d00953d051
 round[1].m_col == 2194603841442052d83222d71732a541e2a01df3dd469187
 ```
+{% endraw %}
 
 This line here: `round[1].s_box == 63cab7040953d051cd60e0e7ba70e18c` is correct, but the line after it: `round[1].s_row == 63cab70453d05109510953d00953d051` is not, the correct result would be this: `6353e08c0960e104cd70b751bacad0e7` .
 
@@ -646,6 +656,7 @@ Let's get to debugging...
 
 Ok, so I improved some of the debugging functions, and came to the conclusion that the bug is in ShiftRows .
 
+{% raw %}
 ```
 
 
@@ -660,6 +671,7 @@ def ShiftRows(input_mat: list) -> list:
 	return input_mat
 
 ```
+{% endraw %}
 
 See the bug?
 
@@ -667,6 +679,7 @@ I forgot to put the correct indexes to the `input_mat[]` lines.
 
 Here is the fixed version:
 
+{% raw %}
 ```
 def ShiftRows(input_mat: list) -> list:
 	assert len(input_mat) == 4
@@ -678,11 +691,13 @@ def ShiftRows(input_mat: list) -> list:
 	input_mat[3] = shift_row(input_mat[3], 3)
 	return input_mat
 ```
+{% endraw %}
 
 ## Fixing m_col
 
 Ok, now that we have fixed the row shifting, now we just need to fix the column mixing.
 
+{% raw %}
 ```
 round[1].s_row == 6353e08c0960e104cd70b751bacad0e7
 input_matrix to MixColumns == [[99, 9, 205, 186], [83, 96, 112, 202], [224, 225, 183, 208], [140, 4, 81, 231]]
@@ -690,18 +705,22 @@ length of flattened_list : 16
 Here is the flattened list: [811, 1077, 1050, 884, 535, 880, 567, 356, 1010, 1059, 926, 1072, 1417, 1445, 1497, 1430]
 flattened_list[0] == 811
 ```
+{% endraw %}
 
 Let's mix these columns:
 
+{% raw %}
 ```
 [[99, 9, 205, 186],
  [83, 96, 112, 202],
  [224, 225, 183, 208],
  [140, 4, 81, 231]]
 ```
+{% endraw %}
 
 after adding a couple of more debug statements:
 
+{% raw %}
 ```
 round[1].s_row == 6353e08c0960e104cd70b751bacad0e7
 input_matrix to MixColumns == [[99, 9, 205, 186], [83, 96, 112, 202], [224, 225, 183, 208], [140, 4, 81, 231]]
@@ -714,6 +733,7 @@ length of flattened_list : 16
 Here is the flattened list: [811, 1077, 1050, 884, 535, 880, 567, 356, 1010, 1059, 926, 1072, 1417, 1445, 1497, 1430]
 flattened_list[0] == 811
 ```
+{% endraw %}
 
 After actually reading the wikipedia article: https://en.wikipedia.org/wiki/Advanced_Encryption_Standard#The_MixColumns_step .
 
@@ -721,15 +741,18 @@ After actually reading the wikipedia article: https://en.wikipedia.org/wiki/Adva
 
 I then found this: https://medium.com/quick-code/understanding-the-advanced-encryption-standard-7d7884277e7
 
+{% raw %}
 ```
 In Mix Columns we will perform a matrix multiplication between our current matrix and a predefined given matrix, constant through out the rounds. But it’s a slight trickier matrix multiplication, as the sum operation is substituted by xor and multiplication for and.
 
 ```
+{% endraw %}
 
 This is a much more concise explanation in my opinion, but it is too concise and doesn't give that much detail.
 
 Ok, so it is time to read this: https://en.wikipedia.org/wiki/Rijndael_MixColumns . After reading around 20 minutes, I still don't understand how the code works, but anyway. Let's just rewrite the function in python code instead.
 
+{% raw %}
 ```
 def mix_col(r: list) -> list:
 	a = [0,0,0,0]
@@ -754,11 +777,13 @@ def mix_col(r: list) -> list:
 	assert all([r[i] <=255 for i in range(len(r))])
 	return r
 ```
+{% endraw %}
 
 After using this function instead, the code now works.
 
 Here is the final code which works:
 
+{% raw %}
 ```
 
 import numpy as np
@@ -1184,6 +1209,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 ## Implementing decryption
 
@@ -1193,6 +1219,7 @@ I am also programming some test functions for the functions used in encryption a
 
 Here is an example to test the SubBytes and RevSubBytes:
 
+{% raw %}
 ```
 def test_s_box() -> None:
 	# Go through every index and check the reverse.
@@ -1203,9 +1230,11 @@ def test_s_box() -> None:
 	print("test_s_box passed!")
 	return
 ```
+{% endraw %}
 
 I also put the way to access a table into a separate function for convenience:
 
+{% raw %}
 ```
 def access_table(table: list, index: int) -> int: # This is used to access the S box and the reverse S box.
 	assert index <= 255 and index >= 0 # Sanity check.
@@ -1213,9 +1242,11 @@ def access_table(table: list, index: int) -> int: # This is used to access the S
 	ind_y = (index & 0b11110000) >> 4
 	return table[ind_y][ind_x]
 ```
+{% endraw %}
 
 Here is my current code:
 
+{% raw %}
 ```
 def SubBytes(input_matrix: list) -> list:
 	for i in range(len(input_matrix)):
@@ -1230,9 +1261,11 @@ def InvSubBytes(input_matrix: list) -> list:
 			input_matrix[i][j] = access_table(rijndael.S_BOX_MATRIX_REV, input_matrix[i][j])
 	return input_matrix
 ```
+{% endraw %}
 
 we can just refactor that to this:
 
+{% raw %}
 ```
 def SubBytes(input_matrix: list, table=rijndael.S_BOX_MATRIX) -> list:
 	for i in range(len(input_matrix)):
@@ -1244,6 +1277,7 @@ def InvSubBytes(input_matrix: list) -> list:
 	# Reverse of SubBytes. Otherwise similar, but use the reverse matrix instead.
 	return SubBytes(input_matrix, table=rijndael.S_BOX_MATRIX_REV)
 ```
+{% endraw %}
 
 Next up is InvMixColumns . This is quite hard, because I didn't initially even understand precisely how this works, so I think I am going to just reason my way out of this.
 
@@ -1257,6 +1291,7 @@ The reverse function multiplies by 0xb and stuff. Now, in the forward case we co
 
 Here:
 
+{% raw %}
 ```
 def poly_mul(a: int, b: int) -> int: # This function multiplies the polynomial a with b in G(2) and then modulo x**8 + x**4 + x**3 + x**2 + x + 1.
 	out = 0
@@ -1272,9 +1307,11 @@ def poly_mul(a: int, b: int) -> int: # This function multiplies the polynomial a
 	out = poly_mod(out, 0x11B)
 	return out
 ```
+{% endraw %}
 
 and therefore we must also implement a poly remainder function in GF(2). Here it is:
 
+{% raw %}
 ```
 def poly_mod(dividend: int, divisor: int) -> int:
 	# First align the integers for the long division.
@@ -1295,6 +1332,7 @@ def poly_mod(dividend: int, divisor: int) -> int:
 		diff -= 1
 	return dividend
 ```
+{% endraw %}
 
 but it does not work.
 
@@ -1302,6 +1340,7 @@ Let's get to debugging!
 
 Yeah, my bit shifts were wrong and after a bit of debugging this seems to work somewhat:
 
+{% raw %}
 ```
 def poly_mod(dividend: int, divisor: int) -> int:
 	# First align the integers for the long division.
@@ -1339,11 +1378,13 @@ def poly_mod(dividend: int, divisor: int) -> int:
 		diff -= 1
 	return dividend
 ```
+{% endraw %}
 
 though I am going to add a more complicated test before I am convinced that it works.
 
 I am going to program a tiny utility function, which takes the polynomial coefficients (in GF2) and then outputs a binary number which represents that polynomial. I am going to put that into a separate file called util.
 
+{% raw %}
 ```
 def coef_to_pol(where_coef_is_one: list) -> int: # Converts the coefficients to a polynomial. The list actually doesn't represent the coefficients, but the indexes where the coefficient is one. For example passing [2] to this would represent x**2 or 0b100 , not 2 . This is because this is in GF(2).
     out = 0
@@ -1351,18 +1392,22 @@ def coef_to_pol(where_coef_is_one: list) -> int: # Converts the coefficients to 
         out |= 1 << ind
     return out
 ```
+{% endraw %}
 
 This is such that we can convert the polynomials listed in the pdf file to integers fast instead of manually typing the zeroes and ones.
 
 I implemented this to create a good test case for the polynomial modulo:
 
+{% raw %}
 ```
 >>> coef_to_pol([13,11,9,8,6,5,4,3,0])
 11129
 ```
+{% endraw %}
 
 here is my current test function:
 
+{% raw %}
 ```
 def test_poly_mod() -> None:
 	# Tests the polynomial modulo (remainder) in GF(2)
@@ -1381,11 +1426,13 @@ def test_poly_mod() -> None:
 	#input()
 	return
 ```
+{% endraw %}
 
 and it passes!!! Great! Now we finally have everything we need to program the poly_mul function which first multiplies and then gets the modulo by the specific 0x11b polynomial.
 
 Here it is:
 
+{% raw %}
 ```
 def poly_mul(a: int, b: int) -> int: # This function multiplies the polynomial a with b in G(2) and then modulo x**8 + x**4 + x**3 + x**2 + x + 1.
 	out = 0
@@ -1401,9 +1448,11 @@ def poly_mul(a: int, b: int) -> int: # This function multiplies the polynomial a
 	out = poly_mod(out, 0x11B)
 	return out
 ```
+{% endraw %}
 
 Let's write a test function for this too with the example straight from the pdf file:
 
+{% raw %}
 ```
 def test_poly_mul() -> None:
 	a = 0b100
@@ -1419,9 +1468,11 @@ def test_poly_mul() -> None:
 	print("test_poly_mul passed")
 	return
 ```
+{% endraw %}
 
 Now we can finally implement the inv_mix_col function which is the inverse of the mix_col function.
 
+{% raw %}
 ```
 def rev_mix_column(r: list) -> list: # This is used in InvMixColumns.
 	a = [0,0,0,0]
@@ -1456,11 +1507,13 @@ def rev_mix_column(r: list) -> list: # This is used in InvMixColumns.
 
 	return r
 ```
+{% endraw %}
 
 This seems to be correct. Let's create a test function with the test data supplied by wikipedia.
 
 Here is the test function:
 
+{% raw %}
 ```
 def test_mix_col() -> None:
 	# This is ripped straight from wikipedia.  https://en.wikipedia.org/wiki/Rijndael_MixColumns#Test_vectors_for_MixColumn()
@@ -1473,11 +1526,13 @@ def test_mix_col() -> None:
 	print("test_mix_col passed!")
 	return
 ```
+{% endraw %}
 
 and it seems to work! Great! Actually, you know what, let's just go through every one of the testcases, because reasons.
 
 The test cases are given on the wikipedia page are in a table so we need to do some string manipulation to get the testcases out.
 
+{% raw %}
 ```
 db 13 53 45	8e 4d a1 bc	219 19 83 69	142 77 161 188
 f2 0a 22 5c	9f dc 58 9d	242 10 34 92	159 220 88 157
@@ -1486,9 +1541,11 @@ c6 c6 c6 c6	c6 c6 c6 c6	198 198 198 198	198 198 198 198
 d4 d4 d4 d5	d5 d5 d7 d6	212 212 212 213	213 213 215 214
 2d 26 31 4c	4d 7e bd f8	45 38 49 76	77 126 189 248
 ```
+{% endraw %}
 
 Fuck! After programming a testcase parser and trying to run the tests, we fail. Here:
 
+{% raw %}
 ```
 def test_mix_col() -> None:
 	# This is ripped straight from wikipedia.  https://en.wikipedia.org/wiki/Rijndael_MixColumns#Test_vectors_for_MixColumn()
@@ -1507,9 +1564,11 @@ def test_mix_col() -> None:
 	print("test_mix_col passed!!!")
 	return
 ```
+{% endraw %}
 
 and here is the important part of the output:
 
+{% raw %}
 ```
 Here is the expected: 0x8e 0x4d 0xa1 0xbc
 Here is the input: 0xdb 0x13 0x53 0x45
@@ -1529,11 +1588,13 @@ b[c] final == 138
 r == [142, 77, 161, 188]
 Here is the output from the reverse function: 0x1c0 0x13 0x53 0x15e
 ```
+{% endraw %}
 
 Ok, so it calculates 0x1c0 incorrectly. That sucks. Let's see what it does wrong.
 
 We know that the test_poly_mul passes, so the poly_mul function works correctly. So therefore the error is somewhere in this code:
 
+{% raw %}
 ```
 def rev_mix_column(r: list) -> list: # This is used in InvMixColumns.
 	a = [0,0,0,0]
@@ -1568,11 +1629,13 @@ def rev_mix_column(r: list) -> list: # This is used in InvMixColumns.
 
 	return r
 ```
+{% endraw %}
 
 Let's add some debug statements????
 
 I added a tiny sanity check to rev_mix_column and there is the problem:
 
+{% raw %}
 ```
 def rev_mix_column(r: list) -> list: # This is used in InvMixColumns.
 	a = [0,0,0,0]
@@ -1611,9 +1674,11 @@ def rev_mix_column(r: list) -> list: # This is used in InvMixColumns.
 
 	return r
 ```
+{% endraw %}
 
 the assert fails. Therefore the problem actually IS in poly_mul. Let's keep on investigating.
 
+{% raw %}
 ```
 def poly_mul(a: int, b: int) -> int: # This function multiplies the polynomial a with b in G(2) and then modulo x**8 + x**4 + x**3 + x**2 + x + 1.
 	out = 0
@@ -1629,11 +1694,13 @@ def poly_mul(a: int, b: int) -> int: # This function multiplies the polynomial a
 	out = poly_mod(out, 0x11B)
 	return out
 ```
+{% endraw %}
 
 The bug may actually be in poly_mod. Fuck! Our testcase just happened to work, but some other cases may not work.
 
 After doing adding a couple of debug statements:
 
+{% raw %}
 ```
 def poly_mod(dividend: int, divisor: int) -> int:
 	# First align the integers for the long division.
@@ -1656,9 +1723,11 @@ def poly_mod(dividend: int, divisor: int) -> int:
 		diff -= 1
 	return dividend
 ```
+{% endraw %}
 
 The relevant debug output is this:
 
+{% raw %}
 ```
 Dividend: 10111100010
 Divisor:  10001101100
@@ -1666,17 +1735,21 @@ Dividend: 110001110
 Divisor:  1000110110
 result is this: 0x18e
 ```
+{% endraw %}
 
 0x11B is 100011011 in binary, so why does the loop exit early? This is because there is a mistake in the while statement:
 
+{% raw %}
 ```
 while diff:
 ```
+{% endraw %}
 
 we actually wan't `while diff >= 0:` , because we also wan't to run still once when diff == 0. After doing this quick change, now the code works correctly.
 
 Now we have implemented InvMixColumns!
 
+{% raw %}
 ```
 def MixColumns(input_matrix: list, reverse=False) -> list:
 	# Get each column and then apply the matrix transformation.
@@ -1697,6 +1770,7 @@ def MixColumns(input_matrix: list, reverse=False) -> list:
 def InvMixColumns(input_matrix: list) -> list:
 	return MixColumns(input_matrix, reverse=True)
 ```
+{% endraw %}
 
 ## Implementing InvAddRoundKey
 
@@ -1708,6 +1782,7 @@ In the pdf there is figure 15 which basically describes the decryption function.
 
 Now, my current code is this:
 
+{% raw %}
 ```
 
 
@@ -2401,22 +2476,26 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 (Notice that I removed the encryption function, because we know that it works.)
 
 I now get this error here:
 
+{% raw %}
 ```
     assert index <= 255 and index >= 0 # Sanity check.
                             ^^^^^^^^^^
 AssertionError
 
 ```
+{% endraw %}
 
 soo there is some bug in the way we access some table.
 
 I think the reason this happens, is that when we add the round key, we actually do not do any bounds checking, when we pass stuff to Inv ... actually nevermind. It may actually be in the MixColumns thing. Here is again a tiny snippet of the output:
 
+{% raw %}
 ```
 Outputting this from MixColumns: [[71, 247, 97, 161], [115, 47, 203, 230], [185, 53, 1, 207], [31, 67, 142, 44]]
 Cor key thing: [[19, 227, 243, 77], [17, 148, 7, 43], [29, 74, 167, 48], [127, 23, 139, 197]]
@@ -2436,9 +2515,11 @@ input_mat == [[188, 192, 117, 204], [190, 208, 198, 196], [14, 208, 228, 154], [
 subkey == [[84, 240, 16, 190], [153, 133, 147, 44], [50, 87, 237, 151], [209, 104, 156, 78]]
 Here is the output from AddRoundKey: [[232, 48, 101, 114], [39, 85, 85, 232], [60, 135, 9, 13], [152, 456, 183, 131]]
 ```
+{% endraw %}
 
 after adding a sanity check to MixColumns, the problem becomes apparent:
 
+{% raw %}
 ```
 def MixColumns(input_matrix: list, reverse=False) -> list:
 	# Get each column and then apply the matrix transformation.
@@ -2461,16 +2542,20 @@ def MixColumns(input_matrix: list, reverse=False) -> list:
 	out = transpose_mat(out)
 	return out
 ```
+{% endraw %}
 
 here:
 
+{% raw %}
 ```
     assert all([x >= 0 and x <= 255 for x in flatten(sanity_copy)])
 AssertionError
 ```
+{% endraw %}
 
 After adding a couple of debug statements:
 
+{% raw %}
 ```
 def MixColumns(input_matrix: list, reverse=False) -> list:
 	# Get each column and then apply the matrix transformation.
@@ -2498,13 +2583,16 @@ def MixColumns(input_matrix: list, reverse=False) -> list:
 	out = transpose_mat(out)
 	return out
 ```
+{% endraw %}
 
 and here is the output:
 
+{% raw %}
 ```
 cur_column: [155, 171, 125, 54]
 output from rev_mix_column: [192, 208, 208, 416]
 ```
+{% endraw %}
 
 so the input list of `[155, 171, 125, 54]` causes the function to produce incorrect output.
 
@@ -2512,15 +2600,18 @@ As it turns out, there is a bug in the poly_mod function.
 
 This is because even if the polynomial is less than 0x11B, we can still get the modulo, if there is still the same amount of bits, therefore this part here:
 
+{% raw %}
 ```
 	if dividend < divisor:
 		return dividend
 ```
+{% endraw %}
 
 is erroneous. We can still divide even if the divisor is greater than the dividend. This is because we work in the Galois Field 2 thing.
 
 Here is my decryption function:
 
+{% raw %}
 ```
 def decrypt_state(expanded_key: list, encrypted_data: list, num_rounds: int, W_list: list) -> str:
 	# This is the main decryption function.
@@ -2540,9 +2631,11 @@ def decrypt_state(expanded_key: list, encrypted_data: list, num_rounds: int, W_l
 
 	return state
 ```
+{% endraw %}
 
 except that it doesn't get the original plaintext back. This is partly because there are additional steps in Figure 15 in the pdf file:
 
+{% raw %}
 ```
 For the Equivalent Inverse Cipher, the following pseudo code is added at
 
@@ -2575,10 +2668,12 @@ to be a two-dimensional array of bytes, whereas the input here is a Round
 Key computed as a one-dimensional array of words).
  
 ```
+{% endraw %}
 
 let's add debug statements which show the "state" in hex for each step.
 Here are the steps used in decryption:
 
+{% raw %}
 ```
 INVERSE CIPHER (DECRYPT):
 round[ 0].iinput 69c4e0d86a7b0430d8cdb78070b4c55a
@@ -2635,11 +2730,13 @@ round[10].ik_sch 000102030405060708090a0b0c0d0e0f
 round[10].ioutput 00112233445566778899aabbccddeeff
  
 ```
+{% endraw %}
 
 so, let's add the debug statements...
 
 Here is the output after adding debug statements:
 
+{% raw %}
 ```
 round[0].iinput: 69c4e0d86a7b0430d8cdb78070b4c55a
 Cor key thing: [[19, 227, 243, 77], [17, 148, 7, 43], [29, 74, 167, 48], [127, 23, 139, 197]]
@@ -2686,7 +2783,9 @@ Here is the flattened list: [19, 234, 139, 206, 7, 170, 98, 43, 113, 88, 236, 18
 flattened_list[0] == 19
 round[2].istart: 13ea8bce07aa622b7158ec121fca5862
 ```
+{% endraw %}
 Here is my current key expansion function:
+{% raw %}
 ```
 def key_expansion(encryption_key: bytes, AES_version: str):
 	# Thanks wikipedia https://en.wikipedia.org/wiki/AES_key_schedule  !!!
@@ -2719,6 +2818,7 @@ def key_expansion(encryption_key: bytes, AES_version: str):
 	# At this spot here we should add the stuff for the inverse key.
 	return R, W_actual
 ```
+{% endraw %}
 
 Yeah, I don't really understand the additional stuff for the InvMixColumns in figure 15 in the pdf file. I am going to continue tomorrow (also today is the 20th of February 2024 at 15:27 finnish time.).
 
@@ -2726,6 +2826,7 @@ To be continued.
 
 Ok, so I changed the key_expansion to this:
 
+{% raw %}
 ```
 def key_expansion(encryption_key: bytes, AES_version: str):
 	# Thanks wikipedia https://en.wikipedia.org/wiki/AES_key_schedule  !!!
@@ -2775,11 +2876,13 @@ def key_expansion(encryption_key: bytes, AES_version: str):
 
 	return R, W_actual, inverse_key_mat # inverse_key_mat is basically the reverse key list, where each element is the 4x4 key matrix.
 ```
+{% endraw %}
 
 and it produces the wrong key.
 
 See, in the pdf document the `.ik_sch` lines are the corresponding key matrixes printed as hex. And it is wrong. Now i get `round[0].ik_sch == 000102030405060708090a0b0c0d0e0f` even though it should be `13111d7fe3944a17f307a78b4d2b30c5` . Here is the stuff which i do not understand in figure 15:
 
+{% raw %}
 ```
 For the Equivalent Inverse Cipher, the following pseudo code is added at
 the end of the Key Expansion routine (Sec. 5.2):
@@ -2796,14 +2899,17 @@ input to InvMixColumns() is normally the State array, which is considered
 to be a two-dimensional array of bytes, whereas the input here is a Round
 Key computed as a one-dimensional array of words).
 ```
+{% endraw %}
 
 This part here:
 
+{% raw %}
 ```
 for i = 0 step 1 to (Nr+1)*Nb-1
 		dw[i] = w[i]
 	end for
 ```
+{% endraw %}
 
 just copies the keys and stuff.
 
@@ -2811,6 +2917,7 @@ just copies the keys and stuff.
 
 Ok, so I implemented this function to print the keys:
 
+{% raw %}
 ```
 def print_keys(keys: list) -> list:
 	print("="*30)
@@ -2820,8 +2927,10 @@ def print_keys(keys: list) -> list:
 	print("="*30)
 	return
 ```
+{% endraw %}
 
 and then when printing the keys (the non-reversed keys aka the ones which are used in the encryption function) I get this output:
+{% raw %}
 ```
 ==============================
 000102030405060708090a0b0c0d0e0f
@@ -2837,6 +2946,7 @@ b6ff744ed2c2c9bf6c590cbf0469bf41
 13111d7fe3944a17f307a78b4d2b30c5
 ==============================
 ```
+{% endraw %}
 
 ok, so the inverse cipher and the equivalent inverse cipher aren't the same thing and the weird stuff with the expanded key are only in the equivalent inverse cipher. (See this: https://www.studocu.com/en-us/messages/question/2863800/what-is-the-difference-between-the-aes-decryption-algorithm-and-the-equivalent-inverse-cipher)
 
@@ -2846,6 +2956,7 @@ Ok, so the reason why it didn't work is that I looked at the equivalent inverse 
 
 Here is the actual pseudocode for the correct inverse cipher:
 
+{% raw %}
 ```
 InvCipher(byte in[4*Nb], byte out[4*Nb], word w[Nb*(Nr+1)])
 begin
@@ -2864,11 +2975,13 @@ AddRoundKey(state, w[0, Nb-1])
 out = state
 end
 ```
+{% endraw %}
 
 (As seen in Figure 12.)
 
 and here is my current decryption function:
 
+{% raw %}
 ```
 def decrypt_state(expanded_key: list, encrypted_data: list, num_rounds: int, W_list: list) -> str:
 	# This is the main decryption function.
@@ -2902,11 +3015,13 @@ def decrypt_state(expanded_key: list, encrypted_data: list, num_rounds: int, W_l
 
 	return state
 ```
+{% endraw %}
 
 As we can see, I used the equivalent inverse cipher pseudocode instead of the normal inverse cipher. Let's fix that.
 
 After fixing the decryption function to actually match the correct pseudocode, it now works:
 
+{% raw %}
 ```
 
 def decrypt_state(expanded_key: list, encrypted_data: list, num_rounds: int, W_list: list) -> str:
@@ -2941,9 +3056,11 @@ def decrypt_state(expanded_key: list, encrypted_data: list, num_rounds: int, W_l
 
 	return state
 ```
+{% endraw %}
 
 Now it decrypts the stuff correctly:
 
+{% raw %}
 ```
 # SNIP
 Here is the cur_column: [247, 190, 59, 41]
@@ -2958,6 +3075,7 @@ Cor key thing: [[0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15]]
 Here is the final decrypted result: 00112233445566778899aabbccddeeff
 Done!
 ```
+{% endraw %}
 
 ## Where to go from here?
 
@@ -2967,6 +3085,7 @@ Also another thing is to refactor the code. For example separate the tests from 
 
 Ok, so I moved all of the test stuff to tests.py:
 
+{% raw %}
 ```
 
 
@@ -3124,6 +3243,7 @@ def test_mix_col() -> None:
 	return
 
 ```
+{% endraw %}
 
 Maybe I should create a function called test_enc_dec to test the encryption and decryption. Done! Now, let's create a function which tests the 192 bit encryption version. I don't think that there are any nuances in the 192 bit version, but we'll see soon enough.
 
@@ -3137,6 +3257,7 @@ There is this notice in section 5.2 ("Key expansion"): "It is important to note 
 
 As it turns out, that stuff said in the pdf file is total bullshit, because if I have this code here in the W function (the key expansion function):
 
+{% raw %}
 ```
 # This is the main key expansion function which does the heavy lifting.
 def W(i: int, N: int, K: bytes, W: list, version="128") -> bytes: # The W list is being filled as we go.
@@ -3162,9 +3283,11 @@ def W(i: int, N: int, K: bytes, W: list, version="128") -> bytes: # The W list i
 		#print("paskaaa")
 		return xor_bytes(W[i-N], W[i-1])
 ```
+{% endraw %}
 
 it produces the wrong answer, but if I remove the special case for the 256 bit key stuff, it works perfectly:
 
+{% raw %}
 ```
 # This is the main key expansion function which does the heavy lifting.
 def W(i: int, N: int, K: bytes, W: list, version="128") -> bytes: # The W list is being filled as we go.
@@ -3178,6 +3301,7 @@ def W(i: int, N: int, K: bytes, W: list, version="128") -> bytes: # The W list i
 		#print("paskaaa")
 		return xor_bytes(W[i-N], W[i-1])
 ```
+{% endraw %}
 
 Then it works correctly. I don't know if the people who made the pdf just forgot to add this stuff to their implementation, which produced the example vectors, so there is a chance that the example vectors in the pdf are wrong, or maybe the special case stuff is somehow wrong idk.. I am just going to leave the code out for now, such that my code produces the example vector outputs.
 
@@ -3189,6 +3313,7 @@ To accomplish this, we need to create a function which pads the bytes with zeroe
 
 After a bit of typing, this is what I came up with:
 
+{% raw %}
 ```
 def split_data_blocks(data: bytes) -> list: # This creates a list of data blocks.
 	blocks = [data[i:i+16] for i in range(0,math.ceil(len(data)/16),16)] # Split into blocks.
@@ -3200,9 +3325,11 @@ def split_data_blocks(data: bytes) -> list: # This creates a list of data blocks
 		assert len(blocks[-1]) == 16 # Sanity checking.
 	return blocks
 ```
+{% endraw %}
 
 ... create a test function ...
 
+{% raw %}
 ```
 def test_split_data_blocks() -> None: # This tests the splitting of the data to 16 byte blocks. If the length of the data is not a multiple of 16 bytes, then pad the very last block with zeroes.
 	example_data = "\x41"*16+"\x42\x43\x44\x45" # There are 16 "A" characters followed by "BCDE" in ascii.
@@ -3214,17 +3341,21 @@ def test_split_data_blocks() -> None: # This tests the splitting of the data to 
 	print("test_split_data_blocks passed!!!")
 	return
 ```
+{% endraw %}
 
 Does it pass? Fuck! It doesn't...
 
+{% raw %}
 ```
     assert len(blocks) == 2 # There should only be 2 blocks.
            ^^^^^^^^^^^^^^^^
 AssertionError
 ```
+{% endraw %}
 
 Ok, so after a bit of debugging, I now have this:
 
+{% raw %}
 ```
 def split_data_blocks(data: bytes) -> list: # This creates a list of data blocks.
 	print("math.ceil(len(data)/16) == "+str(math.ceil(len(data)/16)))
@@ -3238,11 +3369,13 @@ def split_data_blocks(data: bytes) -> list: # This creates a list of data blocks
 		assert len(blocks[-1]) == 16 # Sanity checking.
 	return blocks
 ```
+{% endraw %}
 
 The bug was here: `math.ceil(len(data)/16)` , now it is: `math.ceil(len(data)/16)*16` , because we want to loop as if there were two full blocks instead of one full and one partial.
 
 Then I had to modify the test function a bit, because I accidentally used strings instead of bytes.
 
+{% raw %}
 ```
 def test_split_data_blocks() -> None: # This tests the splitting of the data to 16 byte blocks. If the length of the data is not a multiple of 16 bytes, then pad the very last block with zeroes.
 	example_data = (b"\x41")*16+(b"\x42\x43\x44\x45") # There are 16 "A" characters followed by "BCDE" in ascii.
@@ -3260,9 +3393,11 @@ def test_split_data_blocks() -> None: # This tests the splitting of the data to 
 	assert blocks[0] == (b"\x41")*16
 	return
 ```
+{% endraw %}
 
 Ok, so let's keep on programming the main encryption function. Currently it looks like this:
 
+{% raw %}
 ```
 def encrypt(data: bytes, key: bytes, mode="ECB") -> bytes: # This is the main encryption function. Default to the electronic code book encryption mode. (ECB is the WEAKEST!!!)
 	# Now get the appropriate AES version.
@@ -3275,11 +3410,13 @@ def encrypt(data: bytes, key: bytes, mode="ECB") -> bytes: # This is the main en
 		data_blocks = split_data_blocks(data)
 	return # Stub for now
 ```
+{% endraw %}
 
 Yeah, I know that ECB is like the weakest usage of AES, but I do not really care, because I'll implement the stronger modes later on.
 
 Here is the final encryption function:
 
+{% raw %}
 ```
 def encrypt(data: bytes, key: bytes, mode="ECB") -> bytes: # This is the main encryption function. Default to the electronic code book encryption mode. (ECB is the WEAKEST!!!)
 	# Now get the appropriate AES version.
@@ -3305,11 +3442,13 @@ def encrypt(data: bytes, key: bytes, mode="ECB") -> bytes: # This is the main en
 		return encrypted
 	return # Stub for now
 ```
+{% endraw %}
 
 once again, I am going to program a test function for this. I should also program a test function for they key padding too.
 
 One bug, which I found was that I forgot to put the `len` around the key in this function. Now I fixed it:
 
+{% raw %}
 ```
 def get_aes_ver_from_key(key: bytes) -> str:
 	if len(key) > (256//8):
@@ -3330,9 +3469,11 @@ def get_aes_ver_from_key(key: bytes) -> str:
 	assert version != None # We should have assigned version as of now.
 	return version
 ```
+{% endraw %}
 
 Here is the test functions:
 
+{% raw %}
 ```
 def encrypt_helper(data: str, key: str, expected_result: str) -> bool: # Returns true if passed.
 	example_plaintext = bytes.fromhex(data)
@@ -3347,11 +3488,13 @@ def test_enc() -> None:
 	print("test_enc passed!!!")
 	return
 ```
+{% endraw %}
 
 and the tests pass! Hooray!!!
 
 Let's just create a test for the key padding function.
 
+{% raw %}
 ```
 def test_key_padding() -> None:
 	num_bits = 128
@@ -3365,6 +3508,7 @@ def test_key_padding() -> None:
 	print("test_key_padding passed!!!")
 	return
 ```
+{% endraw %}
 
 ## Implementing the decryption wrapper.
 
@@ -3372,6 +3516,7 @@ Ok, so now that we have programmed the encryption wrapper, it is time to program
 
 I just modified the encryption function to use the decryption:
 
+{% raw %}
 ```
 def encrypt(data: bytes, key: bytes, mode="ECB", encryption=True) -> bytes: # This is the main encryption function. Default to the electronic code book encryption mode. (ECB is the WEAKEST!!!) encryption=True means that we are encrypting and encryption=False means that we are decrypting.
 	# Now get the appropriate AES version.
@@ -3402,14 +3547,18 @@ def encrypt(data: bytes, key: bytes, mode="ECB", encryption=True) -> bytes: # Th
 		return encrypted
 	return # Stub for now
 ```
+{% endraw %}
 and here is the decrypt function:
+{% raw %}
 ```
 def decrypt(encrypted: bytes, key: bytes, mode="ECB") -> bytes:
 	return encrypt(encrypted, key, mode=mode)
 ```
+{% endraw %}
 
 Here is the test helper:
 
+{% raw %}
 ```
 def decrypt_helper(data: str, key: str, expected_result: str) -> bool:# Returns true if passed.
 	example_plaintext = bytes.fromhex(data)
@@ -3417,8 +3566,10 @@ def decrypt_helper(data: str, key: str, expected_result: str) -> bool:# Returns 
 	decrypted = decrypt(example_plaintext, key_bytes, mode="ECB") # Just Electronic Code Book, for now.
 	return decrypted == bytes.fromhex(expected_result) # Check.
 ```
+{% endraw %}
 and here is the decryption test:
 
+{% raw %}
 ```
 def test_dec() -> None:
 	assert decrypt_helper("69c4e0d86a7b0430d8cdb78070b4c55a", "000102030405060708090a0b0c0d0e0f", "00112233445566778899aabbccddeeff") # 128 bit keysize.
@@ -3427,6 +3578,7 @@ def test_dec() -> None:
 	print("test_enc passed!!!")
 	return
 ```
+{% endraw %}
 
 does it pass???!!??! It does!
 
@@ -3437,38 +3589,46 @@ Fuck!!!!
 
 Here is the error:
 
+{% raw %}
 ```
     assert decrypt_helper("69c4e0d86a7b0430d8cdb78070b4c55a", "000102030405060708090a0b0c0d0e0f", "00112233445566778899aabbccddeeff") # 128 bit keysize.
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 AssertionError
 
 ```
+{% endraw %}
 
 Ahhh, i see:
 
 Here is my current code:
 
+{% raw %}
 ```
 def decrypt(encrypted: bytes, key: bytes, mode="ECB") -> bytes:
 	return encrypt(encrypted, key, mode=mode)
 ```
+{% endraw %}
 
 and here is the fixed code:
 
+{% raw %}
 ```
 def decrypt(encrypted: bytes, key: bytes, mode="ECB") -> bytes:
 	return encrypt(encrypted, key, mode=mode, encryption=False)
 ```
+{% endraw %}
 
 I forgot to actually tell the function to decrypt instead of encrypt. Let's try again..
 
 Uh oh...
 
+{% raw %}
 ```
    encrypted_as_hex = ''.join(encrypted_data_blocks)
                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 TypeError: sequence item 0: expected str instance, list found
 ```
+{% endraw %}
 
 That is because in the encryption function we actually return the stuff as a hex string, but in the decryption function we return as bytes: `return state` it should be : `return print_hex(state)`
 
@@ -3476,6 +3636,7 @@ Let's make it such that the decrypt and encrypt functions actually return bytes 
 
 Here is a tiny helper function:
 
+{% raw %}
 ```
 def list_to_bytes(bytes_list: bytes) -> bytes: # This function returns the 4x4 matrix or whatever as a bytes string.
 	if len(byte_list) == 4 and len(byte_list[0]) == 4 and isinstance(byte_list[0][0], int):
@@ -3494,9 +3655,11 @@ def list_to_bytes(bytes_list: bytes) -> bytes: # This function returns the 4x4 m
 		out += bytes([x])
 	return out
 ```
+{% endraw %}
 
 Here is the test function:
 
+{% raw %}
 ```
 def test_list_to_bytes() -> None:
 	# This tests the 4x4 matrix to bytes conversion.
@@ -3511,6 +3674,7 @@ def test_list_to_bytes() -> None:
 	print("test_list_to_bytes passed!!!")
 	return
 ```
+{% endraw %}
 
 and it passes!!! Good. Ok, so now we just need to change the stuff to work with this instead.
 
@@ -3531,6 +3695,7 @@ Now, the bad thing about these different block encryption modes is that there ar
 Let's look at wikipedia (as usual) https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_block_chaining_(CBC)
 
 I modified the encryption helper a bit:
+{% raw %}
 ```
 def encrypt_helper(data: str, key: str, expected_result: str, mode="ECB") -> bool: # Returns true if passed.
 	example_plaintext = bytes.fromhex(data)
@@ -3538,15 +3703,19 @@ def encrypt_helper(data: str, key: str, expected_result: str, mode="ECB") -> boo
 	encrypted = encrypt(example_plaintext, key_bytes, mode=mode) # Just Electronic Code Book, for now.
 	return encrypted == bytes.fromhex(expected_result) # Check.
 ```
+{% endraw %}
 I also made this test:
+{% raw %}
 ```
 def test_encrypt_cbc() -> None: # Cipher Block Chaining mode.
 	# See https://github.com/ircmaxell/quality-checker/blob/master/tmp/gh_18/PHP-PasswordLib-master/test/Data/Vectors/aes-cbc.test-vectors for the CBC test vectors.
 	assert encrypt_helper("6bc1bee22e409f96e93d7e117393172a", "2b7e151628aed2a6abf7158809cf4f3c", "7649abac8119b246cee98e9b12e9197d", mode="CBC") # 128 bit keysize.
 ```
+{% endraw %}
 
 which fails. The reason for why it fails is because in the test vectors (aka here: https://github.com/ircmaxell/quality-checker/blob/master/tmp/gh_18/PHP-PasswordLib-master/test/Data/Vectors/aes-cbc.test-vectors ) we have iv defined and the iv is basically just the stuff with which we xor the input before passing it to the encryption function. Because there aren't test vectors which do not have this, we need to program a special case for this:
 
+{% raw %}
 ```
 def encrypt(data: bytes, key: bytes, mode="ECB", encryption=True, iv=None) -> bytes: # This is the main encryption function. Default to the electronic code book encryption mode. (ECB is the WEAKEST!!!) encryption=True means that we are encrypting and encryption=False means that we are decrypting.
 	# Now get the appropriate AES version.
@@ -3590,11 +3759,13 @@ def encrypt(data: bytes, key: bytes, mode="ECB", encryption=True, iv=None) -> by
 						# Now append the encrypted block to the output.
 						encrypted_data_blocks.append(encrypted_block)
 ```
+{% endraw %}
 
 after adding this special case, now the code works properly. Now it is time to implement the decryption using CBC mode. Ok, so if you actually read the wikipedia article, the iv stands for initialization vector and is actually a required part of encryption. I am going to program a function which generates this initalization vector later on. Let's keep on implementing the CBC decryption...
 
 Here is my current implementation of CBC decryption:
 
+{% raw %}
 ```
 			if mode == "CBC":
 				# CBC mode.
@@ -3621,6 +3792,7 @@ Here is my current implementation of CBC decryption:
 
 				return # This is a stub for now.
 ```
+{% endraw %}
 
 ... make a testcase ...
 
@@ -3655,6 +3827,7 @@ Also of course we should program tests for the OCB mode too.
 Let's for starters program the ntz function: "The operator ntz(i) denotes the  number  of trailing (least significant) zeros in  i."
 
 Here:
+{% raw %}
 ```
 def ntz(n: int) -> int:
     count = 0
@@ -3662,9 +3835,11 @@ def ntz(n: int) -> int:
         count += 1
     return count
 ```
+{% endraw %}
 
 and a test function...
 
+{% raw %}
 ```
 def test_ntz() -> None:
     # 8 == 0b1000
@@ -3674,9 +3849,11 @@ def test_ntz() -> None:
     print("test_ntz passed!!!")
     return
 ```
+{% endraw %}
 
 Next up let's create the function which generates Z for us. Here is the E_K function, which is needed in the generation of the Z stuff:
 
+{% raw %}
 ```
 def E_K(data: bytes, key: bytes) -> bytes: # This is the E_K function. This is basically just the encryption of data plaintext with a key with aes.
     # The data should be the block length
@@ -3684,11 +3861,13 @@ def E_K(data: bytes, key: bytes) -> bytes: # This is the E_K function. This is b
     # encrypt(data: bytes, key: bytes, mode="ECB", encryption=True, iv=None)
     return encrypt(data, key, mode="ECB", encryption=True, iv=None) # Just use the ECB mode for now, I assume that OCB1 uses ECB.
 ```
+{% endraw %}
 
 I think I have to modify my poly_mul function to take a divisor value, instead of assuming it to be 0x11B like in other cases. For example in this case we need to divisor to be the "x128 + x7 + x2 + 1" polynomial.
 
 Here is the modified version:
 
+{% raw %}
 ```
 def poly_mul(a: int, b: int, divisor=0x11B) -> int: # This function multiplies the polynomial a with b in G(2) and then modulo x**8 + x**4 + x**3 + x**2 + x + 1.
 	out = 0
@@ -3710,6 +3889,7 @@ def poly_mul(a: int, b: int, divisor=0x11B) -> int: # This function multiplies t
 		assert out < 256
 	return out
 ```
+{% endraw %}
 
 now, let's see if it still passes the tests. It does. Good!
 
@@ -3717,6 +3897,7 @@ now, let's see if it still passes the tests. It does. Good!
 
 Here is my current code for OCB1:
 
+{% raw %}
 ```
 
 # This file is partly based on this: https://www.researchgate.net/publication/322878834_The_offset_codebook_OCB_block_cipher_mode_of_operation_for_authenticated_encryption#pf4
@@ -3832,9 +4013,11 @@ def main_ocb() -> int:
 if __name__=="__main__":
     exit(main_ocb())
 ```
+{% endraw %}
 
 Here is the test function:
 
+{% raw %}
 ```
 
 def test_ocb1_encrypt() -> None:
@@ -3880,9 +4063,11 @@ def test_ocb1_encrypt() -> None:
 
 
 ```
+{% endraw %}
 
 here is the result:
 
+{% raw %}
 ```
 Cor key thing: [[19, 227, 243, 77], [17, 148, 7, 43], [29, 74, 167, 48], [127, 23, 139, 197]]
 round[10].k_sch == c6a13b37878f5b826f4f8162a1c8d879
@@ -3909,6 +4094,7 @@ Traceback (most recent call last):
 AssertionError
 
 ```
+{% endraw %}
 
 We can see that we have `L_*` as `c6a13b37878f5b826f4f8162a1c8d879` so therefore we encrypt the stuff in the actual encryption function correctl (the internal AES encryption).
 

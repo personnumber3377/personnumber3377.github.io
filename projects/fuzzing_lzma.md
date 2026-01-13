@@ -7,6 +7,7 @@ When fuzzing csgo, I encountered an lzma decoder in the counter strike source co
 
 The version of lzma which csgo uses is an old version of lzma-sdk From 2005! There is this code comment:
 
+{% raw %}
 ```
 //========= Copyright © 1996-2007, Valve Corporation, All rights reserved. ============//
 //
@@ -17,6 +18,7 @@ The version of lzma which csgo uses is an old version of lzma-sdk From 2005! The
 //
 //=====================================================================================//
 ```
+{% endraw %}
 
 In the file lzmaDecoder.cpp . Just following the instructions provided you can easily compile the lzma binary.
 
@@ -26,6 +28,7 @@ Make modifications to the makefile:
 
 Original:
 
+{% raw %}
 ```
 PROG = lzma
 CXX = g++ -O2 -Wall
@@ -35,9 +38,11 @@ RM = rm -f
 CFLAGS = -c -I ../../../
 
 ```
+{% endraw %}
 
 new:
 
+{% raw %}
 ```
 PROG = lzma
 #CXX = g++ -O2 -Wall
@@ -51,6 +56,7 @@ RM = rm -f
 CFLAGS = -c -I ../../../
 
 ```
+{% endraw %}
 
 
 

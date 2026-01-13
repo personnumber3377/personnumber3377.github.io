@@ -15,6 +15,7 @@ After a bit of snooping around I found this: https://www.reddit.com/r/adventofco
 
 Yeah, after a bit of fiddling around, I think the best way to go about this is to create a class for the brick. Anyway, here is my initial attempt:
 
+{% raw %}
 ```
 import sys
 
@@ -75,11 +76,13 @@ if __name__=="__main__":
     exit(main())
 
 ```
+{% endraw %}
 
 Let's create a new script which has the brick object.
 
 Here is my initial attempt:
 
+{% raw %}
 ```
 import sys
 
@@ -200,16 +203,19 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 let's try it out with the toy input.
 
 Uh oh...
 
+{% raw %}
 ```
     start[change_ind] += 1
     ~~~~~^^^^^^^^^^^^
 TypeError: 'tuple' object does not support item assignment
 ```
+{% endraw %}
 
 Actually, the `self.blocks` in the `Brick` class is unused, so let's just remove it.
 
@@ -219,9 +225,11 @@ Let's simulate the falling of the blocks first and then go over each brick and c
 
 First up, the simulation of falling. We fant to first sort by which brick is the lowest.
 
+{% raw %}
 ```
 bricks.sort(key=lambda x: x.lowest_point())
 ```
+{% endraw %}
 
 now go over the bricks in this new order and then update the above and below bricks in the other bricks while we go over them.
 
@@ -236,6 +244,7 @@ now go over the bricks in this new order and then update the above and below bri
 
 Here is my current script:
 
+{% raw %}
 ```
 import sys
 import copy
@@ -406,11 +415,13 @@ def main() -> int:
 if __name__=="__main__":
     exit(main())
 ```
+{% endraw %}
 
 Except that it returns 7 as the answer, which is obviously wrong.
 
 Here:
 
+{% raw %}
 ```
 def disintegrate(brick: Brick) -> int: # This actually checks if we can remove the brick or not.
     # Loop over each brick which is supported by the current brick.
@@ -421,12 +432,14 @@ def disintegrate(brick: Brick) -> int: # This actually checks if we can remove t
             return 0
     return 1 # Otherwise we can remove it. Return one
 ```
+{% endraw %}
 
 We actually do not go over the loop even once. So the _supporting array isn't being updated properly.
 
 
 Here was my code:
 
+{% raw %}
 ```
 
 import sys
@@ -610,10 +623,12 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 The reason for why it doesn't work is because I have defined `UP_COORD = 1` and then I use this in the `lowest_point` and `highest_point`. After setting it to 2 instead, it seems to work.
 
+{% raw %}
 ```
 <__main__.Brick object at 0x000001B9FF869B50>
 <__main__.Brick object at 0x000001B9FF89D4D0>
@@ -668,6 +683,7 @@ self.above_bricks == set()
 []
 5
 ```
+{% endraw %}
 
 I am going to try to solve part two without help. I think that doing a recursive function, which checks the bricks recursively.
 
@@ -675,6 +691,7 @@ Let's create that!
 
 Here was my initial attempt:
 
+{% raw %}
 ```
 def fall_check_recursive(brick: Brick, cur_count = 0) -> int:
     # This function checks the bricks recursively to find out how many bricks would fall if one is removed.
@@ -688,12 +705,14 @@ def fall_check_recursive(brick: Brick, cur_count = 0) -> int:
         cur_count += fall_check_recursive(b, cur_count)
     return cur_count
 ```
+{% endraw %}
 and it results in the answer of 10 for the toy input, which is wrong. There must be some error somewhere which causes this error.
 
 Instead of a recursive function, we can actually just make it a while loop. This should simplify debugging.
 
 Tada!
 
+{% raw %}
 ```
 def fall_check_new(initial_brick: Brick) -> int:
     # This function checks the bricks recursively to find out how many bricks would fall if one is removed.
@@ -714,11 +733,13 @@ def fall_check_new(initial_brick: Brick) -> int:
     return cur_count
 
 ```
+{% endraw %}
 
 Now, I think the error is that when checking the bricks, which could fall, we do not account for the fact that if one brick supports two bricks, then those two bricks support one brick, then when checking the very top brick, the `if len(b.is_supported_by()) == 1:` check fails and it doesn't count the top brick as fallen, even though it should, so instead of checking the length of the is_supported_by list, we should make a set of all of the blocks, which fall when removing one block. This way we circumvent the problem.
 
 Here is the new code:
 
+{% raw %}
 ```
 def fall_check_new(initial_brick: Brick) -> int:
     # This function checks the bricks recursively to find out how many bricks would fall if one is removed.
@@ -739,11 +760,13 @@ def fall_check_new(initial_brick: Brick) -> int:
         bricks = new_bricks
     return cur_count
 ```
+{% endraw %}
 
 it now almost works. I debugged for around twenty minutes and realized that it lacks a check for checking if the block we are now processing has already fell or not.
 
 Here is the function with the check added:
 
+{% raw %}
 ```
 def fall_check_new(initial_brick: Brick) -> int:
     # This function checks the bricks recursively to find out how many bricks would fall if one is removed.
@@ -766,9 +789,11 @@ def fall_check_new(initial_brick: Brick) -> int:
         bricks = new_bricks
     return cur_count
 ```
+{% endraw %}
 
 now it works for the toy input, but does it work for the actual input? It does! Now let's try to improve performance:
 
+{% raw %}
 ```
          21256843 function calls (21217876 primitive calls) in 4.704 seconds
 
@@ -839,21 +864,25 @@ now it works for the toy input, but does it work for the actual input? It does! 
         1    0.000    0.000    0.000    0.000 newblocks.py:12(Brick)
         1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
 ```
+{% endraw %}
 
 Cprofile output looks quite interesting. One thing, is that we can memoize lowest and highest points. Now, when we drop the bricks, we can call an "update" function, which updates the new value for the lowest and highest points.
 
 Also we can do the same type of memoization for the range stuff, because after dropping the blocks, we know that the ranges no longer change, therefore we can just store them. Also we don't even need to compute the z range, because it is completely unused. The only use for the `overlaps` function is inside the `is_under` function and in that function we just discard the result of the z overlap:
 
+{% raw %}
 ```
     def is_under(self, other) -> bool: # Check for x and y overlap.
         x_overlap, y_overlap, _ = self.overlaps(other)
         return x_overlap and y_overlap
 ```
+{% endraw %}
 
 So therefore we do not even need to check for z overlap. Let's implement these changes!
 
 After implementing the highest and lowest point memoization, we now have this code:
 
+{% raw %}
 ```
 76511
          17936189 function calls (17892194 primitive calls) in 3.641 seconds
@@ -927,6 +956,7 @@ After implementing the highest and lowest point memoization, we now have this co
         1    0.000    0.000    0.000    0.000 cp1252.py:22(decode)
         1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
 ```
+{% endraw %}
 
 So it is faster!
 
@@ -934,6 +964,7 @@ Now let's get rid of the z range calculation, which is basically just dead weigh
 
 Here is the current cProfile output:
 
+{% raw %}
 ```
          13989327 function calls (13945332 primitive calls) in 15.193 seconds
 
@@ -973,6 +1004,7 @@ Here is the current cProfile output:
         1    0.012    0.012    0.050    0.050 faster_blocks.py:145(parse_input)
 
 ```
+{% endraw %}
 
 
 the reason why the time is slower, is because I am currently fuzzing in the meantime.
@@ -981,6 +1013,7 @@ Because the bricks only fall downwards, we also can just make a dictionary where
 
 Here is the output after doing this optimization:
 
+{% raw %}
 ```
 
          9896834 function calls (9849068 primitive calls) in 7.578 seconds
@@ -1018,9 +1051,11 @@ Here is the output after doing this optimization:
 
 
 ```
+{% endraw %}
 
 Here is the actual optimization:
 
+{% raw %}
 ```
 
     def is_under(self, other) -> bool: # Check for x and y overlap.
@@ -1038,6 +1073,7 @@ Here is the actual optimization:
         return self.under_dict[dict_input]
 
 ```
+{% endraw %}
 
 and it works!
 

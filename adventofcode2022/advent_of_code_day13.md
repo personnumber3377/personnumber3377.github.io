@@ -9,6 +9,7 @@ I think that I am allowed to post a writeup since the advent of code event has a
 The puzzle input is a list of a pair of lists or something like that like this:
 
 
+{% raw %}
 ```
 [1,1,3,1,1]
 [1,1,5,1,1]
@@ -36,9 +37,11 @@ The puzzle input is a list of a pair of lists or something like that like this:
 
 
 ```
+{% endraw %}
 
 The puzzle describes the conditions which need to be met for each of the lists to be in order.
 
+{% raw %}
 ```
 
 If both values are integers, the lower integer should come first. If the left integer is lower than the right integer, the inputs are in the right order. If the left integer is higher than the right integer, the inputs are not in the right order. Otherwise, the inputs are the same integer; continue checking the next part of the input.
@@ -46,6 +49,7 @@ If both values are lists, compare the first value of each list, then the second 
 If exactly one value is an integer, convert the integer to a list which contains that integer as its only value, then retry the comparison. For example, if comparing [0,0,0] and 2, convert the right value to [2] (a list containing 2); the result is then found by instead comparing [0,0,0] and [2].
 
 ```
+{% endraw %}
 
 I am going to quickly make up a naive solution first and then try figuring out some logic which may increase the performance.
 
@@ -54,6 +58,7 @@ I am going to quickly make up a naive solution first and then try figuring out s
 I programmed this by simply converting the logic described in english into logical statements.
 
 
+{% raw %}
 ```
 import sys
 from colorist import Color
@@ -197,6 +202,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 This actually works for the supplied input!
 
@@ -206,6 +212,7 @@ One critique of this challenge is that the wording "If the right list runs out o
 
 Ok in this part I slightly cheated, because I could not figure out how to sort a list by a certain function as the "comparison" operator so I looked it up and came upon this: https://github.com/orfeasa/advent-of-code-2022/blob/main/day_13/main.py .
 
+{% raw %}
 ```
 
 
@@ -224,8 +231,10 @@ def part_two(filename: str) -> int:
 
 
 ```
+{% endraw %}
 As it turns out you can pass a function to the key, here is the internal source code for cmp_to_key : 
 
+{% raw %}
 ```
 
 def cmp_to_key(mycmp):
@@ -248,10 +257,12 @@ def cmp_to_key(mycmp):
     return K
 
 ```
+{% endraw %}
 So basically it is a way to wrap a function and make it implement the greater than stuff.
 
 I was initially a bit confused as to why my code did not work with this:
 
+{% raw %}
 ```
 
 
@@ -265,10 +276,12 @@ def in_order_wrapper(x1,x2):
 		return 0
 	return res
 ```
+{% endraw %}
 
 
 and with:
 
+{% raw %}
 ```
 
 def solve2(list_thing):
@@ -299,6 +312,7 @@ def solve2(list_thing):
 	return x
 
 ```
+{% endraw %}
 
 , but the problem was that the 0 in the wrapper needed to be replaced by -1 and then it works. The cmp_to_key return value zero means equal to, 1 means greater than and -1 means less than (i think) .
 

@@ -13,6 +13,7 @@ In addition to the usual setup, I must also enable fuzzing of command line param
 
 Here are my modifications to common-main.c :
 
+{% raw %}
 ```
 diff --git a/common-main.c b/common-main.c
 index 033778b3c5..f912f0be33 100644
@@ -74,12 +75,15 @@ index 033778b3c5..f912f0be33 100644
  	exit(result);
 
 ```
+{% endraw %}
 
 I initialized my fuzzer with this data:
 
+{% raw %}
 ```
 log --pretty="format:%H"
 ```
+{% endraw %}
 
 inside a file and I am going to let it run for a bit.
 

@@ -10,6 +10,7 @@ There is a very interesting issue where the AFL expects the child thread to retu
 
 This is the parent fuzzing process inside the binary:
 
+{% raw %}
 ```
 
 (gdb) where
@@ -60,10 +61,12 @@ This is the parent fuzzing process inside the binary:
 
 
 ```
+{% endraw %}
 
 This is the child process:
 
 19166
+{% raw %}
 ```
 
 (gdb) where
@@ -127,6 +130,7 @@ This is the child process:
 
 
 ```
+{% endraw %}
 
 See, the program expects that the upper thread is the main thread which tries to load the stuff, but instead it is a child process because of the way the forkserver does stuff, so instead of execution continuing like normal, we get a hang.
 
@@ -135,13 +139,16 @@ See, the program expects that the upper thread is the main thread which tries to
 
 The hang occurs on this line in modelloader.cpp:
 
+{% raw %}
 ```
 			g_pFileSystem->AddSearchPath( szNameOnDisk, "GAME", PATH_ADD_TO_HEAD );
 ```
+{% endraw %}
 
 
 and:
 
+{% raw %}
 ```
 
 CThreadMutex g_AsyncFinishMutex;
@@ -162,10 +169,12 @@ void CBaseFileSystem::AsyncFinishAll( int iToPriority )
 
 
 ```
+{% endraw %}
 
 and:
 
 
+{% raw %}
 ```
 
 #define THREADED_EXECUTETOPRIORITY 0 //  Not ready for general consumption [8/4/2010 tom]
@@ -319,6 +328,7 @@ int CThreadPool::SuspendExecution()
 
 
 ```
+{% endraw %}
 
 The THREADED_EXECUTETOPRIORITY seems interesting, because in the code which I referenced pfnFilter does not get defined so it is null so if we set THREADED_EXECUTETOPRIORITY to one it should work and it should not wait for other stuff maybe?
 
@@ -326,6 +336,7 @@ The THREADED_EXECUTETOPRIORITY seems interesting, because in the code which I re
 another idea is to look at the definition of this:
 
 
+{% raw %}
 ```
 
 class CJobThread : public CWorkerThread
@@ -472,12 +483,15 @@ private:
 };
 
 ```
+{% endraw %}
 
 There is the 
 
+{% raw %}
 ```
 	int					m_iThread;
 ```
+{% endraw %}
 
 line which seems to indicate that we can get the thread number
 
@@ -486,6 +500,7 @@ line which seems to indicate that we can get the thread number
 
 
 
+{% raw %}
 ```
 
 (gdb) where
@@ -548,11 +563,13 @@ line which seems to indicate that we can get the thread number
 #26 0x00007ffebec7e6a0 in ?? ()
 
 ```
+{% endraw %}
 
 
 Now after enabling the THREADED_EXECUTETOPRIORITY to one we get this segv:
 
 
+{% raw %}
 ```
 
 (gdb) where
@@ -612,12 +629,14 @@ Now after enabling the THREADED_EXECUTETOPRIORITY to one we get this segv:
 
 
 ```
+{% endraw %}
 
 And it is a null pointer dereference so that means that skipping the waiting stuff breaks something :( .
 
 I think that this shit has something to do with the fact that we are fuzzing the client instead of the server. Aka for example in SV_FlushMemoryIfMarked :
 
 
+{% raw %}
 ```
 
 // ...
@@ -652,12 +671,14 @@ bool SV_FlushMemoryIfMarked()
     // ...
 
 ```
+{% endraw %}
 
 So I think that this has something to do with the client shit.
 
 Lets take a look at InitWellKnownRenderTargets :
 
 
+{% raw %}
 ```
 void InitWellKnownRenderTargets( void )
 {
@@ -783,6 +804,7 @@ void InitWellKnownRenderTargets( void )
 }
 
 ```
+{% endraw %}
 
 And look at that. There is a big ass check for DEDICATED . if !defined is if not defined so if not defined as a dedicated server then do all of this. So lets add the dedicated flag into the compiler flags and see what happens.
 
@@ -798,6 +820,7 @@ There are only one interesting stack based buffer overflow and I do not think th
 
 
 
+{% raw %}
 ```
 [S_API] SteamAPI_Init(): Loaded '/home/cyberhacker/.local/share/Steam/linux64/steamclient.so' OK.
 Setting breakpad minidump AppID = 730
@@ -884,6 +907,7 @@ Shadow byte legend (one shadow byte represents 8 application bytes):
 id:000198,sig:06,src:000281,time:4389326,execs:156417,op:havoc,rep:16
 
 ```
+{% endraw %}
 
 
 
@@ -893,6 +917,7 @@ id:000198,sig:06,src:000281,time:4389326,execs:156417,op:havoc,rep:16
 
 
 
+{% raw %}
 ```
 void CCoreDispSurface::AdjustSurfPointData( void )
 {
@@ -938,9 +963,11 @@ void CCoreDispSurface::AdjustSurfPointData( void )
 
 
 ```
+{% endraw %}
 
 The VectorCopy functions first argument is the source and the second is the destination:
 
+{% raw %}
 ```
 
 
@@ -967,11 +994,13 @@ FORCEINLINE void VectorCopy( const Vector& src, Vector& dst )
 }
 
 ```
+{% endraw %}
 
 The report mentions that this is a read issue, not a write issue, so we can not overflow the buffer with data which we control, but instead we must overflow the buffer with data from an out-of-bounds source.
 
 I need to compile another version in which I can observe all of the things without interrupting the fuzzer. Also the reason why there are so many null dereferences is because the program crashes purposefully in the Sys_Error_Internal function:
 
+{% raw %}
 ```
 // ...
 	fflush(stdout );
@@ -990,6 +1019,7 @@ I need to compile another version in which I can observe all of the things witho
 
 // ...
 ```
+{% endraw %}
 
 So lets patch that shit out before continuing so we actually get the actual crashes.
 
@@ -999,6 +1029,7 @@ The reason why I want to do this is because the corpus which I am now using cons
 
 Even with all the removing enabled, we are still left with roughly a quarter of the file:
 
+{% raw %}
 ```
 
 cyberhacker@cyberhacker-h8-1131sc:~/Fuzzingnavfiles/bspfuzz/mini_bsp$ python mini_bsp.py de_dust2.bsp thing.bsp
@@ -1091,6 +1122,7 @@ total 71M
 
 
 ```
+{% endraw %}
 
 So we can not really fuzz using the minified de_dust2 file, because it is so big, however, when looking at the documentation for the BSP file: https://developer.valvesoftware.com/wiki/BSP_(Source_1) we see that we can see the size of each lump type in the file header, so lets make a simple script to parse that (there are existing ones but lets just for practice write up a new one):
 
@@ -1103,6 +1135,7 @@ After programming my bsp header reader it seems that a lot of the lumps in de_du
 There is this check inside the modelloader.cpp file:
 
 
+{% raw %}
 ```
 
 	if ( s_MapHeader.m_nVersion >= 20 && CMapLoadHelper::LumpSize( LUMP_LEAF_AMBIENT_LIGHTING_HDR ) == 0 )
@@ -1113,6 +1146,7 @@ There is this check inside the modelloader.cpp file:
 	
 
 ```
+{% endraw %}
 
 
 So I think that it should be fine if we remove the LUMP_LEAF_AMBIENT_LIGHTING_HDR lump from the file. The modelloader should still consume it without complaints.
@@ -1141,6 +1175,7 @@ Maybe I should try measuring the amount of time which it takes to load the map a
 
 Actually I think that there is a bug in my fuzzer, because when I try to load the same map over and over again with the same logic I get this:
 
+{% raw %}
 ```
 
 LD_LIBRARY_PATH=/home/cyberhacker/Netpacketfuzzer/game/bin:/home/cyberhacker/Netpacketfuzzer/game/bin/linux64
@@ -1253,12 +1288,14 @@ SUMMARY: AddressSanitizer: SEGV /home/cyberhacker/Netpacketfuzzer/Kisak-Strike/t
 
 
 ```
+{% endraw %}
 
 That is when loading the de_dust2.bsp map over and over again. I think we are not closing up all of the stuff before continuing with the next load?
 
 Even after running shutdown and then init again on the fucking map we still get the same thing. My code currently is this:
 
 
+{% raw %}
 ```
 
 void CGameServer::benchmark( void ) {
@@ -1313,12 +1350,14 @@ IModelLoader *modelloader = ( IModelLoader * )&g_ModelLoader;
 
 
 ```
+{% endraw %}
 
 Maybe look at the SpawnServer function and see what it does before trying to load the map?
 
 
 I am going to list interesting snippets here:
 
+{% raw %}
 ```
 // ...
 
@@ -1342,11 +1381,13 @@ I am going to list interesting snippets here:
 
 
 ```
+{% endraw %}
 
 
 This here works prefectly fine, but it still has the memory allocated (if you observe in htop you can see the memory meter go up):
 
 
+{% raw %}
 ```
 
 void CGameServer::benchmark( void ) {
@@ -1437,9 +1478,11 @@ IModelLoader *modelloader = ( IModelLoader * )&g_ModelLoader;
 
 
 ```
+{% endraw %}
 
 Except I think I got it! There are the Hunk_LowMark and Hunk_FreeToLowMark functions. The Hunk_LowMark tells you how many "blocks" have been allocated and then the Hunk_FreeToLowMark function then frees until that block! So if we just do this I think we should be good:
 
+{% raw %}
 ```
 
 void CGameServer::benchmark( void ) {
@@ -1531,9 +1574,11 @@ IModelLoader *modelloader = ( IModelLoader * )&g_ModelLoader;
 
 
 ```
+{% endraw %}
 
 Except that the memory counter still goes up? What to do? There is also this here in host.cpp :
 
+{% raw %}
 ```
 void Host_FreeToLowMark( bool server )
 {
@@ -1554,9 +1599,11 @@ void Host_FreeToLowMark( bool server )
 }
 
 ```
+{% endraw %}
 
 and in cmodel.cpp : 
 
+{% raw %}
 ```
 
 void CM_FreeMap(void)
@@ -1570,11 +1617,13 @@ void CM_FreeMap(void)
 
 
 ```
+{% endraw %}
 
 So I think that we need to call CM_FreeMap in addition to the other stuff? Lets try that.
 
 and tada:
 
+{% raw %}
 ```
 
 void CGameServer::benchmark( void ) {
@@ -1671,6 +1720,7 @@ IModelLoader *modelloader = ( IModelLoader * )&g_ModelLoader;
 
 
 ```
+{% endraw %}
 
 This works perfectly! No more memoryleak!
 

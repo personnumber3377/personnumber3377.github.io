@@ -13,6 +13,7 @@ First we need to just extract every regex out from the ruby code base.
 
 Here is my code after a bit of scripting:
 
+{% raw %}
 ```
 
 
@@ -103,11 +104,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Now what we do is we run every every one of these regexes through recheck and see what it says, then if it says that it is vulnerable, then we can do some other test or stuff.
 
 Here it is:
 
+{% raw %}
 ```
 
 
@@ -220,6 +223,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 ok, so now when we identify the possibly vulnerable regexes, we need to program a ruby script which actually verifies if they need a lot of time.
@@ -229,6 +233,7 @@ First of all, we need to parse the attack string. This turned out to be quite di
 Here is my somewhat working script:
 
 
+{% raw %}
 ```
 
 
@@ -425,10 +430,12 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 and here is shit.rb : 
 
+{% raw %}
 ```
 require 'benchmark'
 require 'time'
@@ -496,6 +503,7 @@ Benchmark.bm do |x|
   x.report { rfc2822_parse(100000) }
 end
 ```
+{% endraw %}
 
 now, let's see if we actually find hangs.
 
@@ -506,6 +514,7 @@ After a bit of revisioning, I now decide to get rid of the "\A" marker at the st
 
 Here is my current code:
 
+{% raw %}
 ```
 
 
@@ -765,12 +774,14 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 The `/\*\[(.*)\]/` regex is vulnerable it seems. it is in container-type.rb .
 
 There is actually a bug in my program. The Regexp.new doesn't need the surrounding "/" characters. See:
 
 
+{% raw %}
 ```
 
 require 'benchmark'
@@ -850,9 +861,11 @@ Benchmark.bm do |x|
 end
 
 ```
+{% endraw %}
 
 and it only prints this:
 
+{% raw %}
 ```
 
        user     system      total        real
@@ -862,12 +875,14 @@ Passed3
 
 
 ```
+{% endraw %}
 
 Now that I have fixed that bug, let's see what happens. Now it works! Now it hangs on some of the executions. Now we just need to detect the ones which hang and report them!
 
 
 Here is an example report:
 
+{% raw %}
 ```
 
 drb0drb0drb0drb0drb0drb0drb0drb0drb0drb0\x00drbd:
@@ -885,6 +900,7 @@ Here is the order: 2nd
 /home/cyberhacker/Asioita/Hakkerointi/Rubydatetime/ruby/.bundle/gems/drb-2.2.0/lib/drb/drb.rb
 
 ```
+{% endraw %}
 
 
 and it seems to be quite good. Now, I set a timeout of twenty seconds for the hang and now I am running the program against the ruby source code. Of course this won't catch every regex, because many regexes are assigned to a variable before the "=~" operator.
@@ -901,6 +917,7 @@ One thing is that there are plenty of ".sub" and ".gsub" statements in the code,
 
 Here is the improved code:
 
+{% raw %}
 ```
 
 
@@ -1224,6 +1241,7 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 ...
 
@@ -1240,14 +1258,17 @@ After a bit of digging around I actually found a potentially bad regex in ipaddr
 
 Here it is:
 
+{% raw %}
 ```
       case mask
       when /\A(0|[1-9]+\d*)\z/
         prefixlen = mask.to_i
 ```
+{% endraw %}
 
 and it causes a hang when someone tries something like this:
 
+{% raw %}
 ```
 require 'ipaddr'
 LENGTH = 100000
@@ -1255,6 +1276,7 @@ net3 = IPAddr.new("192.168.3.123")
 mask_str = "1"*LENGTH+"a"
 net3.mask(mask_str)
 ```
+{% endraw %}
 
 Fantastic!
 
@@ -1274,6 +1296,7 @@ So let's add a way to detect regexes in python code too.
 
 Here is my current function to check if a line has a regex:
 
+{% raw %}
 ```
 
 def find_regex_in_python_line(line: str):
@@ -1299,6 +1322,7 @@ def find_regex_in_python_line(line: str):
 	return False
 
 ```
+{% endraw %}
 
 it works quite good, but it misses some cases, for example multiline stuff it misses completely, when the regex is defined on multiple lines.
 

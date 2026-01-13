@@ -17,6 +17,7 @@ Actually implementing the hands as integers isn't that bad of an idea. See, if w
 
 Let's give it a try. Here is my current code:
 
+{% raw %}
 ```
 
 import sys
@@ -56,11 +57,13 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 The hardest part of this challenge is to check the type of a hand efficiently. I could make a dictionary which is basically a counter for each card, or even a list could do. Also I think we can calculate the value of the hand at the same time.
 
 Here was my initial attempt:
 
+{% raw %}
 ```
 
 import sys
@@ -151,14 +154,18 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 I think my logic when encoding the values of the cards is flawed, let's debug. Ok after some debugging, I made this modification:
+{% raw %}
 ```
 out += (len(cards)+1)**(hand_type+len(cards))
 ```
+{% endraw %}
 and now it alteast works for the toy input, but it doesn't work for the main input.
 
 
+{% raw %}
 ```
 
 
@@ -264,6 +271,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 I think because the way it calculates the importance of each hand is flawed in some way.
 
@@ -271,14 +279,17 @@ Let's add a sanity test function, which checks the sorted list.
 
 And as it turns out my method was shit!
 
+{% raw %}
 ```
 Now checking: [793714797816966, 497, '87923'] and [793714809100773, 256, '49632']
 ```
+{% endraw %}
 
 so my code says that `49632` is higher than `87923`. Yeah, my logic was flawed. Let's just first sort the list by the type and then sort the hands of same type in their own section.
 
 I refactored my code to this:
 
+{% raw %}
 ```
 
 import sys
@@ -382,11 +393,13 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 And it works for the toy input, but it doesn't work for the actual input for some odd reason.
 
 After a couple of fixes I now have this:
 
+{% raw %}
 ```
 
 import sys
@@ -539,6 +552,7 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 and it works with the actual input! Great!
 
@@ -548,6 +562,7 @@ Ok so for part 2 we basically need to figure out what is the best type we can ge
 
 So we basically have to modify this function:
 
+{% raw %}
 ```
 def get_hand_type(card_counts: dict) -> int:
 	'''
@@ -579,6 +594,7 @@ def get_hand_type(card_counts: dict) -> int:
 	else:
 		return 0 # High card
 ```
+{% endraw %}
 
 to get the best hand possible when a joker can be any value card.
 
@@ -593,6 +609,7 @@ Similarly, if we have two pairs, then we can just choose one or the other. Note 
 
 Here is the modified code:
 
+{% raw %}
 ```
 
 import sys
@@ -714,6 +731,7 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 and it works for the actual input. Great!
 

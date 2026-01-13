@@ -10,6 +10,7 @@ I think that this problem is very similar to the game of life in the sense that 
 The very first part is to parse the input. The input is a sequence of lines which describe the terrain.
 
 
+{% raw %}
 ```
 
 from convenience import *
@@ -108,6 +109,7 @@ def solve_puzzle():
 
 	return 0
 ```
+{% endraw %}
 
 The convenience package just has a bit of logging stuff.
 

@@ -5,6 +5,7 @@ Long ago, I made this graphics engine: https://github.com/personnumber3377/Graph
 
 The vta frame is for the most part loaded inside this function:
 
+{% raw %}
 ```
 
 def load_vta_frame(time, triangles, base_filename, anim_filename=None, offset=np.array([0.0,0.0,0.0,0.0]), add=False):
@@ -117,6 +118,7 @@ def load_vta_frame(time, triangles, base_filename, anim_filename=None, offset=np
 	return returned_triangles
 
 ```
+{% endraw %}
 
 So our goal is to optimize basically this function and the functions it calls. This becomes apparent when looking at the cProfile output.
 

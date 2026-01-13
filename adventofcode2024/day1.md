@@ -7,6 +7,7 @@ Ok, so I think this is actually quite easy. Just sort both of the lists of ints 
 
 Maybe something like this?????
 
+{% raw %}
 ```
 
 
@@ -40,6 +41,7 @@ if __name__=="__main__":
 	exit(0)
 
 ```
+{% endraw %}
 
 That seems to work!
 
@@ -51,6 +53,7 @@ Ok, so I suspect that part 2 will be a bit more difficult...
 
 Ok, so I think that this should work here:
 
+{% raw %}
 ```
 
 
@@ -116,11 +119,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 but it produces 10 for the toy example not 31 which is the expected. Let's add a debug statement showing the multiplication list.
 
 Aaaaaahh. I see.
 
+{% raw %}
 ```
 
 The first number in the left list is 3. It appears in the right list three times, so the similarity score increases by 3 * 3 = 9.
@@ -132,6 +137,7 @@ The last number, 3, appears in the right list three times; the similarity score 
 
 
 ```
+{% endraw %}
 
 
 the numbers are counted twice basically.

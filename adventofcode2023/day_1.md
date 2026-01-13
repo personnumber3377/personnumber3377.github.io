@@ -13,6 +13,7 @@ Instead of going through the entire string, I think it is advantageous to traver
 
 Here is my first attempt:
 
+{% raw %}
 ```
 
 
@@ -50,14 +51,17 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 and it works for the toy input. What about the actual input? No.
 
+{% raw %}
 ```
     integer = int(first_num+last_num)
                   ^^^^^^^^^
 UnboundLocalError: cannot access local variable 'first_num' where it is not associated with a value
 ```
+{% endraw %}
 
 so we have a string which doesn't contain numbers?
 
@@ -69,6 +73,7 @@ Yeah, it works.
 
 Ok so now in addition to checking if our number is a digit, we also have to check if we have a typed out number as in "eight" for example. One thing which makes this a bit hard is that the typed out numbers are of different lengths, so we need to account for that. I have an idea of how to do this, but it may be slow. Let's see...
 
+{% raw %}
 ```
 
 
@@ -125,11 +130,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 This doesn't work. This is because I have two nested loops and I need to break out both of them. And there actually was a feature suggestion, but it was rejected: https://stackoverflow.com/questions/653509/breaking-out-of-nested-loops . And to be honest I think it is good, because I should wrap this stuff into another function.
 
 Ok so I refactored the code a bit and here it is:
 
+{% raw %}
 ```
 
 import sys
@@ -202,6 +209,7 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 There is a problem in it. Can you spot it?
 
@@ -209,6 +217,7 @@ There is a problem in it. Can you spot it?
 
 Here it is:
 
+{% raw %}
 ```
 
 # ...
@@ -216,6 +225,7 @@ last_num = str(j)
 # ...
 
 ```
+{% endraw %}
 
 Now, j is the index in the typed_out_numbers list, but the there is no "zero" inside of it, the first element is "one" , but it is at the zeroeth index, so we need to add one to j before converting to a string.
 

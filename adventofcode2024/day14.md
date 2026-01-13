@@ -17,6 +17,7 @@ So basically just calculate the position vector which is just `p = p0 ' v*t` whe
 
 Ok, so here is my initial parsing function:
 
+{% raw %}
 ```
 
 import re
@@ -58,12 +59,14 @@ if __name__=="__main__":
 	exit(ret)
 
 ```
+{% endraw %}
 
 Now let's create a function which returns the position after t amount of time steps.
 
 
 Something like this maybe???
 
+{% raw %}
 ```
 
 def go_forward_in_time(p0, v, t): # This function returns the position after t timesteps.
@@ -137,11 +140,13 @@ def simulate_drones(drone_strings):
 	return 0
 
 ```
+{% endraw %}
 
 it basically just simulates time forward and then figures out the landing place with modular arithmetic. to calculate the safety score, just "bucket" the quadrants and then multiple all of them (except the boundary) together.
 
 Here is my current code:
 
+{% raw %}
 ```
 
 
@@ -247,6 +252,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 Let's try it out. Except let's try with the toy example first...
@@ -255,6 +261,7 @@ Let's try it out. Except let's try with the toy example first...
 Like so:
 
 
+{% raw %}
 ```
 
 
@@ -369,13 +376,16 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 but it doesn't work:
 
+{% raw %}
 ```
 Solution: 36
 ```
+{% endraw %}
 
 ## Debugging
 
@@ -383,6 +393,7 @@ Let's just make a render function which shows the places.
 
 Here is my code:
 
+{% raw %}
 ```
 
 
@@ -530,9 +541,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and here is the output with `p=2,4 v=2,-3`:
 
+{% raw %}
 ```
 ==============================
 ...........
@@ -1435,11 +1448,13 @@ and here is the output with `p=2,4 v=2,-3`:
 ...........
 ==============================
 ```
+{% endraw %}
 
 So what is going on???
 
 Now running with the given toy input, we can see that we actually get the correct answer with t=23:
 
+{% raw %}
 ```
 ..1......1.
 ==============================
@@ -1456,11 +1471,13 @@ T = 23
 T = 24
 ==============================
 ```
+{% endraw %}
 
 So maybe it has something to do with the time shit???
 
 Ok, so yeah if we advance one time step at a time and clamp the position on every time step we get the correct answer with this:
 
+{% raw %}
 ```
 
 def render_drones(drones):
@@ -1482,11 +1499,13 @@ def render_drones(drones):
 	return
 
 ```
+{% endraw %}
 
 so we basically have a situation where the clamping produces different answers depending on if we advance just one step at a time or many steps. How is this possible? Let's write a quick checking function...
 
 Here is my fuzzer:
 
+{% raw %}
 ```
 
 
@@ -1546,11 +1565,13 @@ if __name__=="__main__":
 	exit(0)
 
 ```
+{% endraw %}
 
 Except that it doesn't find anything.
 
 Wait...
 
+{% raw %}
 ```
 
 
@@ -1713,9 +1734,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 this bullshit here displays this:
 
+{% raw %}
 ```
 Our shit:
 ==============================
@@ -1728,11 +1751,13 @@ Our shit:
 .1....1....
 ==============================
 ```
+{% endraw %}
 
 so that means that the bug existed only in the rendering function and stuff... huh. Well, ok, so the bug is in the quadrant function...
 
 That is because there is a fucking bug here:
 
+{% raw %}
 ```
 
 if TEST:
@@ -1750,16 +1775,19 @@ else:
 	MAP_HEIGHT_MIDDLE = 51
 
 ```
+{% endraw %}
 
 This is because in the TEST clause the `MAP_WIDTH_MIDDLE` should actually be 4 because zero. This is basically an off-by-one error.
 
 After putting this:
 
+{% raw %}
 ```
 
 	MAP_WIDTH_MIDDLE = 4
 	MAP_HEIGHT_MIDDLE = 3
 ```
+{% endraw %}
 
 it now works. :D .
 
@@ -1767,6 +1795,7 @@ Does it work for the actual input?????
 
 This code seems to work:
 
+{% raw %}
 ```
 
 import re
@@ -1932,6 +1961,7 @@ if __name__=="__main__":
 	exit(ret)
 
 ```
+{% endraw %}
 
 And it seems to work! Great! Onto part2
 
@@ -1945,6 +1975,7 @@ Let's implement it!
 
 Maybe something like this?
 
+{% raw %}
 ```
 
 
@@ -2190,6 +2221,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 that seems to work great... it shows the tree nicely. Let's see if there was a more efficient solution for part 2. I doubt it. Yeah I looked it up and there appears to be no better way of doing this really since you don't know the shape etc.. One way was to just look for ten or so occupied spaces in a row.
 

@@ -3,6 +3,7 @@
 
 Now I am getting this bullshit error message:
 
+{% raw %}
 ```
 
 WARNING: Active Record does not support composite primary key.
@@ -51,6 +52,7 @@ security_findings has composite primary key. Composite primary key is ignored.
 
 
 ```
+{% endraw %}
 
 Ok, so I managed to resolve that error, now it is time to actually try to run the fuzzer...
 
@@ -58,6 +60,7 @@ Ok, so I managed to resolve that error, now it is time to actually try to run th
 
 To install ruzzy, I had to run this command here:
 
+{% raw %}
 ```
 
 MAKE="make --environment-overrides V=1" \
@@ -69,6 +72,7 @@ LDSHAREDXX="clang++ -shared" \
 
 
 ```
+{% endraw %}
 
 and then it installed ruzzy correctly for the tools that GDK uses.
 
@@ -76,6 +80,7 @@ and then it installed ruzzy correctly for the tools that GDK uses.
 
 See, we need to try to run ruzzy like so:
 
+{% raw %}
 ```
 #!/bin/sh
 
@@ -87,6 +92,7 @@ done
 
 
 ```
+{% endraw %}
 
 We get errors from ruzzy complaining about unregognized command line options like `-e` this is because it thinks that the bundle exec arguments are for libfuzzer.
 
@@ -94,6 +100,7 @@ So we need to actually patch the ruby fuzzer (`ruzzy`) itself to update these co
 
 What I did was I copied the compiled `cruzzy.so` to `/home/oof/.asdf/installs/ruby/3.2.4/lib/ruby/gems/3.2.0/gems/ruzzy-0.7.0/lib/cruzzy` (the place where the gitlab rails runner looks for the ruby libraries) and now if we pass something like this:
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -107,6 +114,7 @@ done
 
 
 ```
+{% endraw %}
 
 
 We actually start fuzzing nicely!!!!
@@ -115,6 +123,7 @@ The three dashes separate the argv arguments we want to pass to the setup and th
 
 The most important part of this code is here:
 
+{% raw %}
 ```
     char **args_ptr = &argv[0];
     // fprintf(stderr, "Error: Cannot find/call custom mutator function in"
@@ -158,6 +167,7 @@ The most important part of this code is here:
 
     return INT2FIX(result);
 ```
+{% endraw %}
 
 
 which modifies the command line arguments and the argument count before passing to `LLVMFuzzerRunDriver` such that we do not pass the arguments meant for bundle to libfuzzer which doesn't understand them...
@@ -167,16 +177,19 @@ which modifies the command line arguments and the argument count before passing 
 
 Here is the contents of the `ruzzy_tracer.rb` file:
 
+{% raw %}
 ```
 require 'ruzzy'
 
 Ruzzy.trace('fuzz.rb')
 
 ```
+{% endraw %}
 
 
 and here is the contents of my fuzzer (`fuzz.rb`):
 
+{% raw %}
 ```
 
 
@@ -209,11 +222,13 @@ Ruzzy.fuzz(test_one_input)
 
 
 ```
+{% endraw %}
 
 and here is the glorious output:
 
 Stdout:
 
+{% raw %}
 ```
 # SNIP
 root
@@ -231,9 +246,11 @@ root
 root
 # SNIP
 ```
+{% endraw %}
 
 Stderr:
 
+{% raw %}
 ```
 
 Warning: No Python module specified, using the default libfuzzer mutator (for now).
@@ -275,6 +292,7 @@ INFO: seed corpus: files: 1 min: 4b max: 4b total: 4b rss: 713Mb
 
 
 ```
+{% endraw %}
 
 
 

@@ -7,6 +7,7 @@ The time of writing this: Sun May 12 08:33:35 AM EEST 2024
 
 After a couple of emails, he sent me this:
 
+{% raw %}
 ```
 
 Hey :)
@@ -45,6 +46,7 @@ with clang". The AFL isn't tested since years, so may be broken atm
 Regards, Tim
 
 ```
+{% endraw %}
 
 So I decided to give it a crack.
 
@@ -56,6 +58,7 @@ When I tried to follow these instructions here (the clang instructions): https:/
 
 Even with this as my configuration script:
 
+{% raw %}
 ```
 #!/bin/sh
 
@@ -67,11 +70,13 @@ make clean-recursive
 make -j$(nproc)
 
 ```
+{% endraw %}
 
 the `-lFuzzer -lstdc++` flags still get added to the fuzz/Makefile file!??!?!?! That is quite odd.
 
 However, if I try to run these commands:
 
+{% raw %}
 ```
 
 export LIB_FUZZING_ENGINE=""
@@ -79,6 +84,7 @@ CC=afl-clang-fast ./configure --enable-fuzzing
 make -j$(nproc) clean all
 
 ```
+{% endraw %}
 
 then we get the error that main is not found (this is because the program tries to link the fuzzer binaries without libfuzzer)????!!??!?
 
@@ -86,6 +92,7 @@ Grepping for `FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION` it only reveals that tha
 
 Now after compiling with afl-clang-fast, then when I ran this:
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -101,11 +108,13 @@ make -j$(nproc) clean all
 
 
 ```
+{% endraw %}
 
 it tries to compile with afl-clang-fast again??? So therefore there is something leftover from the previous run, which fucks up our new configuration...
 
 I tried to compile with these commands:
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -125,10 +134,12 @@ make -j$(nproc) clean all
 
 
 ```
+{% endraw %}
 
 
 and now I get this as a result:
 
+{% raw %}
 ```
 
 ../lib/stdio.h:1030:12: note: previous definition is here
@@ -278,14 +289,17 @@ make: *** [Makefile:1971: all] Error 2
 
 
 ```
+{% endraw %}
 
 this is good, because it means that we are on the right track atleast somewhat.
 
 After modifying the link parameters in the fuzz/Makefile file here:
 
+{% raw %}
 ```
 CFLAGS =    -I/usr/include/p11-kit-1 -DHAVE_LIBGNUTLS  -DNDEBUG -O3 -fno-omit-frame-pointer -gline-tables-only -fsanitize=undefined -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer #-fsanitize=fuzzer-no-link
 ```
+{% endraw %}
 
 (i changed `-fsanitize=fuzzer-no-link` to just `-fsanitize=fuzzer`)
 
@@ -303,6 +317,7 @@ Ok, so let's modify the source code, such that we can compile the fuzzer in the 
 
 After a bit of fiddling around, it looks like we do not even need to modify the Makefile.am file or anything, I just need to modify the parameters which we are compiling with:
 
+{% raw %}
 ```
 
 export CC=clang
@@ -321,6 +336,7 @@ export LIB_FUZZING_ENGINE="-fsanitize=fuzzer"
 
 
 ```
+{% endraw %}
 
 that seems to compile the fuzzers all fine... and then if I seed the options fuzzer with a file which is close to a crashing input, then it finds the crash pretty quick.
 
@@ -352,10 +368,12 @@ This seems something we want: https://google.github.io/oss-fuzz/getting-started/
 
 Soooo just run these commands????
 
+{% raw %}
 ```
 python infra/helper.py build_image wget
 python infra/helper.py build_fuzzers --sanitizer address wget
 ```
+{% endraw %}
 
 and we should be good???
 
@@ -363,14 +381,17 @@ While those commands are running, I am going to go over some potential solutions
 
 First of all, we should use the `Find failures to fix by running the check_build command:` command aka:
 
+{% raw %}
 ```
 python infra/helper.py check_build wget
 ```
+{% endraw %}
 
 but then if those fail, then another solution would be to just use the binary package version of gnutls instead of the compiled from source version. (aka just add `libgnutls28-dev` to the dockerfile packages instead of using the from source one.).
 
 I noticed this in the log:
 
+{% raw %}
 ```
 
 Step 8/13 : RUN git clone --depth=1 --recursive https://github.com/rockdaboot/libpsl.git
@@ -382,9 +403,11 @@ ERROR:__main__:Docker build failed.
 INFO:__main__:Running: docker build -t gcr.io/oss-fu
 
 ```
+{% endraw %}
 
 If I try to git clone it locally on my own machine it works fine:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Asioita/Hakkerointi/fixwget$ git clone https://github.com/rockdaboot/libpsl.git
 Cloning into 'libpsl'...
@@ -396,11 +419,13 @@ Receiving objects: 100% (5102/5102), 5.31 MiB | 1.38 MiB/s, done.
 Resolving deltas: 100% (2590/2590), done.
 
 ```
+{% endraw %}
 
 so that is a bit weird. Let's just wait a bit more and see what happens.
 
 Now it seems to be compiling something:
 
+{% raw %}
 ```
 
 -lnettle  -o base64enc
@@ -428,11 +453,13 @@ clang -O1 -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE
 
 
 ```
+{% endraw %}
 
 I remember that this compilation process errored when it was compiling some dependency, so let's see what happens...
 
 Here is the end of the build log:
 
+{% raw %}
 ```
 
 2024-05-13 08:48:42 URL:https://translationproject.org/latest/gnulib/vi.po [30022/30022] -> "./vi.po" [1]
@@ -688,11 +715,13 @@ ERROR:__main__:Building fuzzers failed.
 
 
 ```
+{% endraw %}
 
 This is what happens when you try to fucking compile everything from the latest source code. Someone does a singular change and boom, your build no-longer works.
 
 Here is some stuff from the log:
 
+{% raw %}
 ```
 
 make[1]: Entering directory '/src/nettle/tools'
@@ -740,9 +769,11 @@ Cloning into '/src/gnutls/devel/openssl'...
 
 
 ```
+{% endraw %}
 
 here is some more stuff:
 
+{% raw %}
 ```
 
 Copying file src/gl/windows-tls.h
@@ -879,9 +910,11 @@ aclocal: installing 'm4/pkg.m4' from '/usr/share/aclocal/pkg.m4'
 
 
 ```
+{% endraw %}
 
 Here is other stuff:
 
+{% raw %}
 ```
 
 Copying file m4/mbrtowc.m4
@@ -1352,9 +1385,11 @@ ERROR:__main__:Building fuzzers failed.
 
 
 ```
+{% endraw %}
 
 This may also be a clue:
 
+{% raw %}
 ```
 
 	    and start over
@@ -1432,20 +1467,24 @@ configure: failed program was:
 | /* confdefs.h */
 
 ```
+{% endraw %}
 
 This here compiles everything correctly in gnutls in the oss-fuzz build:
 
+{% raw %}
 ```
 
 CC=clang CFLAGS='-O1 -fno-omit-frame-pointer -gline-tables-only -Wno-error=enum-constexpr-conversion -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion -Wno-error=deprecated-declarations -Wno-error=implicit-function-declaration -Wno-error=implicit-int  -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link -I/src/wget_deps/include -L/src/wget_deps/lib' ./configure --with-nettle-mini --enable-gcc-warnings --enable-static --disable-shared --with-included-libtasn1 --with-included-unistring --without-p11-kit --disable-doc --disable-tests --disable-tools --disable-cxx --disable-maintainer-mode --disable-libdane --disable-gcc-warnings --disable-full-test-suite --prefix=/src/wget_deps --disable-hardware-acceleration
 
 ```
+{% endraw %}
 
 notice, that the `LIBS=-lunistring` isn't there.
 
 
 Wait that wasn't it. I don't understand why the wget shit won't compile. Maybe it has to do something with:
 
+{% raw %}
 ```
 
 oof@oof-h8-1440eo:~/fuzz_wget/abc/wget$ autoreconf -fi^C
@@ -1458,11 +1497,13 @@ Copying file m4/iconv.m4
 
 
 ```
+{% endraw %}
 
 
 No, the GNULIB_SRC environment variable has nothing to do with the compiler errors... fuck!!!!
 
 
+{% raw %}
 ```
 
 autopoint: using AM_GNU_GETTEXT_REQUIRE_VERSION instead of AM_GNU_GETTEXT_VERSION
@@ -1553,11 +1594,13 @@ root@567d393065f8:/src/wget#
 
 
 ```
+{% endraw %}
 
 This almost works...
 
 I get this error:
 
+{% raw %}
 ```
 
 gnutls.c:805:13: warning: call to undeclared function 'gnutls_protocol_set_priority'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
@@ -1588,6 +1631,7 @@ oof@oof-h8-1440eo:~/fuzz_wget/oss-fuzz$
 
 
 ```
+{% endraw %}
 
 fuck!!!!!!!!! This is quite bad!!!!
 
@@ -1595,6 +1639,7 @@ Let's focus on the multiple definition errors first. One quick and dirty way to 
 
 Here is my current build.sh file:
 
+{% raw %}
 ```
 
 
@@ -1720,6 +1765,7 @@ done
 
 
 ```
+{% endraw %}
 
 there is just the tiny problem, that clang doesn't have any option which corresponds to `--allow-multiple-definition` in gcc . Fuck!!!
 
@@ -1731,15 +1777,18 @@ there is just the tiny problem, that clang doesn't have any option which corresp
 
 Let's focus on this error first:
 
+{% raw %}
 ```
 /src/wget/src/gnutls.c:(.text.ssl_connect_wget[ssl_connect_wget]+0x543): undefined reference to `gnutls_protocol_set_priority'
 clang: error: linker command failed with exit code 1 (use -v to see invocation)
 ```
+{% endraw %}
 
 after a quick google search, I found this: https://lists.gnu.org/archive/html/bug-wget/2020-05/msg00023.html
 
 
 
+{% raw %}
 ```
 
 CFLAGS="$ORIG_CFLAGS -Wall -Wl,--allow-multiple-definition" \
@@ -1747,9 +1796,11 @@ LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
 ./configure -C
 
 ```
+{% endraw %}
 
 
 
+{% raw %}
 ```
 
 CFLAGS="$CFLAGS --allow-multiple-definition" \
@@ -1757,6 +1808,7 @@ LIBS="-lgnutls -lhogweed -lnettle -lidn2 -lunistring -lpsl -lz" \
 ./configure -C
 
 ```
+{% endraw %}
 
 
 While the other compilation is running, let's try to figure out the other thing...
@@ -1765,6 +1817,7 @@ We need to replace all instances of `gnutls_protocol_set_priority` with `gnutls_
 
 looking at the newest code:
 
+{% raw %}
 ```
 
 
@@ -1882,11 +1935,13 @@ set_prio_default (gnutls_session_t session)
 }
 
 ```
+{% endraw %}
 
 why doesn't the `HAVE_GNUTLS_PRIORITY_SET_DIRECT` macro work????? Maybe that is the `autoreconf -fi` stuff solves. We removed that shit out of the build.sh script.
 
 Here is the final part of the output when compiling:
 
+{% raw %}
 ```
 
 
@@ -2360,12 +2415,14 @@ make: *** [Makefile:1982: all] Error 2
 
 
 ```
+{% endraw %}
 
 we are actually linking `wget` succesfully!
 
 
 See here:
 
+{% raw %}
 ```
 
 1 warning generated.
@@ -2376,6 +2433,7 @@ make[3]: Leaving directory '/src/wget/src'
 make[2]: Leaving directory '/src/wget/src'
 
 ```
+{% endraw %}
 
 
 
@@ -2383,6 +2441,7 @@ but then it fails in the building of the docs , we don't really need the docs fo
 
 After adding `--disable-doc` , I get these errors:
 
+{% raw %}
 ```
 
 ./bootstrap: done.  Now you can run './configure'.
@@ -2393,6 +2452,7 @@ After adding `--disable-doc` , I get these errors:
 configure: WARNING: unrecognized options: --disable-doc
 
 ```
+{% endraw %}
 
 Fuck!!!!!
 
@@ -2400,6 +2460,7 @@ Why does the differences in versions have to always fuck me up?
 
 Here is all of the make targets in the wget source code:
 
+{% raw %}
 ```
 Making all in lib
 Making all in src
@@ -2411,9 +2472,11 @@ Making all in fuzz
 Making all in tests
 Making all in testenv
 ```
+{% endraw %}
 
 Ok, so here is the stuff:
 
+{% raw %}
 ```
 
 touch stamp-po
@@ -2600,11 +2663,13 @@ make: *** [Makefile:1982: all] Error 2
 
 
 ```
+{% endraw %}
 
 What happens if we just ignore all of the errors which get produced during compilation??????!?!?!
 
 Here is my current build.sh file:
 
+{% raw %}
 ```
 
 
@@ -2745,6 +2810,7 @@ done
 
 
 ```
+{% endraw %}
 
 and it compiles the fuzzers correctly! Good!!
 
@@ -2758,6 +2824,7 @@ it finds a memory leak.... it suggests to use `-detect_leaks=0` to the options t
 
 Ok, so there was quite a lot of debugging involved. Very little coding, but a lot of trial and error to get shit to work and now I have finally duct taped something together which works. Here is the very final diff:
 
+{% raw %}
 ```
 diff --git a/infra/helper.py b/infra/helper.py
 index 0d331791a..e83510790 100755
@@ -2859,6 +2926,7 @@ index 83e81b065..8260b1717 100755
  find . -name '*_fuzzer.dict' -exec cp -v '{}' $OUT ';'
 
 ```
+{% endraw %}
 
 ## Why doesn't the fuzzer crash on a crashing input?
 
@@ -2874,6 +2942,7 @@ Let's take a look at the dictionary file and see what we have.
 
 Here is the current dictionary file:
 
+{% raw %}
 ```
 "--"
 "no-"
@@ -3071,11 +3140,13 @@ Here is the current dictionary file:
 "waitretry="
 "xattr="
 ```
+{% endraw %}
 
 looks quite good on first glance, but it is actually missing some options.
 
 Here is the help message from the newest version of wget:
 
+{% raw %}
 ```
 
 Now trying to open: /home/oof/.wgetrc
@@ -3289,11 +3360,13 @@ and/or open issues at https://savannah.gnu.org/bugs/?func=additem&group=wget.
 
 
 ```
+{% endraw %}
 
 Let's create a quick script to get the new options for wget and then add them to the dictionary if they aren't present.
 
 Here is my quick implementation:
 
+{% raw %}
 ```
 
 #!/bin/python3
@@ -3369,11 +3442,13 @@ for line in help_opts:
 
 
 ```
+{% endraw %}
 
 In addition to adding the other options to the dictionary, we should also add the stuff from here: https://www.gnu.org/software/wget/manual/html_node/Wgetrc-Commands.html to the dictionary and see what happens.
 
 This script here seems sufficient:
 
+{% raw %}
 ```
 
 fh = open("wget_rc_stuff.txt", "r")
@@ -3396,6 +3471,7 @@ for line in lines:
 
 
 ```
+{% endraw %}
 
 (for the wget_rc_stuff.txt file I just ran `wget https://www.gnu.org/software/wget/manual/html_node/Wgetrc-Commands.html` and then `cat Wgetrc-Commands.html | grep " = " > wget_rc_stuff.txt`)
 
@@ -3405,6 +3481,7 @@ With the new dictionary file, we went past 5355 in less than five minutes of fuz
 
 Here is our new and improved dictionary file:
 
+{% raw %}
 ```
 
 # These next options are taken from here: https://www.gnu.org/software/wget/manual/html_node/Wgetrc-Commands.html
@@ -3791,6 +3868,7 @@ Here is our new and improved dictionary file:
 
 
 ```
+{% endraw %}
 
 After roughly half an hour of fuzzing, we have 9671 corpus files. That is quite decent.
 

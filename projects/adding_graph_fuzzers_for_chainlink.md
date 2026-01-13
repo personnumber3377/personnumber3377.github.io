@@ -7,6 +7,7 @@ I noticed that there is a bug bounty program for some crypto stuff here: https:/
 
 Ok, so I think this suffices:
 
+{% raw %}
 ```
 
 package pipeline
@@ -23,9 +24,11 @@ func Fuzz(data []byte) int {
 
 
 ```
+{% endraw %}
 
 and maybe compile it with this????
 
+{% raw %}
 ```
 
 
@@ -35,4 +38,5 @@ go-fuzz-build -libfuzzer -o graph_fuzzer.a ./core/services/pipeline/
 clang -fsanitize=fuzzer graph_fuzzer.a -o graph_fuzzer
 
 ```
+{% endraw %}
 

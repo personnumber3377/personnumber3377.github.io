@@ -7,15 +7,18 @@ I found this nice little crack me: https://crackmes.one/crackme/65ed01ee7b0f7cec
 
 If I run the binary, I get this message:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Asioita/Hakkerointi/www.crackmes.one/crack the key$ ./ctf_1 
 Error opening file: No such file or directory
 ```
+{% endraw %}
 
 so it tries to load a file for some reason.
 
 Here is the decompilation of the main function:
 
+{% raw %}
 ```
 
 undefined4 main(void)
@@ -100,9 +103,11 @@ undefined4 main(void)
 
 
 ```
+{% endraw %}
 
 Here is the finh variable:
 
+{% raw %}
 ```
                              finh                                            XREF[1]:     main:00101433(*)  
         00104070 73 65 63        ds         "secret_flag"
@@ -110,6 +115,7 @@ Here is the finh variable:
                  5f 66 6c 
 
 ```
+{% endraw %}
 
 so it tries to read a file called secret_flag .
 
@@ -117,6 +123,7 @@ Now, when I run the binary, the program just (seem to) exit.
 
 The interesting part of the program is this:
 
+{% raw %}
 ```
 
         fclose(local_18);
@@ -148,9 +155,11 @@ The interesting part of the program is this:
         }
 
 ```
+{% endraw %}
 
 here is the checking part of the function:
 
+{% raw %}
 ```
           while (indexcounter < 8) {
             counter = counter + 1;
@@ -163,6 +172,7 @@ here is the checking part of the function:
             indexcounter = indexcounter + 1;
           }
 ```
+{% endraw %}
 
 this part: `while (indexcounter < 8)` tells me that the stuff inside our "secret_flag" must be eight characters. Or it can be more than that but subsequent bytes are ignored.
 
@@ -179,6 +189,7 @@ To get the correct input, we just need to xor skey with key and we get the corre
 
 Just use python3:
 
+{% raw %}
 ```
 #!/bin/python3
 
@@ -195,6 +206,7 @@ for char in list(bytes_list):
 print("\n", end="")
 
 ```
+{% endraw %}
 
 and the solution is `superman` . Put that into the secret_flag file and tada! We solved it!
 

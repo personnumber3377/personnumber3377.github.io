@@ -7,6 +7,7 @@ I found this tiny math library called tinyexpr on github: https://github.com/cod
 
 The example code on their website is this:
 
+{% raw %}
 ```
 #include "tinyexpr.h"
 #include <stdio.h>
@@ -20,5 +21,6 @@ int main(int argc, char *argv[])
 
 
 ```
+{% endraw %}
 
 

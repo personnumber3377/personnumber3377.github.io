@@ -9,6 +9,7 @@ My initial thought was to create a list which signifies the wanted y coordinate 
 
 This is my code now:
 
+{% raw %}
 ```
 
 import numpy as np
@@ -237,6 +238,7 @@ if __name__=="__main__":
 		#print("negative_count == "+str(negative_count))
 
 ```
+{% endraw %}
 
 The way python handles ranges is pretty stupid now because when you try accessing with a negative index first and then a positive index like `list[-2:6]` this range is screwed up and does not work properly atleast for our purposes. To circumvent this I added an offset thing which solves our problems. This atleast works for the input given.
 
@@ -244,12 +246,14 @@ That I programmed before even I started to write this writeup. Now I am going to
 
 When looking at the prompt I realized that I can just check if the coordinates satisfies (or basically does not satisfy) every one of the constraints put on it by the sensors and beacons. The sensors and beacons basically form a circle in manhattan distance thing so we can check something like:
 
+{% raw %}
 ```
 for space in spaces:
     if space does not satisfy any of the constraints placed on it by beacons and sensors:
         space is found!
 
 ```
+{% endraw %}
 
 
 I am going to implement a check_if_inside function which checks if a point is inside a circle in taxicab manhattan space.

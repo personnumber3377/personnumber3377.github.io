@@ -7,6 +7,7 @@ I actually need to remind myself of how to use this. I used to do my chemistry h
 
 Let's make a system of equations for the hypothetical scenario where we burn sugar, and then we use that carbon dioxide as a reagent in the reaction between it and hydrogen to create methane. So the unbalanced chemical reactions would look like this:
 
+{% raw %}
 ```
 
 C6H12O6 + O2 -> 6CO2 + 6H20
@@ -16,9 +17,11 @@ and
 CO2 + H2 -> CH4 + H2O
 
 ```
+{% endraw %}
 
 Now as the input to the program we should type the first equation as this:
 
+{% raw %}
 ```
 C6.H12.O6+O2->C1.O2+H2.O1
 y
@@ -28,9 +31,11 @@ C1.H4
 C6.H12.O6
 100
 ```
+{% endraw %}
 
 Here we have 100 grams of glucose and we want to find out how many grams of methane we can create from that resulting carbon dioxide when we burn the sugar. This input results in an error:
 
+{% raw %}
 ```
 
 Paskaaa:
@@ -54,6 +59,7 @@ IndexError: list index out of range
 
 
 ```
+{% endraw %}
 
 This is because the oofshit variable is a list of lists and every element in said list has their own equation sort of.
 
@@ -71,6 +77,7 @@ So, let's implement it!
 
 After a bit of fiddling around I came up with this:
 
+{% raw %}
 ```
 
 # This is a small library to find the ratio between the substance which we want to know and the starting substance. It is implemented as a tree with the known substance as the root and the wanted substance as the destination.
@@ -356,9 +363,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 now we need to integrate this into my initial code. Here in the getratio function it seems to be a good place to put the tree traversing code:
 
+{% raw %}
 ```
 
 def getratio(substance1, substance2, oofshit, all_substances):
@@ -403,15 +412,18 @@ def getratio(substance1, substance2, oofshit, all_substances):
 	return 1 / x # We need to divide one by x , because then we get the correct actual ratio
 
 ```
+{% endraw %}
 
 and tada! We can now find the ratios between the substances across multiple chemical equations. Let's try it out with a pair of chemical equations which have no elements common and see what we get.
 
+{% raw %}
 ```
 line 360, in getratio
     for thing in route:
 TypeError: 'NoneType' object is not iterable
 
 ```
+{% endraw %}
 
 tada! Maybe we should add some error checking where we check the type of `route` and then stop if it is nonetype.
 

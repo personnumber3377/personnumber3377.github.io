@@ -6,6 +6,7 @@ Ok so this is quite an interesting little puzzle, because we are basically makin
 As usual let's program a parsing function first for the input.
 
 
+{% raw %}
 ```
 
 def parse_input() -> list:
@@ -28,9 +29,11 @@ def parse_input() -> list:
 
 
 ```
+{% endraw %}
 
 Then let's create the virtual machine of sorts:
 
+{% raw %}
 ```
 
 def run_program(program: list) -> int:
@@ -72,10 +75,12 @@ def run_program(program: list) -> int:
 	return result
 
 ```
+{% endraw %}
 
 The check_cycle is just a function to check if we should add to the total amount:
 
 
+{% raw %}
 ```
 
 def check_cycle(x,cur_cycle, result, rip=None): # This is if we want to add to the result.
@@ -89,9 +94,11 @@ def check_cycle(x,cur_cycle, result, rip=None): # This is if we want to add to t
 		return cur_cycle + 1, result
 
 ```
+{% endraw %}
 
 Now there was a bug in this program. Can you see it? I got this with this program:
 
+{% raw %}
 ```
 
 [DEBUG] Addx instruction. X before: 1
@@ -310,6 +317,7 @@ result == 9180
 
 
 ```
+{% endraw %}
 
 ## Slight bug
 
@@ -317,6 +325,7 @@ Everything else is fine, but in the very last addition to x, x is supposed to be
 
 Here is the fixed version:
 
+{% raw %}
 ```
 
 def run_program(program: list) -> int:
@@ -358,6 +367,7 @@ def run_program(program: list) -> int:
 	return result
 
 ```
+{% endraw %}
 
 Now it works!
 
@@ -367,6 +377,7 @@ Ok so before processing every cyclem we should check for the sprite. Checking if
 
 Here is my current script:
 
+{% raw %}
 ```
 
 
@@ -593,9 +604,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Except that it doesn't work, because it just shows a repeating pattern as the output. After a bit of debugging I found out that my rendering function sucks ass. Here I fixed it:
 
+{% raw %}
 ```
 
 def render_matrix(matrix: np.array) -> None:
@@ -614,6 +627,7 @@ def render_matrix(matrix: np.array) -> None:
 
 
 ```
+{% endraw %}
 
 Now it shows the fucking matrix correctly. This is good. Now let's run it on the actual input.
 
@@ -633,6 +647,7 @@ My implementation takes 0.714s and that plagiarized takes around 0.351s . Fuck! 
 
 Looking at my cprofile output:
 
+{% raw %}
 ```
 
 
@@ -677,6 +692,7 @@ Looking at my cprofile output:
 
 
 ```
+{% endraw %}
 
 A lot of the time is spent inside check_cycle_part2 .
 
@@ -690,6 +706,7 @@ After thinking a while I have arrived to the conclusion that I am a dumbass.
 
 I looked at the better code and it seems that I am overcomplicating the logic of the program. First things first, we can just do a nop and then check if the instruction was addx, because the nop instruction is basically the first part of the addx instruction. See:
 
+{% raw %}
 ```
 addx instruction:
 
@@ -712,9 +729,11 @@ Therefore we do not need to have an "else" clause.
 
 
 ```
+{% endraw %}
 
 Here is my current solve function:
 
+{% raw %}
 ```
 
 def run_program_part2(program: list) -> int:
@@ -737,9 +756,11 @@ def run_program_part2(program: list) -> int:
 	return screen_mat
 
 ```
+{% endraw %}
 
 We can modify it to look like this:
 
+{% raw %}
 ```
 
 def run_program_part2(program: list) -> int:
@@ -760,6 +781,7 @@ def run_program_part2(program: list) -> int:
 	return screen_mat
 
 ```
+{% endraw %}
 
 And it causes an increase in performance! Great!
 
@@ -768,6 +790,7 @@ Then I am gonna do something which feels a bit disgusting. I am going to complet
 
 I am now wondering if
 
+{% raw %}
 ```
 
 			scan_x += 1
@@ -776,9 +799,11 @@ I am now wondering if
 				scan_y += 1
 
 ```
+{% endraw %}
 
 is faster than
 
+{% raw %}
 ```
 
 			if scan_x == 39:
@@ -788,10 +813,12 @@ is faster than
 				scan_x += 1
 
 ```
+{% endraw %}
 
 
 Let's actually try that in a separate program.
 
+{% raw %}
 ```
 
 
@@ -832,15 +859,18 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 The results are:
 
+{% raw %}
 ```
 First part took 14.41629934310913seconds.
 Second part took 14.640509605407715seconds.
 
 
 ```
+{% endraw %}
 
 Is that the second way is a tiny bit slower.
 
@@ -848,6 +878,7 @@ Our next suspect is `pixel = abs(x - scan_x) < 2` . In the plagiarized version t
 
 Here is the final code:
 
+{% raw %}
 ```
 
 
@@ -1067,6 +1098,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 

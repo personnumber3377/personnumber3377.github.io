@@ -15,6 +15,7 @@ I actually already did something similar to this with the BSP file fuzzing, but 
 The main socket handling function in the counter strike source code is this function:
 
 
+{% raw %}
 ```
 void NET_ProcessSocket( int sock, IConnectionlessPacketHandler *handler )
 {
@@ -109,16 +110,20 @@ void NET_ProcessSocket( int sock, IConnectionlessPacketHandler *handler )
 }
 
 ```
+{% endraw %}
 
 this code calls the NET_GetPacket function which gets a packet from the socket:
 
+{% raw %}
 ```
 packet = NET_GetPacket ( sock, scratch.GetBuffer() )
 ```
+{% endraw %}
 
 
 The NET_GetPacket function is this:
 
+{% raw %}
 ```
 netpacket_t *NET_GetPacket (int sock, byte *scratch )
 {
@@ -183,9 +188,11 @@ netpacket_t *NET_GetPacket (int sock, byte *scratch )
 }
 
 ```
+{% endraw %}
 
 the definition of the inpacket  object is here:
 
+{% raw %}
 ```
 
 typedef struct netpacket_s
@@ -202,9 +209,11 @@ typedef struct netpacket_s
 } netpacket_t;
 
 ```
+{% endraw %}
 
 the definition of ProcessPacket is this:
 
+{% raw %}
 ```
 void CNetChan::ProcessPacket( netpacket_t * packet, bool bHasHeader )
 {
@@ -313,6 +322,7 @@ void CNetChan::ProcessPacket( netpacket_t * packet, bool bHasHeader )
 #endif
 }
 ```
+{% endraw %}
 
 
 
@@ -320,6 +330,7 @@ void CNetChan::ProcessPacket( netpacket_t * packet, bool bHasHeader )
 
 and then finally ProcessMessages which calls _ProcessMessages internally:
 
+{% raw %}
 ```
 bool CNetChan::ProcessMessages( bf_read &buf, bool wasReliable  )
 {
@@ -331,6 +342,7 @@ bool CNetChan::ProcessMessages( bf_read &buf, bool wasReliable  )
 	// Can't safely put code here because delete this could have occurred!!!
 }
 ```
+{% endraw %}
 
 one thing to note about this code is that wiresize isn't really used in the _ProcessMessages function so we really do not need to modify it accordingly and I think that we can safely ignore this field in the packet object.
 
@@ -342,6 +354,7 @@ So maybe the easiest way to accomplish this is to just do something similar with
 This is what I did previously:
 
 
+{% raw %}
 ```
 #include <bits/stdc++.h>
 
@@ -549,6 +562,7 @@ int main(int argc, char** argv) {
 }
 
 ```
+{% endraw %}
 
 and then I just compiled this and ran it with the game shared libraries and it worked decently.
 
@@ -557,6 +571,7 @@ Now, instead of doing that I think that I should modify the original source to u
 The original main.cpp in the dedicated_main thing is this:
 
 
+{% raw %}
 ```
 #include <stdio.h>
 #ifdef _WIN32
@@ -724,10 +739,12 @@ int main( int argc, char *argv[] )
 #endif
 
 ```
+{% endraw %}
 
 According to this https://www.tutorialspoint.com/c_standard_library/c_function_longjmp.htm we should use the longjmp thing like so:
 
 
+{% raw %}
 ```
 
 #include <stdio.h>
@@ -950,6 +967,7 @@ int main( int argc, char *argv[] )
 
 
 ```
+{% endraw %}
 
 
 
@@ -959,12 +977,15 @@ Maybe this will work? :
 
 
 First we add this to net_ws.cpp :
+{% raw %}
 ```
 #include "../jumpbuf.h"
 #include <setjmp.h>
 ```
+{% endraw %}
 and then later this:
 
+{% raw %}
 ```
 		CNetChan * netchan = NET_FindNetChannel( sock, packet->from );
 
@@ -982,9 +1003,11 @@ and then later this:
 
 
 ```
+{% endraw %}
 
 actually I think that we need to do something like this:
 
+{% raw %}
 ```
 
 
@@ -1010,10 +1033,12 @@ void fuzzing_function(CNetChan *channelthing) {
 }
 
 ```
+{% endraw %}
 
 
 and:
 
+{% raw %}
 ```
 netpacket_t* get_new_packet(void) {
 
@@ -1038,9 +1063,11 @@ netpacket_t* get_new_packet(void) {
 }
 
 ```
+{% endraw %}
 
 
 
+{% raw %}
 ```
 
 typedef struct netpacket_s
@@ -1057,19 +1084,23 @@ typedef struct netpacket_s
 } netpacket_t;
 
 ```
+{% endraw %}
 
 To use all of this stuff we need to include the header files:
 
 
+{% raw %}
 ```
 #include "/home/cyberhacker/Netpacketfuzzer/Kisak-Strike/public/engine/inetsupport.h"
 #include "/home/cyberhacker/Netpacketfuzzer/Kisak-Strike/engine/net_chan.h"
 ```
+{% endraw %}
 
 Lets try to compile this and see what happens!
 
 And we get a compiler error. Very surprising /s .
 
+{% raw %}
 ```
 
 
@@ -1083,10 +1114,12 @@ compilation terminated.
 
 
 ```
+{% endraw %}
 
 
 After literally just removing that include from that thing we now get another error:
 
+{% raw %}
 ```
 /home/cyberhacker/Netpacketfuzzer/Kisak-Strike/dedicated_main/main.cpp: In function ‘int main(int, char**)’:
 /home/cyberhacker/Netpacketfuzzer/Kisak-Strike/dedicated_main/main.cpp:319:20: error: invalid conversion from ‘int’ to ‘INetChannel*’ [-fpermissive]
@@ -1097,6 +1130,7 @@ After literally just removing that include from that thing we now get another er
 /home/cyberhacker/Netpacketfuzzer/Kisak-Strike/dedicat
 
 ```
+{% endraw %}
 
 This error was expected because the return type of the setjmp thing when returning with longjmp is an integer and we are trying to cast it to a INetChannel pointer (aka CNetChan pointer) .
 
@@ -1104,11 +1138,13 @@ Sure, this under normal circumstances would be dumb but now that our application
 
 While higher level languages are in my opinion better than lower level languages, this is one of the few things lower level stuff is better at: Being able to do close to the metal stuff far easier. Yes, sure the higher level  langauges  protect you from yourself by preventing you from doing dumb shit, but it is at the expense of the understanding of the lower layers. Also the abstraction of course making higher level constructs easier, but the one in a blue moon occurence when you are forced to do "dumb shit" because there is 100% no other way to do it, then you need to come up with complete ugliness like this:
 
+{% raw %}
 ```
 		thing = (INetChannel*)((int*)return_value_thing);
 		fuzzing_function(thing);
 
 ```
+{% endraw %}
 
 
 And in situations like these, the developer grows uneasy and is more prone to making for example integer casting mistakes which would become obvious when working with assembly language.
@@ -1121,15 +1157,18 @@ Ok so after hours of compiling we actually didn't even get any linking errors. Q
 
 Lets see if it actually runs on the first try.
 
+{% raw %}
 ```
 System (VMaterialSystem080) failed during stage CONNECTION
 ```
+{% endraw %}
 
 Uh oh. That does not sound good. Looking through the code we see that the code runs a lot of so called "factories" which add all the required components to the game such as the materialsystem and the filesystem thing and the shader stuff.
 
 after a bit of debugging, I narrowed the problem down to this:
 
 
+{% raw %}
 ```
 	g_pLauncherMgr = (ILauncherMgr *)factory( "SDLMgrInterface001", NULL );
 	if ( !g_pLauncherMgr ) {
@@ -1138,6 +1177,7 @@ after a bit of debugging, I narrowed the problem down to this:
 	}
 
 ```
+{% endraw %}
 
 
 g_pLauncherMgr is NULL for some reason.
@@ -1147,6 +1187,7 @@ We try to call FindSystem with "SDLMgrInterface001" as pSystemName
 
 
 
+{% raw %}
 ```
 void *CAppSystemGroup::FindSystem( const char *pSystemName )
 {
@@ -1187,6 +1228,7 @@ void *CAppSystemGroup::FindSystem( const char *pSystemName )
 }
 
 ```
+{% endraw %}
 
 We never even initialize the sdlmgr interface in the first place so something is going wrong.
 
@@ -1197,6 +1239,7 @@ Aaaannnddd that actually worked??? Huh.
 Anyway, now we get an ASAN error when we try to run the server. I actually remember this:
 
 
+{% raw %}
 ```
 
 #Called Connect on CMaterialSystem:
@@ -1261,9 +1304,11 @@ Shadow byte legend (one shadow byte represents 8 application bytes):
 
 
 ```
+{% endraw %}
 
 Here is the code:
 
+{% raw %}
 ```
 const char *UTIL_GetBaseDir( void )
 {
@@ -1291,6 +1336,7 @@ const char *UTIL_GetBaseDir( void )
 }
 
 ```
+{% endraw %}
 
 
 So just add -basedir to the command line parameters and we should be fine???
@@ -1300,6 +1346,7 @@ And it worked! Things are going surprisingly well.
 After that we get another asan error:
 
 
+{% raw %}
 ```
 
 =================================================================
@@ -1369,6 +1416,7 @@ SUMMARY: AddressSanitizer: alloc-dealloc-mismatch ../../../../src/libsanitizer/a
 
 
 ```
+{% endraw %}
 
 So just do `export ASAN_OPTIONS=alloc_dealloc_mismatch=0` ?
 
@@ -1384,6 +1432,7 @@ Aaanndd the crash seems to happen in the longjmp thing in net_ws.cpp . So the ju
 
 Lets try this as the main binary:
 
+{% raw %}
 ```
 
 
@@ -1450,10 +1499,12 @@ int main (int argc, char** argv) {
 
 
 ```
+{% endraw %}
 
 
 and then jump.h :
 
+{% raw %}
 ```
 
 #include <setjmp.h>
@@ -1462,16 +1513,20 @@ jmp_buf env_buffer;
 
 
 ```
+{% endraw %}
 
 to compile this just do:
 
+{% raw %}
 ```
 gcc main.c -ldl -o main
 ```
+{% endraw %}
 
 then we need to program the "library" :
 
 
+{% raw %}
 ```
 
 
@@ -1495,11 +1550,13 @@ void jump_bullshit(void) {
 }
 
 ```
+{% endraw %}
 
 and this code now reproduces the issue which we had previously. That is quite bad since I do not know how to do this properly. Now a way in which we can go about this is to use the deferred forkserver method. The deferred forkserver allows us to have the __AFL_LOOP inside a shared library. We need to put the __AFL_HAVE_MANUAL_CONTROL thing or whatever with it to use it.
 
 Instead of doing some longjmp bullshit lets just add this to net_ws.cpp :
 
+{% raw %}
 ```
 #define MAX_INPUT_SIZE	10000
 
@@ -1565,8 +1622,10 @@ void fuzz_main_loop(CNetChan* netchan) {
 }
 
 ```
+{% endraw %}
 and then add this line:
 
+{% raw %}
 ```
 		if ( netchan )
 		{
@@ -1580,10 +1639,12 @@ and then add this line:
 		}
 
 ```
+{% endraw %}
 
 
 After fixing a couple of typos, we now get another crash:
 
+{% raw %}
 ```
 0x00007ffff15c48e4 in CBitRead::Seek (this=0x7fffffff7638, nPosition=<optimized out>) at /home/cyberhacker/Netpacketfuzzer/Kisak-Strike/tier1/newbitbuf.cpp:396
 396				m_nInBufWord = *( pPartial++ );
@@ -1602,6 +1663,7 @@ After fixing a couple of typos, we now get another crash:
 
 
 ```
+{% endraw %}
 
 This is because something goes wrong in the Seek thing.
 
@@ -1615,6 +1677,7 @@ I think that it crashes in the bitbuffer Seek function because we are passing th
 
 Luckily for us there is a NET_LogBadPacket function which just logs (as the name implies) bad packets to a file. Lets just make a copy of that function and rename it to NET_LogPacket .
 
+{% raw %}
 ```
 
 
@@ -1653,9 +1716,11 @@ void NET_LogPacket(netpacket_t * packet)
 }
 
 ```
+{% endraw %}
 
 our code is now this:
 
+{% raw %}
 ```
 		CNetChan * netchan = NET_FindNetChannel( sock, packet->from );
 
@@ -1681,12 +1746,14 @@ our code is now this:
 		}*/
 	}
 ```
+{% endraw %}
 
 recompile and run.
 
 
 When running normally we get an asan error:
 
+{% raw %}
 ```
 =================================================================
 ==6736==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7fffffff9a90 at pc 0x7fffefc4e3f6 bp 0x7fffffff99c0 sp 0x7fffffff99b0
@@ -1778,11 +1845,13 @@ Shadow byte legend (one shadow byte represents 8 application bytes):
 
 
 ```
+{% endraw %}
 
 I think that I am just going to do a `__attribute__((no_sanitize("address")))`
 
 Also there is an asan.sh script in the output and its contents are this:
 
+{% raw %}
 ```
 export ASAN_OPTIONS=halt_on_error=0:handle_abort=1:exitcode=0:verbosity=0:detect_leaks=1:detect_odr_violation=0:alloc_dealloc_mismatch=0
 #export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
@@ -1791,6 +1860,7 @@ export UBSAN_OPTIONS=halt_on_error=0
 ./csgo.sh -console
 
 ```
+{% endraw %}
 
 So maybe we should copy those ASAN_OPTIONS ? There is that halt_on_error which is set to zero so I think that makes the program continue even though an error is encountered like in the crash which we observed previously.
 
@@ -1800,11 +1870,13 @@ Now we can capture all sorts of interesting packets going to the server, except 
 
 in the original code there is this line:
 
+{% raw %}
 ```
 net_scratchbuffer_t scratch;
 packet = NET_GetPacket ( sock, scratch.GetBuffer() )
 
 ```
+{% endraw %}
 
 So lets try to do that next in our packet injection code.
 
@@ -1812,15 +1884,18 @@ So lets try to do that next in our packet injection code.
 The GetBuffer function of net_scratchbuffer_t is this:
 
 
+{% raw %}
 ```
 	byte * GetBuffer() const
 	{
 		return m_pBufferNetMaxMessage->buf;
 	}
 ```
+{% endraw %}
 
 the constructor for net_scratchbuffer_t is this:
 
+{% raw %}
 ```
 
 	net_scratchbuffer_t()
@@ -1831,23 +1906,29 @@ the constructor for net_scratchbuffer_t is this:
 	}
 
 ```
+{% endraw %}
 
 and:
 
+{% raw %}
 ```
 
 static CTSPool< buffer_t > sm_NetScratchBuffers
 
 ```
+{% endraw %}
 and:
 
+{% raw %}
 ```
 struct buffer_t { byte buf[ NET_MAX_MESSAGE ]; };
 ```
+{% endraw %}
 
 
 and the definition of byte is basically just unsigned char:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Netpacketfuzzer/Kisak-Strike$ grep -R "typedef unsigned char byte" *
 anothershit.txt:engine/console.h:typedef unsigned char byte;
@@ -1862,6 +1943,7 @@ anothershit.txt:public/engine/ivmodelinfo.h:typedef unsigned char byte;
 anothershit.txt:public/keyframe/keyframe.cpp:typedef unsigned char byte;
 
 ```
+{% endraw %}
 
 So I am a bit confused as to how we should crash when that was what we were doing in the first place.
 
@@ -1875,6 +1957,7 @@ Anyway, lets just first just try to log packets from a couple of minutes of actu
 
 There is a problem that when I try to join the server, it kinda works, but then it drops the connection after a while with this message:
 
+{% raw %}
 ```
 STEAMAUTH: Client REDACTED received failure code 6
 STEAMAUTH: Client REDACTED received failure code 6
@@ -1889,6 +1972,7 @@ Net channel ratelimit exceeded for 192.168.32.161:27006: 43 packets rejected.
 Server is hibernating
 Server is hibernating
 ```
+{% endraw %}
 
 
 according to this https://steamerrors.com/ error code 6 means that I am logged in somewhere else??????
@@ -1897,6 +1981,7 @@ That is kinda weird. Lets try to run steam with -debug_steamapi and -console ena
 
 Except that lets not. Looking at public/const.h there are these juicy lines:
 
+{% raw %}
 ```
 
 
@@ -1913,6 +1998,7 @@ Except that lets not. Looking at public/const.h there are these juicy lines:
 #define INVALID_STEAM_LOGGED_IN_ELSEWHERE "This Steam account is being used in another location\n"
 
 ```
+{% endraw %}
 
 So lets try to run the server with "-steam" ??? 
 
@@ -1920,6 +2006,7 @@ So lets try to run the server with "-steam" ???
 
 Aaaannndd we get the same error with absolutely no useful errors in the steam console:
 
+{% raw %}
 ```
 m_pData == {?
 STEAMAUTH: Client REDACTED received failure code 6
@@ -1935,6 +2022,7 @@ Net channel ratelimit exceeded for 192.168.32.161:27006: 367 packets rejected.
 Server is hibernating
 Server is hibernating
 ```
+{% endraw %}
 
 
 Thanks Valve for the very useful and very descriptive errors! 🙃 
@@ -1942,6 +2030,7 @@ Thanks Valve for the very useful and very descriptive errors! 🙃
 
 in sv_steamauth.cpp :
 
+{% raw %}
 ```
 
 	Warning( "STEAMAUTH: Client %s received failure code %d\n", cl->GetClientName(), (int)eAuthSessionResponse );
@@ -1954,10 +2043,12 @@ in sv_steamauth.cpp :
 		break;
 
 ```
+{% endraw %}
 
 
 and:
 
+{% raw %}
 ```
 enum EAuthSessionResponse
 {
@@ -1975,6 +2066,7 @@ enum EAuthSessionResponse
 
 
 ```
+{% endraw %}
 So we are actually getting k_EAuthSessionResponseAuthTicketCanceled error. After some searching I found this : https://steamcommunity.com/app/51100/discussions/0/864977564389540810/ but the thing is that I can not find the ClientRegistry.blob file anywhere in my file system . Maybe just try with -autoupdate ? 
 
 Running with -autoupdate the binary just exits almost immediately. Huh. Maybe running the client with -steam helps?
@@ -1987,9 +2079,11 @@ Maybe we should try updating the server?
 
 there is the 
 
+{% raw %}
 ```
 Your server needs to be restarted in order to receive the latest update.
 ```
+{% endraw %}
 
 error which seems to indicated that we should update the server. Of course we can't update the server because it is compiled from leaked source, but instead trying to update the vanilla server should be fine???
 
@@ -2001,6 +2095,7 @@ Maybe try connecting to the server with the vanilla client??
 
 In the function which takes INVALID_STEAM_LOGON aka "No steam logon" as a parameter:
 
+{% raw %}
 ```
 void CSteam3Server::OnInvalidSteamLogonErrorForClient( CBaseClient *cl )
 {
@@ -2036,34 +2131,42 @@ void CSteam3Server::OnInvalidSteamLogonErrorForClient( CBaseClient *cl )
 }
 
 ```
+{% endraw %}
 
 There is that BLanOnly thing which seems interesting. Can we make the server such that it server to lan only???
 
+{% raw %}
 ```
 sv_steamauth.h:	bool BLanOnly() const { return m_eServerMode == eServerModeNoAuthentication; }
 ```
+{% endraw %}
 
 Now, I saw that in the code there was the NO_STEAM macro which I think we should set, but there is also this:
 
+{% raw %}
 ```
 	if ( sv_lan.GetBool() )
 	{
 		return eServerModeNoAuthentication;
 	}
 ```
+{% endraw %}
 
 sooo just set +sv_lan 1 ? 
 
 Now we get this error:
 
+{% raw %}
 ```
 STEAMAUTH: Client REDACTED received failure code 6
 STEAMAUTH: Client REDACTED received failure code 6
 Net channel ratelimit exceeded for 192.168.32.161:27006: 349 packets rejected.
 Net channel ratelimit exceeded for 192.168.32.161:27006: 349 packets rejected.
 ```
+{% endraw %}
 So now we do not get the "No Steam logon" thing but we still get this failure.
 
+{% raw %}
 ```
 
 void CSteam3Server::OnValidateAuthTicketResponseHelper( CBaseClient *cl, EAuthSessionResponse eAuthSessionResponse )
@@ -2085,10 +2188,12 @@ void CSteam3Server::OnValidateAuthTicketResponseHelper( CBaseClient *cl, EAuthSe
 	{
 
 ```
+{% endraw %}
 
 
 and:
 
+{% raw %}
 ```
 
 void CSteam3Server::OnValidateAuthTicketResponse( ValidateAuthTicketResponse_t *pValidateAuthTicketResponse )
@@ -2114,15 +2219,18 @@ void CSteam3Server::OnValidateAuthTicketResponse( ValidateAuthTicketResponse_t *
 	if ( Filter_IsUserBanned( client->GetNetworkID() ) )
 	{
 ```
+{% endraw %}
 
 Soooo just compile with -DNO_STEAM=1 ??? Gosh, why does this have to be so hard?
 
 
 Aaannd tada:
 
+{% raw %}
 ```
 We have to build with steam currently =(
 ```
+{% endraw %}
 
 Fuck!
 
@@ -2133,9 +2241,11 @@ I got the inspiration to try this from here: https://github.com/SwagSoftware/Kis
 Run strace on the server and see where it loads the steamapi from???
 
 
+{% raw %}
 ```
 lstat("/home/cyberhacker/Netpacketfuzzer/Kisak-Strike/lib/public/linux64/libsteam_api.so", {st_mode=S_IFREG|0664, st_size=404222, ...}) = 0
 ```
+{% endraw %}
 
 Oh, so it just loads it from the source tree itself?? That is kinda of an unorthodox way of doing things. Oh well.
 
@@ -2143,6 +2253,7 @@ So just replace it with the newly compiled steamapi.so file??
 
 Now I am getting this error:
 
+{% raw %}
 ```
 
 LD_LIBRARY_PATH=/home/cyberhacker/Netpacketfuzzer/game/bin:/home/cyberhacker/Netpacketfuzzer/game/bin/linux64
@@ -2155,6 +2266,7 @@ LD_LIBRARY_PATH=/home/cyberhacker/Netpacketfuzzer/game/bin:/home/cyberhacker/Net
 
 
 ```
+{% endraw %}
 Maybe try to compile the goldberg shit with -static-libsan ?
 
 
@@ -2168,6 +2280,7 @@ Oh wait actually it is just the alarm clock thing.
 
 Lets investigate what calls the SIGALRM signal. Maybe `handle SIGALRM stop` makes the debugger stop at the signal?
 
+{% raw %}
 ```
 
 Server waking up from hibernation
@@ -2209,9 +2322,11 @@ Thread 1 "srcds_linux" received signal SIGALRM, Alarm clock.
 
 
 ```
+{% endraw %}
 
 Yeah, but that does not show where the timer was originally set?
 
+{% raw %}
 ```
 
 Thread 1 "srcds_linux" hit Breakpoint 2, 0x00007ffff72965e0 in alarm@plt () from /home/cyberhacker/Netpacketfuzzer/game/bin/linux64/libtier0_client.so
@@ -2235,11 +2350,13 @@ Thread 1 "srcds_linux" hit Breakpoint 2, 0x00007ffff72965e0 in alarm@plt () from
 
 
 ```
+{% endraw %}
 
 
 
 and
 
+{% raw %}
 ```
 
 (gdb) where
@@ -2263,6 +2380,7 @@ and
 
 
 ```
+{% endraw %}
 
 So the program sets watchdog timers? That is kinda retarded since, I mean I get that you want to set a timer for a thread such that it doesn't run endlessly. Lets just patch the BeginWatchdogTimer function out.
 
@@ -2270,6 +2388,7 @@ Except that we do not need to do that. There is a -nowatchdog command line optio
 
 Aaaanndd we get the exact same crash!
 
+{% raw %}
 ```
 
 STEAMAUTH: Client Noob received failure code 6
@@ -2285,11 +2404,13 @@ ApplyGameSettings: Invalid mapgroup name mg_bomb
 
 
 ```
+{% endraw %}
 
 Maybe mod the makefile and add the NO_STEAM flag?
 
 Here is the only place where the NO_STEAM flag is referenced in any meaningful way:
 
+{% raw %}
 ```
 
     target_sources(${OUTBINNAME} PRIVATE "${ESRCDIR}/enginetool.cpp")
@@ -2312,9 +2433,11 @@ endif()
 target_link_libraries(${OUTBINNAME} appframework_client bitmap_client dmxloader_client mathlib_client)
 
 ```
+{% endraw %}
 
 replaced with this:
 
+{% raw %}
 ```
 
 target_sources(${OUTBINNAME} PRIVATE "${ESRCDIR}/serializedentity.cpp") #valve had this in the header section >:(
@@ -2331,11 +2454,13 @@ target_link_libraries(${OUTBINNAME} ${LIBPUBLIC}/libsteam_api.so)
 target_link_libraries(${OUTBINNAME} appframework_client bitmap_client dmxloader_client mathlib_client)
 
 ```
+{% endraw %}
 
 
 
 lets then try to compile with this:
 
+{% raw %}
 ```
 export CFLAGS="-fsanitize=address -fsanitize-recover=address"
 export CXXFLAGS="-fsanitize=address -fsanitize-recover=address"
@@ -2345,6 +2470,7 @@ CFLAGS="-g -fsanitize=address -fsanitize-recover=address" CXXFLAGS="-g -fsanitiz
 
 
 ```
+{% endraw %}
 
 After doing these couple of mods, lets see what happens! (Hopefully we get a working binary.)
 
@@ -2361,6 +2487,7 @@ Yeah, this bullshit totally ignores the -DNO_STEAM=1 when compiling for some rea
 
 Looking at the way the makefiles handle USE_ASAN for example i see this:
 
+{% raw %}
 ```
 
 
@@ -2382,9 +2509,11 @@ if(LINUXALL)
 endif()
 
 ```
+{% endraw %}
 
 lets add this here:
 
+{% raw %}
 ```
 
     if( USE_ASAN )
@@ -2403,6 +2532,7 @@ lets add this here:
     if( DONT_DOWNGRADE_ABI )
 
 ```
+{% endraw %}
 
 
 This seems to have done the trick and now we are actually compiling without Steam .
@@ -2410,6 +2540,7 @@ This seems to have done the trick and now we are actually compiling without Stea
 
 If we enable NO_STEAM then we get a compiler error on these lines:
 
+{% raw %}
 ```
 
 
@@ -2430,12 +2561,14 @@ enum PeerToPeerAddressType_t
 
 
 ```
+{% endraw %}
 
 Soooo maybe just try getting rid of it and then trying again?
 
 
 Another compiler error happens here:
 
+{% raw %}
 ```
 
 void CBaseGamesPage::OnViewWorkshop( int serverID )
@@ -2446,6 +2579,7 @@ void CBaseGamesPage::OnViewWorkshop( int serverID )
 
 
 ```
+{% endraw %}
 
 in BaseGamesPage.cpp 
 
@@ -2456,6 +2590,7 @@ After doing those modifications, lets see if we get anymore errors. Hopefully no
 
 They also forgot to do that here:
 
+{% raw %}
 ```
 	}
 
@@ -2469,12 +2604,14 @@ They also forgot to do that here:
 
 
 ```
+{% endraw %}
 
 in gameinterface.cpp .
 
 
 Another error:
 
+{% raw %}
 ```
 
 In file included from /home/cyberhacker/Netpacketfuzzer/Kisak-Strike/game/server/movehelper_server.cpp:18:
@@ -2485,10 +2622,12 @@ In file included from /home/cyberhacker/Netpacketfuzzer/Kisak-Strike/game/server
 
 
 ```
+{% endraw %}
 
 
 Now, RecordWeaponHit is only used in like a couple of places in the code:
 
+{% raw %}
 ```
 
 game/shared/cstrike15/basecsgrenade_projectile.cpp
@@ -2497,9 +2636,11 @@ game/server/cstrike15/cs_gamestats.h
 
 
 ```
+{% endraw %}
 
 Even more errors:
 
+{% raw %}
 ```
 
 
@@ -2543,6 +2684,7 @@ Even more errors:
 	}
 
 ```
+{% endraw %}
 
 
 since we do not have steamapicontext defined anywhere, we just rip this code out.
@@ -2556,6 +2698,7 @@ The compilation is as of writing around 80% done now and no extra errors have oc
 
 Uh oh:
 
+{% raw %}
 ```
 /home/cyberhacker/Netpacketfuzzer/Kisak-Strike/game/shared/steamworks_gamestats.cpp:266:3: error: ‘m_CallbackSteamSessionInfoIssued’ was not declared in this scope
   266 |   m_CallbackSteamSessionInfoIssued.Set( hSteamAPICall, this, &CSteamWorksGameStatsUploader::Steam_OnSteamSessionInfoIssued );
@@ -2574,6 +2717,7 @@ Uh oh:
 
 
 ```
+{% endraw %}
 
 
 After ripping that code out the compilation continues. We are basically just praying that nothing will call those functions, since they do not work. 😅
@@ -2584,6 +2728,7 @@ More errors. Good.
 
 Here is the current list of errors:
 
+{% raw %}
 ```
 In file included from /home/cyberhacker/Netpacketfuzzer/Kisak-Strike/game/server/cstrike15/cs_gamestats.cpp:16:
 /home/cyberhacker/Netpacketfuzzer/Kisak-Strike/game/server/cstrike15/cs_gamestats.h:442:24: error: ‘SWeaponHitData’ has not been declared
@@ -3213,6 +3358,7 @@ make: *** [Makefile:152: all] Error 2
 
 
 ```
+{% endraw %}
 
 Ok so after basically just nuking a lot of stuff we can continue the compilation a bit again. Yeah! (Again I really think that this will end up as a failure, because there is no way that this shit honestly runs.)
 
@@ -3220,11 +3366,13 @@ And holy shit! It compiled succesfully! Welp, time to try and see if it runs!
 
 Aaannddd no:
 
+{% raw %}
 ```
 
 # failed to dlopen /home/cyberhacker/Netpacketfuzzer/game/csgo/bin/linux64/server_client.so error=/home/cyberhacker/Netpacketfuzzer/game/csgo/bin/linux64/server_client.so: undefined symbol: _ZTI28CSteamWorksGameStatsUploader
 
 ```
+{% endraw %}
 
 Maybe we messed something up and maybe recompiling will help???? (Wishful thinking imo..)
 
@@ -3235,6 +3383,7 @@ same error
 
 The only files which contains that string are these files:
 
+{% raw %}
 ```
 
 cyberhacker@cyberhacker-h8-1131sc:~/Netpacketfuzzer/Kisak-Strike$ grep --exclude-dir=cmake-build/ -iRl CSteamWorksGameStatsUploader *
@@ -3245,19 +3394,23 @@ game/server/steamworks_gamestats_server.h
 
 
 ```
+{% endraw %}
 
 And I don't know why the symbol is undefined. Looking at the source code we seem to be including the definition of it but idk. lets compare this to the client which works fine maybe?
 
 
 Client:
+{% raw %}
 ```
 
 r/__/shared$ nm steamworks_gamestats.cpp.o | grep _ZTV28CSteamWorksGameStatsUploader
 0000000000000000 V _ZTV28CSteamWorksGameStatsUploader
 ```
+{% endraw %}
 
 Server:
 
+{% raw %}
 ```
 
 __/shared$ nm steamworks_gamestats.cpp.o | grep _ZTV28CSteamWorksGameStatsUploader
@@ -3265,6 +3418,7 @@ __/shared$ nm steamworks_gamestats.cpp.o | grep _ZTV28CSteamWorksGameStatsUpload
 
 
 ```
+{% endraw %}
 
 
 
@@ -3272,6 +3426,7 @@ so the problem is in the steamworks_gamestats.cpp file but idk what it is.
 
 here is the difference between the two files:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Netpacketfuzzer/Kisak-Strike/game/shared$ diff steamworks_gamestats.cpp /home/cyberhacker/Codecoveragething/Kisak-Strike/game/shared/steamworks_gamestats.cpp 
 265,269c265,266
@@ -3294,6 +3449,7 @@ cyberhacker@cyberhacker-h8-1131sc:~/Netpacketfuzzer/Kisak-Strike/game/shared$ di
 > 		m_CallbackSteamSessionInfoClosed.Set( hSteamAPICall, this, &CSteamWorksGameStatsUploader::Steam_OnSteamSessionInfoClosed );
 
 ```
+{% endraw %}
 
 I don't know. Maybe it is something to do with the compile flags or some shit like that? Anyway, see ya tomorrow.
 
@@ -3309,9 +3465,11 @@ Also I think that you can use an autoexec file so this makes it easier, when the
 
 After trying to compile the client again, I get this error:
 
+{% raw %}
 ```
 Failed to load the launcher(bin/linux64/launcher_client.so) (../../lib/public/linux64/libsteam_api.so: cannot open shared object file: No such file or directory)
 ```
+{% endraw %}
 
 which is not promising. Maybe recompile will help? (Once again wishful thinking.)
 
@@ -3320,6 +3478,7 @@ which is not promising. Maybe recompile will help? (Once again wishful thinking.
 After recompiling we get this error then:
 
 
+{% raw %}
 ```
 
 0x00007fffc4da40b8 in KeyValues::FindKey (this=<optimized out>, keyName=0x7fffc702d480 "nameID", bCreate=<optimized out>) at /home/cyberhacker/Fuzzingpackets/Kisak-Strike/tier1/keyvalues.cpp:1038
@@ -3351,6 +3510,7 @@ After recompiling we get this error then:
 
 
 ```
+{% endraw %}
 
 I have absolutely no idea as to why this is happening. Maybe try compiling with the normal compiler and see what happens?
 
@@ -3376,9 +3536,11 @@ I am actually using the 3881ccd0b7520f67fd0b34f010443dc249cbc8f1 commit of afl w
 
 Uh oh:
 
+{% raw %}
 ```
 g++: fatal error: cannot specify ‘-o’ with ‘-c’, ‘-S’ or ‘-E’ with multiple files
 ```
+{% endraw %}
 
 Welp, there goes that. Lets try to use the older version.
 
@@ -3393,6 +3555,7 @@ Soo now it is time to implement the actual fuzzer.
 
 Here is the code for the scratch.GetBuffer code:
 
+{% raw %}
 ```
 
 class net_scratchbuffer_t
@@ -3429,6 +3592,7 @@ private:
 
 
 ```
+{% endraw %}
 
 
 
@@ -3437,6 +3601,7 @@ So to get the size of the buffer just call scratch.Size() . We need this because
 
 First try is this:
 
+{% raw %}
 ```
 
 __AFL_FUZZ_INIT();
@@ -3503,6 +3668,7 @@ bool NET_GetLoopPacketmodded ( netpacket_t * packet )
 }
 
 ```
+{% endraw %}
 
 After fixing a couple typos lets see what happens when we call the program with afl-fuzz! (I am expecting a crash.)
 
@@ -3512,6 +3678,7 @@ I only tested that it shows the console, but didn't test loading the map file.
 
 Upon loading the map file we get an asan error:
 
+{% raw %}
 ```
 =================================================================
 ==16932==ERROR: AddressSanitizer: unknown-crash on address 0x7fffffff25e4 at pc 0x7fffe51e1570 bp 0x7fffffff24a0 sp 0x7fffffff2490
@@ -3629,11 +3796,13 @@ __GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:50
 
 
 ```
+{% endraw %}
 
 So the code crashes on the SIMD thing which I think is an intel processor thing.
 
 There is even a comment on it by lwss :
 
+{% raw %}
 ```
 
 // lwss: This function is an ASAN exclusion.
@@ -3651,10 +3820,12 @@ fltx4 LoadUnalignedSIMD( const void *pSIMD )
 }
 
 ```
+{% endraw %}
 but I have -DUSE_ASAN on the command line?
 
 Lets manually remove the else:
 
+{% raw %}
 ```
 
 ATTRIBUTE_NO_SANITIZE_ADDRESS inline // can't combine these 2 attributes
@@ -3665,6 +3836,7 @@ fltx4 LoadUnalignedSIMD( const void *pSIMD )
 
 
 ```
+{% endraw %}
 
 because those files are inlined, it will take forever to recompile. :(
 
@@ -3680,6 +3852,7 @@ After doing some of that it still gets stuck for some reason. Maybe try AFL_DEBU
 
 This is the output:
 
+{% raw %}
 ```
 
 [+] Enabled environment variable AFL_DEBUG with value 1
@@ -3786,6 +3959,7 @@ GameTypes: missing mapgroupsSP entry for game type/mode (cooperative/coopmission
 
 
 ```
+{% endraw %}
 
 after that it seems to get stuck. Maybe add some debug printfs and see what happens?
 
@@ -3795,12 +3969,14 @@ Oh, wait oopps:
 
 I had these lines commented out because I compiled without afl compiler before:
 
+{% raw %}
 ```
 	#ifdef __AFL_HAVE_MANUAL_CONTROL
   	__AFL_INIT();
 	#endif
 
 ```
+{% endraw %}
 
 Now it should work???
 
@@ -3814,6 +3990,7 @@ Yeah it seems to work fine when not fuzzing so the problem is most likely in the
 
 There is this line in the documentation: `If you want to be able to compile the target without afl-clang-fast/lto, then add this just after the includes:` and then a piece of code:
 
+{% raw %}
 ```
 
 #ifndef __AFL_FUZZ_TESTCASE_LEN
@@ -3827,6 +4004,7 @@ There is this line in the documentation: `If you want to be able to compile the 
 #endif
 
 ```
+{% endraw %}
 
 Sooo lets try that??
 
@@ -3854,6 +4032,7 @@ Or am I just being impatient? Lets just wait for like ten minutes to make sure t
 
 After waiting for a really long while I get this output:
 
+{% raw %}
 ```
 
 Called NET_ProcessSocket!
@@ -3871,12 +4050,14 @@ Called NET_ProcessSocket!
 ****loading serverbrowser_client.so
 
 ```
+{% endraw %}
 
 
 That is very promising!
 
 After that I get this:
 
+{% raw %}
 ```
 
 [D] DEBUG: calibration stage 10/12
@@ -3893,6 +4074,7 @@ After that I get this:
 
 
 ```
+{% endraw %}
 
 No instrumentation? But I am sure that I compiled with afl-gcc-fast ?
 
@@ -3902,6 +4084,7 @@ No, that wasn't it. Maybe try running with export AFL_SKIP_BIN_CHECK=1 ? That sh
 
 This seems to just run the binary without the forkserver shit:
 
+{% raw %}
 ```
 [!] WARNING: Test case results in a timeout (skipping)
 [*] Attempting dry run with 'id:000014,time:0,execs:0,orig:packet985.dat'...
@@ -4094,6 +4277,7 @@ This system supports the OpenGL extension GL_ANGLE_texture_compression_dxt5.
 This system supports the OpenGL extension GL_ARB_buffer_storage.
 This system supports the OpenGL extension GLX_EXT_swap_control_tear.
 ```
+{% endraw %}
 In the afl source code the result of the calibration is detected by this line: `res = calibrate_case(afl, q, use_mem, 0, 1);` and if the res is FSRV_RUN_NOINST then it displays that.
 
 
@@ -4101,6 +4285,7 @@ Ah, I see the problem. The reason for that is that we are not setting the length
 
 See, internally the code checks the instrumentation of a binary by this code:
 
+{% raw %}
 ```
 
     (void)write_to_testcase(afl, (void **)&use_mem, q->len, 1);
@@ -4121,11 +4306,13 @@ See, internally the code checks the instrumentation of a binary by this code:
     }
 
 ```
+{% endraw %}
 inside afl-fuzz-run.c . I forgot to set the length of the packet so the packet length is always zero, therefore because the program always takes the same path, the count_bytes(afl, afl->fsrv.trace_bits) call results in zero.
 
 
 Then in afl-fuzz-bitmap.c there is even a very helpful comment about this:
 
+{% raw %}
 ```
 
 /* Count the number of bytes set in the bitmap. Called fairly sporadically,
@@ -4136,6 +4323,7 @@ u32 count_bytes(afl_state_t *afl, u8 *mem) {
     ...
 
 ```
+{% endraw %}
 
 atleast that is my first thought, though I am a bit skeptical since we should still get some bits set even though we are calling the packet processing thing in a wrong way, but lets try that still:
 
@@ -4158,6 +4346,7 @@ I am suspicious about the zero crashes which we have as of now. I read somewhere
 
 There is this in baseclientstate.cpp :
 
+{% raw %}
 ```
 
 
@@ -4200,6 +4389,7 @@ void CBaseClientState::ConnectionStart(INetChannel *chan)
 
 
 ```
+{% endraw %}
 
 Which basically lists all of the messages possible for us.
 
@@ -4223,6 +4413,7 @@ Looking at the net_ws.cpp code the connectionless (aka UDP) packets get processe
 
 Looking at the ProcessPacket on the other hand reveals that the packet gets logged in the demofile with this:
 
+{% raw %}
 ```
 
 // tell message handler that packet is completely parsed
@@ -4239,11 +4430,13 @@ Looking at the ProcessPacket on the other hand reveals that the packet gets logg
 
 
 ```
+{% endraw %}
 
 
 what is RecordPacket?
 
 
+{% raw %}
 ```
 
 void CDemoRecorder::RecordPacket()
@@ -4331,9 +4524,11 @@ void CDemoFile::WriteRawData( const char *buffer, int length )
 
 
 ```
+{% endraw %}
 
 I modified the Codecoveragething binary stuff and now it won't work! Fuck:
 
+{% raw %}
 ```
 This system supports the OpenGL extension GL_ANGLE_texture_compression_dxt5.
 This system supports the OpenGL extension GL_ARB_buffer_storage.
@@ -4346,6 +4541,7 @@ Unable to load interface VCvarQuery001 from engine_client.so, requested from EXE
 
 
 ```
+{% endraw %}
 
 Just compile it with -O3 and with a normal compile?
 
@@ -4353,15 +4549,18 @@ Anyway back to the demo thing. The demo recorder should just write the raw packe
 
 Demo file:
 
+{% raw %}
 ```
 
 cyberhacker@cyberhacker-h8-1131sc:~/Codecoveragething/game/csgo$ cat demothingoof.dem | grep amage
 Binary file (standard input) matches
 
 ```
+{% endraw %}
 
 the packets:
 
+{% raw %}
 ```
 
 packet1468.dat  packet2030.dat  packet2593.dat  packet3156.dat  packet3719.dat  packet4281.dat  packet997.dat
@@ -4375,6 +4574,7 @@ cyberhacker@cyberhacker-h8-1131sc:~/Fuzzingpackets/game/corpus$ cat * | grep ama
 cyberhacker@cyberhacker-h8-1131sc:~/Fuzzingpackets/game/corpus$
 
 ```
+{% endraw %}
 
 
 Why?
@@ -4383,16 +4583,19 @@ I have no idea where the "Damage Taken" string is being written to the file. Sea
 
 Oh, yeah the replay demo files also log console command stuff:
 
+{% raw %}
 ```
 
 void CDemoRecorder::RecordCommand( const char *cmdstring )
 
 ```
+{% endraw %}
 
 Anyway yeah, but how do we fuzz the thing with the protobuf?
 
 Now, when doing research I found this: https://github.com/brymko/csgo-exploits . The guy developed a proxy for csgo messages which is quite handy. He even implemented the encryption scheme for the game. The thing is that we have access to the source code so we do not even need to decrypt the messages! Very convenient! Also another thing looking at the code there is this piece of code:
 
+{% raw %}
 ```
 
 
@@ -4419,9 +4622,11 @@ Now, when doing research I found this: https://github.com/brymko/csgo-exploits .
 	}
 
 ```
+{% endraw %}
 
 in ProcessPacketHeader. THIS is the reason why we are getting shit coverage. When mutating the packet, the checksum then changes and it fails because of this here. and in the ProcessPacket code there is this part:
 
+{% raw %}
 ```
 	if ( bHasHeader	)
 	{
@@ -4431,11 +4636,13 @@ in ProcessPacketHeader. THIS is the reason why we are getting shit coverage. Whe
 	if ( flags == -1 )
 		return; // invalid header/packet
 ```
+{% endraw %}
 
 so we basically bail out.
 
 But the thing is that:
 
+{% raw %}
 ```
 // We only need to checksum packets on the PC and only when we're actually sending them over the network.
 bool ShouldChecksumPackets()
@@ -4443,6 +4650,7 @@ bool ShouldChecksumPackets()
 	return NET_IsMultiplayer();
 }
 ```
+{% endraw %}
 We only check the stuff when we are in multiplayer, but when we just do map de_dust2 we should be in singleplayer mode right?
 
 Well, lets add a debug message there and see what happens!
@@ -4453,6 +4661,7 @@ Time to patch that shit out and lets try fuzzing again!
 
 original:
 
+{% raw %}
 ```
 
 
@@ -4462,9 +4671,11 @@ original:
 
 
 ```
+{% endraw %}
 
 new:
 
+{% raw %}
 ```
 
 	if ( false )
@@ -4474,6 +4685,7 @@ new:
 
 
 ```
+{% endraw %}
 
 Lets try fuzzing now!
 
@@ -4491,6 +4703,7 @@ Ok, now lets see what happens!
 
 Aannd we get no new coverage. That's odd. Looking at the console.log file (the log file which, ya know, logs the stuff):
 
+{% raw %}
 ```
 
 Called NET_ProcessSocket! thingoof
@@ -4545,10 +4758,12 @@ Checking stuff:
 ...
 
 ```
+{% endraw %}
 
 
 inside ProcessPacketHeader:
 
+{% raw %}
 ```
 
 	if (sequence <= m_nInSequenceNr )
@@ -4577,11 +4792,13 @@ inside ProcessPacketHeader:
 
 
 ```
+{% endraw %}
 
 so lets try to run with +net_showdrop 1 and after literally littering the code with debug messages:
 
 After running with the debugging messages, we get this in console.log :
 
+{% raw %}
 ```
 
 Called NET_ProcessSocket! thingoof
@@ -4622,9 +4839,11 @@ ProcessPacketHeader failed with return code -1
 ...
 
 ```
+{% endraw %}
 
 here is the code:
 
+{% raw %}
 ```
 
 	if ( flags & PACKET_FLAG_RELIABLE )
@@ -4660,17 +4879,21 @@ here is the code:
 
 
 ```
+{% endraw %}
 
 the flags are taken from the packet itself as a byte inside of it.
 
 in protocol.h :
 
+{% raw %}
 ```
 #define PACKET_FLAG_RELIABLE			(1<<0)	// packet contains subchannel stream data
 ```
+{% endraw %}
 
 Now we know that the problem occurs in ReadSubChannelData. My first guess is that it is something to do with the
 
+{% raw %}
 ```
 bool CNetChan::ReadSubChannelData( bf_read &buf, int stream  )
 {
@@ -4680,11 +4903,13 @@ bool CNetChan::ReadSubChannelData( bf_read &buf, int stream  )
 	unsigned int offset = 0;
 	unsigned int length = 0;
 ```
+{% endraw %}
 
 data thing . Wait after looking at the rest of the code it seems that it is actually supposed fill in that thing.
 
 I think that we can patch the thing by simply patching this out:
 
+{% raw %}
 ```
 	if (sequence <= m_nInSequenceNr ) // <- if this fails, then the thing won't work.
 	{
@@ -4693,8 +4918,10 @@ I think that we can patch the thing by simply patching this out:
 			if ( sequence == m_nInSequenceNr )
 			{
 ```
+{% endraw %}
 we can just do:
 
+{% raw %}
 ```
     sequence = m_nInSequenceNr+1;
 	if (sequence <= m_nInSequenceNr )
@@ -4705,9 +4932,11 @@ we can just do:
 			{
 
 ```
+{% endraw %}
 
 later we also do this patch:
 
+{% raw %}
 ```
 
 		subChannel_s * subchan = &m_SubChannels[i];
@@ -4719,6 +4948,7 @@ later we also do this patch:
 			if ( subchan->state == SUBCHANNEL_DIRTY )
 
 ```
+{% endraw %}
 
 
 This is surprisingly difficult because we need to make sure to handle all of the fragmented packet shit.
@@ -4743,6 +4973,7 @@ And it seems that the thread actually crashes when we replay the packet! Quite g
 
 Observing the asan crash report we actually crash on this:
 
+{% raw %}
 ```
 
 bool CNetChan::CheckReceivingList(int nList)
@@ -4772,20 +5003,24 @@ bool CNetChan::CheckReceivingList(int nList)
 	}
 
 ```
+{% endraw %}
 
 So the crash basically happens when handling the fragmented packets. The packets which we wanted to avoid. *facepalm*
 
 here is this code in UncompressFragments:
 
+{% raw %}
 ```
 
 	char *newbuffer = new char[PAD_NUMBER( data->nUncompressedSize, 4 )];
 	unsigned int uncompressedSize = data->nUncompressedSize;
 
 ```
+{% endraw %}
 
 The m_ReceiveList is filled with the ReadSubChannelData function.
 
+{% raw %}
 ```
 
 bool CNetChan::ReadSubChannelData( bf_read &buf, int stream  )
@@ -4943,9 +5178,11 @@ bool CNetChan::ReadSubChannelData( bf_read &buf, int stream  )
 
 
 ```
+{% endraw %}
 
 I think that the reason why our code does not work is that when the packet is normally processed, we also run this code:
 
+{% raw %}
 ```
 	{
 		AUTO_LOCK_FM( s_NetChannels );
@@ -4968,9 +5205,11 @@ I think that the reason why our code does not work is that when the packet is no
 		}
 	}
 ```
+{% endraw %}
 
 in NET_ProcessSocket . Therefore the previous packets which were sent before our fuzzing packets are messing up our fuzzing. Looking at the code a bit more we can see that there is a ::Clear method for a netchannel.
 
+{% raw %}
 ```
 
 void CNetChan::Clear()
@@ -5015,9 +5254,11 @@ void CNetChan::Clear()
 
 
 ```
+{% endraw %}
 
 there is also another function NET_CreateNetChannel:
 
+{% raw %}
 ```
 
 
@@ -5038,11 +5279,13 @@ INetChannel *NET_CreateNetChannel( int socket, const ns_address *adr, const char
 	if ( !chan )
 
 ```
+{% endraw %}
 
 So I think that the attack plan is to call this function first on the netchannel.
 
 After doing that we should call this:
 
+{% raw %}
 ```
 
 void CNetChan::GetSequenceData( int &nOutSequenceNr, int &nInSequenceNr, int &nOutSequenceNrAck )
@@ -5053,6 +5296,7 @@ void CNetChan::GetSequenceData( int &nOutSequenceNr, int &nInSequenceNr, int &nO
 }
 
 ```
+{% endraw %}
 
 to get the sequence information and then I think that we should patch the packet which the fuzzer generates for us and replace those values in it in the appropriate spots.
 
@@ -5060,6 +5304,7 @@ There is a handy cheatsheet if you will in SendDatagram, but we will get to that
 
 Looking more closely at the ProcessPacket function we see that:
 
+{% raw %}
 ```
 
 	msg.Seek( 0 );
@@ -5101,12 +5346,14 @@ int CNetChan::ProcessPacketHeader( netpacket_t * packet )
 ...
 	
 ```
+{% endraw %}
 
 The sequence number is the very first number in the packet and the sequence acknowledgement is next and then the flag byte is next.
 
 
 in bitbuf.h :
 
+{% raw %}
 ```
 
 FORCEINLINE int CBitRead::ReadLong( void )
@@ -5116,11 +5363,13 @@ FORCEINLINE int CBitRead::ReadLong( void )
 
 
 ```
+{% endraw %}
 
 So the ReadLong function reads 32 bits from the message.
 
 Also there is an acknowledgement message of some kind at every other message:
 
+{% raw %}
 ```
 
 
@@ -5138,6 +5387,7 @@ cyberhacker@cyberhacker-h8-1131sc:~/Fuzzingpackets/game/corpus$ xxd packet109.da
 
 
 ```
+{% endraw %}
 
 the order to do things do dump messages is:
 
@@ -5161,11 +5411,13 @@ Let's add more debugging messages to the code and log a couple of more packets.
 
 Also the very first packet has sequence set to one:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Fuzzingpackets/game/corpus$ xxd -g 1 packet000.dat 
 00000000: 01 00 00 00 00 00 00 00 00 3f 31 00 00 00 00 00  .........?1.....
 
 ```
+{% endraw %}
 So I was actually right that m_nInSequenceNr should always be basically one less than the sequence in the packet.
 
 The sequence_ack on the other hand is bit more tricky. Now looking at the packets themselves it looks like it should always be the same as 
@@ -5178,9 +5430,11 @@ always the same as m_nOutSequenceNr .
 
 because in UpdateSubChannels
 
+{% raw %}
 ```
 freeSubChan->sendSeqNr = 0;
 ```
+{% endraw %}
 
 Except looking now at the debugging messages in the log it looks like that is actually not the case.
 
@@ -5226,6 +5480,7 @@ void CNetChan::GetSequenceData( int &nOutSequenceNr, int &nInSequenceNr, int &nO
 
 Ok so after a bit of typing, the patching of the packets seem to work. Here is the code for it:
 
+{% raw %}
 ```
 	netchan->Clear();
 
@@ -5334,10 +5589,12 @@ Ok so after a bit of typing, the patching of the packets seem to work. Here is t
 
 
 ```
+{% endraw %}
 
 This code is in the not-fuzzing version aka just the client which we test stuff on before moving to fuzzing itself. When I run this the packets which are produced look like this:
 
 
+{% raw %}
 ```
 
 Calling ProcessMessages!
@@ -5392,6 +5649,7 @@ PKT  >>  AAAAAAAAAAAAAAAAAAAAAAAA 41414141 41414141 41414141 41414141 41414141 4
 PKT  >>  AAAAAAAAAAAAAAAAAA       41414141 41414141 41414141 41414141 4141  
 
 ```
+{% endraw %}
 
 This is taken from the console.log file from the client.
 
@@ -5400,6 +5658,7 @@ As you can see, the very start of the packet gets patched succesfully and it fai
 In the fuzzing session however we get very strange behaviour:
 
 
+{% raw %}
 ```
 
 sequence <= m_nInSequenceNr
@@ -5430,6 +5689,7 @@ Checking stuff:
 
 
 ```
+{% endraw %}
 
 
 this is from the console.log file from the fuzzing session itself. I am doing everything else the same except in the fuzzing version the __AFL_LOOP macro and stuff is added. Back to debugging!
@@ -5437,6 +5697,7 @@ this is from the console.log file from the fuzzing session itself. I am doing ev
 
 This code piece should let us know if the patching of the packets actually works:
 
+{% raw %}
 ```
 
 		packet = NET_GetPacketmodded(socket, scratch.GetBuffer(), packet_buffer, len);
@@ -5468,15 +5729,18 @@ This code piece should let us know if the patching of the packets actually works
 
 
 ```
+{% endraw %}
 
 
 After recompile I get this error for some reason:
 
+{% raw %}
 ```
 Failed to load the launcher(bin/linux64/launcher_client.so) (../../lib/public/linux64/libsteam_api.so: cannot open shared object file: No such file or directory)
 
 
 ```
+{% endraw %}
 
 Even though that library definitely exists.
 
@@ -5488,6 +5752,7 @@ After compiling again the sequence <= m_nInSequenceNr issue seems to be gone som
 
 Now, sometimes in the console.log we get Disconnects for some reason. I think that it could be a) the packets which we throw against it are actually the disconnect messages or b) the netchannel gets closed :
 
+{% raw %}
 ```
 
 void CNetChan::Shutdown(const char *pReason)
@@ -5510,9 +5775,11 @@ void CNetChan::Shutdown(const char *pReason)
 ...
 
 ```
+{% endraw %}
 
 and:
 
+{% raw %}
 ```
 bool CNetChan::NETMsg_Disconnect( const CNETMsg_Disconnect& msg )
 {
@@ -5527,6 +5794,7 @@ bool CNetChan::NETMsg_Disconnect( const CNETMsg_Disconnect& msg )
 
 
 ```
+{% endraw %}
 
 after looking at the logs, it looks like we are actually passing a packet which calls the disconnect NETMsg_Disconnect function, so we are not messing something else up which causes a disconnect. It is purely because of our own actions (well technically everything is but you get my point).
 
@@ -5536,6 +5804,7 @@ The next hurdle would be to solve the `Netchannel: failed reading message <MESSA
 
 Here is the relevant code:
 
+{% raw %}
 ```
 
 		INetMessageBinder *pMsgBind = ((CNetChan *)m_pActiveChannel)->FindMessageBinder( cmd, 0 );
@@ -5554,9 +5823,11 @@ Here is the relevant code:
 
 
 ```
+{% endraw %}
 
 in netmessages.h :
 
+{% raw %}
 ```
 
 		virtual INetMessage *CreateFromBuffer( bf_read &buffer )
@@ -5571,9 +5842,11 @@ in netmessages.h :
 		}
 
 ```
+{% endraw %}
 
 and
 
+{% raw %}
 ```
 	virtual bool ReadFromBuffer( bf_read &buffer )
 	{
@@ -5618,9 +5891,11 @@ and
 
 
 ```
+{% endraw %}
 
 and then the places where ParseFromArray is called are these:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Fuzzingpackets/Kisak-Strike$ grep --exclude-dir=cmake-build/ -iRl ParseFromArray
 gcsdk/protobufsharedobject.cpp
@@ -5684,6 +5959,7 @@ public/gcsdk/sdocache.h
 public/gcsdk_original/sdocache.h
 
 ```
+{% endraw %}
 
 
 And as it turns out this ParseFromArray is an external function in protobuf (https://stackoverflow.com/questions/19854042/when-parsefromarray-return-true-in-protocol-buffer):
@@ -5701,6 +5977,7 @@ So the attack plan has changed a bit. Now to use the protobuf fuzzer we need to 
 
 If we take a look at one of the protobuf packets (with the header):
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Codecoveragething/game/investigation$ xxd -g 1 packet399.dat
 00000000: 78 00 00 00 18 01 00 00 00 00 04 0f 08 da 02 20  x.............. 
@@ -5733,8 +6010,10 @@ cyberhacker@cyberhacker-h8-1131sc:~/Codecoveragething/game/investigation$ xxd -g
 
 
 ```
+{% endraw %}
 this is the protobuf message:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Codecoveragething/game/investigation$ xxd -g 1 protobufpacket1291.dat
 00000000: 08 c1 04 10 12 18 01 20 00 28 01 30 d4 02 3a f9  ....... .(.0..:.
@@ -5766,15 +6045,18 @@ cyberhacker@cyberhacker-h8-1131sc:~/Codecoveragething/game/investigation$ xxd -g
 
 
 ```
+{% endraw %}
 
 and the header:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Codecoveragething/game/investigation$ xxd -g 1 header1185.dat
 00000000: 78 00 00 00 18 01 00 00 00 00 04 0f 08 da 02 20  x.............. 
 00000010: 81 ae 22 28 c0 f3 05 30 de fd 05 1a 8a 03        .."(...0......
 
 ```
+{% endraw %}
 
 
 the header is 0x1e (index 0x1d does not exist so therefore it is 0x1e bytes long) bytes long it seems.
@@ -5785,6 +6067,7 @@ Let's start working backwards:
 
 in the ReadFromBuffer function:
 
+{% raw %}
 ```
 	virtual bool ReadFromBuffer( bf_read &buffer )
 	{
@@ -5825,6 +6108,7 @@ in the ReadFromBuffer function:
 
 
 ```
+{% endraw %}
 
 So the 4 bytes before the start of the actual protobuf message we have the length of the protobuf buffer itself.
 
@@ -5834,6 +6118,7 @@ Size of protobuf message taken from message: 0x18a
 
 This may strike you as odd, but it isn't really when looking at the code:
 
+{% raw %}
 ```
 uint32 old_bf_read::ReadVarInt32()
 {
@@ -5860,9 +6145,11 @@ uint32 old_bf_read::ReadVarInt32()
 
 
 ```
+{% endraw %}
 
 So the ReadVarInt32 actually reads a variable amount of bytes and actually discards the last bit of the byte which tells if the byte is the last byte in the sequence. Look at this:
 
+{% raw %}
 ```
 
 #!/bin/python3
@@ -5935,18 +6222,22 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 then inputting 8a03 returns 0x18a so yeah. So we need to prepend the length of the protobuf buffer to the message. Next up is the command number:
 
+{% raw %}
 ```
 unsigned char cmd = buf.ReadVarInt32();
 ```
+{% endraw %}
 
 0x1a
 
 
 actually I am now realizing that the packet which we are looking at is actually two or more packets. See there is the:
 
+{% raw %}
 ```
 
 cyberhacker@cyberhacker-h8-1131sc:~/Codecoveragething/game/investigation$ xxd -g 1 header1185.dat
@@ -5955,9 +6246,11 @@ cyberhacker@cyberhacker-h8-1131sc:~/Codecoveragething/game/investigation$ xxd -g
 
 
 ```
+{% endraw %}
 
 part, but in the ProcessMessages function:
 
+{% raw %}
 ```
 		INetMessageBinder *pMsgBind = ((CNetChan *)m_pActiveChannel)->FindMessageBinder( cmd, 0 );
 		if ( pMsgBind )
@@ -6042,18 +6335,22 @@ part, but in the ProcessMessages function:
 			} while( pMsgBind );
 
 ```
+{% endraw %}
 
 there is the while ( pMsgBind ) loop which loops through one packet.
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Codecoveragething/game/investigation$ xxd -g 1 header1185.dat
 00000000: 78 00 00 00 18 01 00 00 00 00 04 0f 08 da 02 20  x.............. 
 00000010: 81 ae 22 28 c0 f3 05 30 de fd 05 1a 8a 03        .."(...0......
 
 ```
+{% endraw %}
 
 And the length of the first header is 0xc: 
 
+{% raw %}
 ```
 subchan->sendSeqNr == 0xffffffff
 subchan->sendSeqNr == 0xffffffff
@@ -6067,22 +6364,27 @@ Called dump_protobuf
 Dumping protobuffer to file protobufpacket1290.dat
 Dumping header:
 ```
+{% endraw %}
 
 and:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Codecoveragething/game/investigation$ xxd -g 1 protobufpacket1290.dat
 00000000: 08 da 02 20 81 ae 22 28 c0 f3 05 30 de fd 05     ... .."(...0...
 
 ```
+{% endraw %}
 
 so the first header is `78 00 00 00 18 01 00 00 00 00 04 0f` .
 
 the length is correct (0x0f) the command is 4 (0x04):
 
+{% raw %}
 ```
 unsigned char cmd = buf.ReadVarInt32();
 ```
+{% endraw %}
 
 These are the headers which are shared upon all of the messages in one packet.
 
@@ -6092,6 +6394,7 @@ First, the 	if ( flags & PACKET_FLAG_RELIABLE ) is not taken, because flags==0 i
 
 The ProcessPacketHeader basically handles these bytes:
 
+{% raw %}
 ```
 
 int CNetChan::ProcessPacketHeader( netpacket_t * packet )
@@ -6103,12 +6406,15 @@ int CNetChan::ProcessPacketHeader( netpacket_t * packet )
 
 
 ```
+{% endraw %}
 because we do not have the CheckSum thing (we patched it to not even put those in it.) we do not have it in the packet. The last byte is this:
 
 
+{% raw %}
 ```
 int relState	= packet->message.ReadByte();
 ```
+{% endraw %}
 
 So I think that that is everything what we need to patch the packets. So just patch the sequence stuff and then the flags and then the reliable thing which is also zero.
 
@@ -6145,6 +6451,7 @@ After fixing that bug we can not dump the messages. Now , the fuzzer just copies
 aaandd the same python buf appears in the afl-fuzz thing. What bug do you say? During my development of the fuzzer I need to run the program with a kinda specific python version (3.9) for it to work, because the program used stuff which was not yet implemented for python3.8:
 
 
+{% raw %}
 ```
 
 AttributeError: module 'importlib.resources' has no attribute 'files'
@@ -6154,6 +6461,7 @@ AttributeError: module 'importlib.resources' has no attribute 'files'
 
 
 ```
+{% endraw %}
 
 but no worries. By modding the Makefile for the afl-fuzz thing I can bypass that and have it link against the python3.9 headers instead of the python3.8 headers and we should be fine.
 
@@ -6161,6 +6469,7 @@ Ok so after a bit of tweaking the first proper fuzz run with this mutator causes
 
 I am tired of waiting for the thing to spin up every time I want to debug a problem in the fuzzer, so I am going to make a minimal example real quick:
 
+{% raw %}
 ```
 #include<stdio.h>
 
@@ -6179,10 +6488,12 @@ int main()
 
 
 ```
+{% endraw %}
 This is just a quick minimal example.
 
 Lets look at the backtrace:
 
+{% raw %}
 ```
 [!] WARNING: Some test cases look useless. Consider using a smaller set.
 [+] Here are some useful stats:
@@ -6209,11 +6520,13 @@ __memmove_sse2_unaligned_erms () at ../sysdeps/x86_64/multiarch/memmove-vec-unal
 
 
 ```
+{% endraw %}
 
 Ok so after a bit of debugging I found out that the problem is that we are returning an object of type "bytes" but we need to return a message of type "bytearray". After that fix, we now no longer segfault on the minimal thing. Let's try it on the actual binary.
 
 Now the fuzzer actually runs fine even on the actual binary, except that we get a concerning error in the console.log file:
 
+{% raw %}
 ```
 Packet buffer for loopback written to crashingpacket1559.dat
 GetSequenceData returned these:
@@ -6254,6 +6567,7 @@ Checking stuff:
 
 
 ```
+{% endraw %}
 
 
 This means that either our mutator is somehow buggy or that our c code is buggy. Lets take a look at the mutator first.
@@ -6262,17 +6576,21 @@ Now adding a bunch of checks to the mutator it doesn't really seem like the muta
 
 After a bit of digging I found the bug.
 
+{% raw %}
 ```
 
 packet = NET_GetPacketmodded(socket, scratch.GetBuffer(), packet_buffer, len);
 
 ```
+{% endraw %}
 changed this to:
+{% raw %}
 ```
 
 packet = NET_GetPacketmodded(socket, scratch.GetBuffer(), packet_buffer, len+10);
 
 ```
+{% endraw %}
 
 that seems to have done the trick.
 
@@ -6282,12 +6600,14 @@ One thing which I realized while using the afl-cmin script is that the afl-cmin 
 
 This is because afl-cmin is actually a bash script which just runs through all of the files and in it there is this:
 
+{% raw %}
 ```
 export AFL_QUIET=1
 export ASAN_OPTIONS=detect_leaks=0     <--- Here we set the asan options
 THISPATH=`dirname ${0}`
 export PATH="${THISPATH}:$PATH"
 ```
+{% endraw %}
 
 
 Yeah, afl-cmin does not work, because it causes another instance of the fuzzer to be completely setup for the trace thing which sucks donkey dick, but it is what it is.
@@ -6310,6 +6630,7 @@ Now it works good.
 
 
 
+{% raw %}
 ```
 message_type: CNETMsg_Tick
          335499665 function calls (334670926 primitive calls) in 131.350 seconds
@@ -6810,8 +7131,10 @@ message_type: CNETMsg_Tick
 
 
 ```
+{% endraw %}
 This is the performance report on the mutator library. The critical lines are basically:
 
+{% raw %}
 ```
 
 60786110   50.667    0.000  100.909    0.000 values.py:90(_fuzzdb_get_strings)
@@ -6819,6 +7142,7 @@ This is the performance report on the mutator library. The critical lines are ba
 60973618/60973382   15.971    0.000  116.882    0.000 values.py:72(_limit_helper)
 
 ```
+{% endraw %}
 
 So I did a quick performance check on the mutator and as it turns out: it sucks ass in terms of performance.
 
@@ -6826,6 +7150,7 @@ I think that the majority of the time we are actually running the mutator instea
 
 The top most time consuming functions are these:
 
+{% raw %}
 ```
 ['60786110', '50.667', '0.000', '100.909', '0.000', 'values.py:90(_fuzzdb_get_strings)']
 ['60973618/60973382', '15.971', '0.000', '116.882', '0.000', 'values.py:72(_limit_helper)']
@@ -6843,11 +7168,13 @@ The top most time consuming functions are these:
 
 
 ```
+{% endraw %}
 
 The most obvious optimization is that the _fuzzdb_get_strings functions reads the strings from the files. Instead of reading them every time, we should just just read them once and then access that list instead. I am honestly a bit surprised that the guy didn't do this.
 
 After doing this simple optimization the graph looks like this:
 
+{% raw %}
 ```
 ['60973645/60973543', '12.279', '0.000', '17.576', '0.000', 'values.py:72(_limit_helper)']
 ['60786110', '5.284', '0.000', '5.296', '0.000', 'values.py:92(_fuzzdb_get_strings)']
@@ -6855,6 +7182,7 @@ After doing this simple optimization the graph looks like this:
 ['265', '0.954', '0.004', '1.998', '0.008', 'protofuzz.py:56(<listcomp>)']
 ['373810/34633', '0.309', '0.000', '0.846', '0.000', 'gen.py:192(step_generator)']
 ```
+{% endraw %}
 
 I am a bit disappointed in the developer of that library, because that was such low hanging fruit that **EVEN I** spotted that.
 
@@ -6884,15 +7212,18 @@ The reason why I want the textmode to work to begin with is because then I do no
 
 Now looking at the engine/ subdirectory, there is a engine_inc.cmake file which says:
 
+{% raw %}
 ```
 remove_definitions(-DBASE) #used by cryptopp REEE
 add_definitions(-DALLOW_TEXT_MODE=1)
 ```
+{% endraw %}
 
 but then in the appframework/ subdirectory, we get some peculiar shit.
 
 After doing a couple of quick source patches which now enable the -textmode even in appframework directory too, now it crashes on the shaderapi thing. This can be simply fixed by using -noshaderapi , then it crashes on this:
 
+{% raw %}
 ```
 =================================================================
 ==832828==ERROR: AddressSanitizer: SEGV on unknown address 0x0000000001c8 (pc 0x7f0f0eeb51b7 bp 0x7fff9378baa0 sp 0x7fff9378ba90 T0)
@@ -6926,10 +7257,12 @@ SUMMARY: AddressSanitizer: SEGV /home/cyberhacker/Codecoveragething/Kisak-Strike
 
 
 ```
+{% endraw %}
 
 
 After patching out the _Host_RunFrame_Render function out now we crash on this:
 
+{% raw %}
 ```
 
 AddressSanitizer:DEADLYSIGNAL
@@ -6962,6 +7295,7 @@ SUMMARY: AddressSanitizer: SEGV /home/cyberhacker/Codecoveragething/Kisak-Strike
 
 
 ```
+{% endraw %}
 
 if (!(CommandLine()->FindParm( "-textmode" )))
 

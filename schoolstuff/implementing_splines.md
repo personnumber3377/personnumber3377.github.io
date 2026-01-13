@@ -15,6 +15,7 @@ The algorithm starts out by just initializing the arrays to certain values.
 
 Here is my implementation copied straight from wikipedia:
 
+{% raw %}
 ```
 
 #!/bin/python3
@@ -83,9 +84,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 but when running I get this error:
 
+{% raw %}
 ```
 
 Traceback (most recent call last):
@@ -100,9 +103,11 @@ Traceback (most recent call last):
 IndexError: list index out of range
 
 ```
+{% endraw %}
 
 Here is a revised version:
 
+{% raw %}
 ```
 
 #!/bin/python3
@@ -176,6 +181,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Let's test out our implementation. Let's ask chatgpt how to actually plot this thing...
 

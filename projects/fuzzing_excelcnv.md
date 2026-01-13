@@ -13,6 +13,7 @@ https://www.sstic.org/media/SSTIC2020/SSTIC-actes/hacking_excel_online_-_how_to_
 Here is the initialization. We can see that it tries loading the excelcvn.exe.config file, but this file does not exist.
 
 
+{% raw %}
 ```
 Breakpoint 1 hit
 KERNEL32!CreateFileW:
@@ -43,8 +44,10 @@ KERNEL32!CreateFileW:
 11 0000004a`6aeffe60 00000000`00000000     ntdll!RtlUserThreadStart+0x2c
 
 ```
+{% endraw %}
 
 
+{% raw %}
 ```
 
 
@@ -686,6 +689,7 @@ LAB_14000e9cb:
 }
 
 ```
+{% endraw %}
 
 
 
@@ -694,6 +698,7 @@ LAB_14000e9cb:
 Here is the convmainloop:
 
 
+{% raw %}
 ```
 
 /* WARNING: Function: _guard_dispatch_icall replaced with injection: guard_dispatch_icall */
@@ -1296,6 +1301,7 @@ LAB_141af0778:
 
 
 ```
+{% endraw %}
 
 
 
@@ -1318,6 +1324,7 @@ LAB_141af0778:
 
 Here is the chatgpt summary of this:
 
+{% raw %}
 ```
 
 Absolutely — that’s a very good reverse-engineering exercise!
@@ -1565,10 +1572,12 @@ It would be useful if you're trying to intercept, hook, or fuzz this! 🎯👾
 Let me know!
 
 ```
+{% endraw %}
 
 
 Here are the two calls:
 
+{% raw %}
 ```
                              LAB_141af03c7                                   XREF[1]:     141af03ba (j)
        141af03c7 48  8b  07       MOV        RAX ,qword ptr [RDI ]
@@ -1597,12 +1606,14 @@ Here are the two calls:
                  02  00  00
 
 ```
+{% endraw %}
 
 
 
 
 Here is the final decompiled function:
 
+{% raw %}
 ```
 
 /* WARNING: Function: _guard_dispatch_icall replaced with injection: guard_dispatch_icall */
@@ -2227,12 +2238,14 @@ LAB_141af0778:
   return iVar4;
 }
 ```
+{% endraw %}
 
 
 For starters, we probably want to display the debug messages, so let's take a look at the trace stuff..
 
 
 
+{% raw %}
 ```
 /* public: static void __cdecl XlsDiag::SendTraceTag(unsigned long,enum Mso::Logging::Category,enum
    Mso::Logging::Severity,enum Mso::Logging::DataClassifications,wchar_t const * __ptr64,...) */
@@ -2247,12 +2260,14 @@ XlsDiag::SendTraceTag
   return;
 }
 ```
+{% endraw %}
 
 Ok, so I think this is actually quite easy to fuzz, because we can just loop in this function here maybe?????????????
 
 Before jumping in as usual, let's try to reverse this function a bit more... (maybe this can help us speed up the fuzzing process a bit? Maybe we can patch some unimportant stuff out???)
 
 Actually we need to do some patching, because there exists an exit condition here:
+{% raw %}
 ```
   lVar5 = HrDoQuit((OPER **)0x0,0,0,(int *)&local_ea8);
   if (-1 < lVar5) {
@@ -2261,10 +2276,12 @@ Actually we need to do some patching, because there exists an exit condition her
   }
   CrashOrDoJmpHr(...); // <-- Also BAD
 ```
+{% endraw %}
 and we need to patch out the call to HrDoQuit and also make the next if case to always jump. This way the function returns always...
 
 Here is the disassembly:
 
+{% raw %}
 ```
        141af079c 33  c9           XOR        ECX ,ECX
        141af079e e8  dd  c9       CALL       HrDoQuit                                         long HrDoQuit(OPER * * param_1,
@@ -2275,6 +2292,7 @@ Here is the disassembly:
        141af07aa 41  c1  ee       SHR        R14D ,0x1f
                  1f
 ```
+{% endraw %}
 
 
 So now we just patch the stuff out and we should be good correct?
@@ -2283,6 +2301,7 @@ Let's try it out!!!
 
 Here is my patch script:
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -2346,6 +2365,7 @@ if __name__=="__main__":
 	exit(0)
 
 ```
+{% endraw %}
 
 Now, this is not enough, because we need to add a call to the HrDoQuit function, because during the initial run of the program during fuzzing, this fails. It fails because before entering the persistent loop, winafl runs the program initially from start to end and therefore it crashes.
 
@@ -2353,16 +2373,19 @@ Let's try to add a call to the HrDoQuit function...
 
 The decomp of this stuff here:
 
+{% raw %}
 ```
       ConvMainLoop();
       Ordinal_13352(local_6d0);
       goto LAB_14000e9cb;
 
 ```
+{% endraw %}
 
 is this here:
 
 
+{% raw %}
 ```
 
        14000e9b7 e8  e4  0e       CALL       ConvMainLoop                                     int ConvMainLoop(void)
@@ -2380,6 +2403,7 @@ is this here:
 
 
 ```
+{% endraw %}
 
 Therefore starting with address `0x14000e9c9` I think we should just put the stuff there..
 

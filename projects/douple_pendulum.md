@@ -9,6 +9,7 @@ I think that I should implement an n-pendulum system too when I find the motivat
 
 Ok, so I am going to make a simple skeleton:
 
+{% raw %}
 ```
 class DoublePendulum:
     def __init__(self, l0, l1, w0, w1, v0, v1) -> None:
@@ -25,11 +26,13 @@ class DoublePendulum:
     def update(d_t) -> None: # Goes forward in time by d_t
         return # Just a stub for now.
 ```
+{% endraw %}
 
 ## Implementing the equations
 
 Ok, so after a bit of typing, I came up with this:
 
+{% raw %}
 ```
 
 
@@ -178,11 +181,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Except there are a couple of bugs. Here is the fixed version:
 
 Here is the fixed version:
 
+{% raw %}
 ```
 
 def scale_point(p: tuple) -> tuple:
@@ -297,6 +302,7 @@ class DoublePendulum:
         return # Just a stub for now.
 
 ```
+{% endraw %}
 
 ## Stuff for the future.
 

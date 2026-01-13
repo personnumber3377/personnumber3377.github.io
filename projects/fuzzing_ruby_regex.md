@@ -7,17 +7,20 @@ After my unsuccesful attempt to fuzz apache httpd (did not find any crashes) I f
 
 As usual, I jumped in without doing any previous reading on the subject, but I think that it should not cause me any problems in the future. I downloaded ruby and then configured it with:
 
+{% raw %}
 ```
 export ASAN_OPTIONS="halt_on_error=0:use_sigaltstack=0:detect_leaks=0"
 
 CC="/home/cyberhacker/Asioita/newaflfuzz/AFLplusplus/afl-gcc-fast"  ../configure --prefix=/home/cyberhacker/Asioita/Hakkerointi/Rubyregex/final/ruby/build/output_fuzz cppflags="-O3 -fsanitize=address -fno-omit-frame-pointer" optflags=-O3 LDFLAGS="-fsanitize=address -fno-omit-frame-pointer"
 ```
+{% endraw %}
 
 and it compiled succesfully.
 
 Now, we just need to compile the fuzzer. I could just call ruby on a ruby script which then takes the regex string from stdin in and passes it to the Regexp.new function, but I think that the ruby parsing the source code takes too much time in my opinion. Instead I decided to use the ruby c api to write a program in c code which then calls the ruby regex parser. Here it is:
 
 
+{% raw %}
 ```
 #include <ruby.h>
 #include "ruby/re.h"
@@ -94,6 +97,7 @@ int main(int argc, char** argv) {
 
 }
 ```
+{% endraw %}
 
 
 Then we just need a corpus. The same github repository which I used for the apache fuzzing also has a corpus for regex: https://github.com/dvyukov/go-fuzz-corpus/tree/master/regexp . I plag... erm.. I mean imported that to my fuzzing setup.
@@ -111,6 +115,7 @@ The regex generator which I wrote basically recursively makes expressions and th
 
 One thing which I would really like to add to my custom mutator is removing and replacing random characters from the input string. Right now it just splices the randomly generated regex expression at some point in the input. I am going to call the function tweak, because it just slightly tweaks the buffer:
 
+{% raw %}
 ```
 
 def tweak(buffer):
@@ -149,6 +154,7 @@ def tweak(buffer):
     return buffer
 
 ```
+{% endraw %}
 
 
 

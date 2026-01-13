@@ -4,6 +4,7 @@ There is a component in microsoft office which is called `MSBARCODE.DLL` which h
 
 Here is a somewhat working program which renders a barcode and then saves it in a file in c++:
 
+{% raw %}
 ```
 
 #include <windows.h>
@@ -204,9 +205,11 @@ int main() {
 
 
 ```
+{% endraw %}
 
 Now let's clean it up a little and also implement some of the other formats... I think I also need to free the actual renderer by calling the function at offset 0 from the base because looking at the decompilation that destroys it. Here is the decompiled code stuff:
 
+{% raw %}
 ```
 
 undefined8 * GetBarcodeRenderer(int param_1,undefined8 *param_2)
@@ -353,11 +356,13 @@ LAB_180002141:
 }
 
 ```
+{% endraw %}
 
 now let's define each one of these things and see what happens...
 
 Now my current fuzzing harness looks like this here:
 
+{% raw %}
 ```
 
 #include <windows.h>
@@ -642,9 +647,11 @@ int main() {
 
 
 ```
+{% endraw %}
 
 Here is a fixed up harness:
 
+{% raw %}
 ```
 
 #include <windows.h>
@@ -819,6 +826,7 @@ int main() {
 }
 
 ```
+{% endraw %}
 
 now we just need to make the performance a bit better and then writeup a winafl script and start fuzzing!!!
 

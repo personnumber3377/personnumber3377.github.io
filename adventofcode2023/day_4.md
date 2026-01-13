@@ -7,6 +7,7 @@ Basically just get the scores from each scratchcard. Because the winning numbers
 
 This was my first attempt:
 
+{% raw %}
 ```
 
 
@@ -63,15 +64,18 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and it doesn't work. This is because when parsing the input, not all of the numbers are of the same length. Therefore when we ".split()" those strings, we are going to have empty strings. After adding a check for an empty string:
 
 
+{% raw %}
 ```
 		for num in winning_numbers:
 			if num == "":
 				continue
 ```
+{% endraw %}
 
 the code works.
 
@@ -81,6 +85,7 @@ Ok so now instead of counting the scores of each scratchcard, now get the scores
 
 Here was my attempt at that:
 
+{% raw %}
 ```
 
 def get_winning_numbers_amount(scratchcards: list, cur_index: int):
@@ -120,6 +125,7 @@ def solve_part_2(scratchcards: list) -> int:
 	return all_scratch_cards_amount
 
 ```
+{% endraw %}
 
 and it works for the toy input. Does it work for the actual input? Yes! I think I should explain how this code works. When going over the scratchcards, you will encounter the same scratchcard many times, so I basically store the result of the scratchcard in the "scratchcards" list at a certain index. I think my code is quite fast compared to other solutions on reddit.
 

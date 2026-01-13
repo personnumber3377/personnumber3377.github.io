@@ -23,6 +23,7 @@ Ok, so now that we can actually call the thing from rust stuff, let's try to pro
 
 Here is my mutator skeleton:
 
+{% raw %}
 ```
 
 
@@ -66,6 +67,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Let's read through the documentation here: https://chialisp.com/clvm/
 
@@ -78,6 +80,7 @@ Ok, so first up is the binary to tree formation...
 
 Here is a quick example:
 
+{% raw %}
 ```
 
 (venv) oof@oof-h8-1440eo:~/clvmshit$ cdv clsp disassemble ff11ffff108080
@@ -85,6 +88,7 @@ Here is a quick example:
 
 
 ```
+{% endraw %}
 
 how does that get serialized????
 
@@ -127,6 +131,7 @@ Here is the code from my svg mutator which is responsible for selecting a random
 
 
 
+{% raw %}
 ```
 
 
@@ -158,12 +163,14 @@ def select_random_node_func(tree): # Select a random node with equal probability
 
 
 ```
+{% endraw %}
 
 We want to basically emulate this but with clvm.
 
 
 Something like this?
 
+{% raw %}
 ```
 
 
@@ -190,9 +197,11 @@ def select_random_node(program): # Select a random node from the program...
 		out = out.pair[ind]
 	return out, parent
 ```
+{% endraw %}
 
 let's add test functions in a file called `tests.py`:
 
+{% raw %}
 ```
 
 from main import *
@@ -221,9 +230,11 @@ if __name__=="__main__":
 	exit(0)
 
 ```
+{% endraw %}
 
 uh oh:
 
+{% raw %}
 ```
 
   File "/home/oof/clvm_custom_mutator/main.py", line 34, in get_all_paths_recursive
@@ -232,9 +243,11 @@ TypeError: 'NoneType' object is not iterable
 
 
 ```
+{% endraw %}
 
 something like this instead:
 
+{% raw %}
 ```
 
 def get_all_paths_recursive(cur_node, current_path):
@@ -253,19 +266,23 @@ def get_all_paths_recursive(cur_node, current_path):
 	return out
 
 ```
+{% endraw %}
 
 getting closer it seems:
 
+{% raw %}
 ```
   File "/home/oof/clvm_custom_mutator/main.py", line 44, in get_all_paths_recursive
     assert cur_node.atom
 AssertionError
 ```
+{% endraw %}
 
 this is because the `0x80` atom is actually called "nil" and is a special value, if you look at the docs: https://chialisp.com/clvm/#nil . we need to program a special case for nil (I think maybe possibly...)
 
 I am just going to take note that the node could be nil, and I am going to treat it normally (for now). If this causes us trouble, we should come back and change this behaviour:
 
+{% raw %}
 ```
 
 def get_all_paths_recursive(cur_node, current_path):
@@ -287,12 +304,14 @@ def get_all_paths_recursive(cur_node, current_path):
 	return out
 
 ```
+{% endraw %}
 
 Now that we have a way to select a random node, we should then figure out if it is an atom (or a tuple like thing) or not and then choose our mutation strategy based on that.
 
 I am going to program a quick little helper function called `isatom`, which as the name suggests returns a boolean value if the node is an atom...
 
 
+{% raw %}
 ```
 
 def isatom(node): # Returns true, if node is an atom, otherwise returns false
@@ -301,12 +320,14 @@ def isatom(node): # Returns true, if node is an atom, otherwise returns false
 	return False # pair exists, therefore not atom
 
 ```
+{% endraw %}
 
 I think I am going to do a copy of my generic_mutator module to mutate the atom and stuff like that...
 
 
 now let's try out our fuzzer:
 
+{% raw %}
 ```
 
 warning: /home/oof/clvm_rs/fuzz/Cargo.toml: unused manifest key: dependencies.libfuzzer-sys.path
@@ -379,11 +400,13 @@ Error: Fuzz target exited with exit status: 1
 
 
 ```
+{% endraw %}
 
 this is because of unbounded recursion. Let's stop that.
 
 This here:
 
+{% raw %}
 ```
 
 	try:
@@ -392,6 +415,7 @@ This here:
 		return data
 
 ```
+{% endraw %}
 
 should work fine!
 
@@ -411,6 +435,7 @@ Ok, so let's create a corpus of valid programs. Our mutator always returns the o
 
 There is a file called `test_program.py` in the python tests in clvm_rs , so let's create a quick program to parse the program data from these tests:
 
+{% raw %}
 ```
 
 
@@ -443,11 +468,13 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 clvm_rs comes with a corpus, so I think a good way to figure out how many percent of the inputs passed to our custom fuzzer are valid.
 
 Let's mod our custom mutator:
 
+{% raw %}
 ```
 
 
@@ -541,15 +568,18 @@ def custom_mutator(data, max_size, seed, native_mutator): # This is for ruzzyfor
 
 
 ```
+{% endraw %}
 
 let's see the result...
 
+{% raw %}
 ```
 
 oof@oof-h8-1440eo:~/clvm_rs/fuzz$ cat oofstuff.txt
 0.5516989404457435
 
 ```
+{% endraw %}
 
 so just over half of these programs passed to the fuzzer are actually valid. That is quite good. Let's try to start with an entirely valid corpus which we extracted from the tests... that results in roughly 65 percent of the programs passed to the fuzzer to be valid. That is good enough.
 
@@ -557,6 +587,7 @@ so just over half of these programs passed to the fuzzer are actually valid. Tha
 
 First of all, I think there should be a way to just select a small integer instead, so let's add that to our custom mutator:
 
+{% raw %}
 ```
 
 	stuff = int.from_bytes(string, "big")
@@ -574,6 +605,7 @@ First of all, I think there should be a way to just select a small integer inste
 
 
 ```
+{% endraw %}
 
 I think this is good enough
 
@@ -582,6 +614,7 @@ I think this is good enough
 
 Here is my patch file for clvm_rs.
 
+{% raw %}
 ```
 diff --git a/Cargo.lock b/Cargo.lock
 index 61eeb8c..9675ae0 100644
@@ -680,12 +713,14 @@ index 135b110..ff3d03e 100644
 
 
 ```
+{% endraw %}
 
 (of course replace the modifications to the Cargo.toml with a path to your own libfuzzer)
 
 
 then apply this patch to rust libfuzzer (aka https://github.com/rust-fuzz/libfuzzer):
 
+{% raw %}
 ```
 
 diff --git a/build.rs b/build.rs
@@ -1310,12 +1345,14 @@ index 1abce16..971b0f6 100644
 
 
 ```
+{% endraw %}
 
 
 (you need to unrar python into a directory and then do it that way. There is a more wise way to do it, but I discovered it only after I did that the dumb way and was too dumb to change it back...)
 
 then you can use this fuzzing script here:
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -1370,6 +1407,7 @@ cargo fuzz run fuzz_run_program --jobs=8 -- -rss_limit_mb=4096 -max_len=4096 -ti
 
 
 ```
+{% endraw %}
 
 to start fuzzing!
 
@@ -1385,6 +1423,7 @@ Sooo just run `cargo fuzz coverage fuzz_run_program` ???? That seems to do somet
 
 Fuck!
 
+{% raw %}
 ```
 
 warning: /home/oof/clvm_rs/fuzz/Cargo.toml: unused manifest key: dependencies.libfuzzer-sys.path
@@ -1438,6 +1477,7 @@ Caused by:
     1: No such file or directory (os error 2)
 
 ```
+{% endraw %}
 
 
 

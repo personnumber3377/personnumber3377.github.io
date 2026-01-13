@@ -13,6 +13,7 @@ First of all, the binary calls `kernel32.ReadFile` to read the file initially in
 
 Here is basically the call stack of the program:
 
+{% raw %}
 ```
 ,000000E7356FE0B8,00007FF69A6878EB,00007FF960B409A0,60,KÃ¤yttÃ¤jÃ¤alue,kernel32.ReadFile
 ,000000E7356FE118,00007FF69A687AA5,00007FF69A6878EB,40,KÃ¤yttÃ¤jÃ¤alue,orgchart.00007FF69A6878EB
@@ -30,9 +31,11 @@ Here is basically the call stack of the program:
 ,000000E7356FFED8,00007FF96200AF38,00007FF960B3259D,80,JÃ¤rjestelmÃ¤,kernel32.BaseThreadInitThunk+1D
 ,000000E7356FFF58,0000000000000000,00007FF96200AF38,,KÃ¤yttÃ¤jÃ¤alue,ntdll.RtlUserThreadStart+28
 ```
+{% endraw %}
 
 here is the decompilation of where the ReadFile function gets called:
 
+{% raw %}
 ```
 ulonglong FUN_1400477fc(LPCSTR param_1,HANDLE param_2,uint *param_3,DWORD param_4,int *param_5)
 
@@ -151,6 +154,7 @@ ulonglong FUN_1400477fc(LPCSTR param_1,HANDLE param_2,uint *param_3,DWORD param_
   return uVar9;
 }
 ```
+{% endraw %}
 
 I tried to change one byte in text in the original input file and then the program claimed that the file was invalid, therefore we can assume that there is probably some checksum checking going on or something like that, since this happens...
 
@@ -160,6 +164,7 @@ Usually the checksum appears in the very header of the file, and then that check
 
 So if we advance through the call stack, the aforementioned function was actually called from this function here:
 
+{% raw %}
 ```
 
 
@@ -179,11 +184,13 @@ void FUN_140047a70(HANDLE param_1,uint *param_2,undefined8 param_3,DWORD param_4
 
 
 ```
+{% endraw %}
 
 my guess is that FUN_14004751c is a function which checks if the file actually exists and then FUN_1400477fc tries to process said file...
 
 Here is a reversed function:
 
+{% raw %}
 ```
 
 void FUN_140047a70(HANDLE filename,uint *param_2,undefined8 param_3,DWORD param_4)
@@ -203,11 +210,13 @@ void FUN_140047a70(HANDLE filename,uint *param_2,undefined8 param_3,DWORD param_
 
 
 ```
+{% endraw %}
 
 Let's go up the call stack again a bit...
 
 Here is the calling function again:
 
+{% raw %}
 ```
 
 void FUN_1400648c8(HWND param_1,uint param_2,int param_3,int param_4,LPCSTR param_5,uint *param_ 6)
@@ -419,10 +428,12 @@ LAB_140064a77:
 }
 
 ```
+{% endraw %}
 
 
 Here is the thing:
 
+{% raw %}
 ```
 
 void FUN_1400648c8(HWND param_1,uint param_2,int param_3,int param_4,LPCSTR maybefilenamestring,
@@ -635,11 +646,13 @@ LAB_140064a77:
 }
 
 ```
+{% endraw %}
 
 My hypothesis is that the checksum calculation is probably not here, but maybe in a call higher up the stack?????
 
 Here is the calling function again:
 
+{% raw %}
 ```
 
 void FUN_140064d78(LPCSTR param_1,uint param_2,undefined8 *param_3)
@@ -1051,11 +1064,13 @@ LAB_140065729:
 }
 
 ```
+{% endraw %}
 
 now I am like 95% sure that the checksum check happens in this function somehow. Maybe just set a breakpoint to after the temp file creation and see what happens???
 
 Ok, so we did NOT go to this thing here:
 
+{% raw %}
 ```
 
         if (uVar17 != 0) {
@@ -1064,19 +1079,23 @@ Ok, so we did NOT go to this thing here:
         }
 
 ```
+{% endraw %}
 
 so the checksum checking or whatever wasn't there...
 
 Ok, so we also do not jump here:
 
+{% raw %}
 ```
 if (uVar17 != 0) goto LAB_140065235;
 ```
+{% endraw %}
 
 We call GetWindowLongPtrA so I guess that is a good sign..
 
 We never reach this check here for the number two:
 
+{% raw %}
 ```
 
        14006534e 83  f9  02       CMP        param_1 ,0x2
@@ -1086,16 +1105,20 @@ We never reach this check here for the number two:
 
 
 ```
+{% endraw %}
 
 We actually DO pass the
+{% raw %}
 ```
 if ((int)uVar1 < 0x5b) {
 ```
+{% endraw %}
 
 check in both valid and invalid files, therefore let's keep digging.
 
 This check here:
 
+{% raw %}
 ```
 
         else if (uVar1 - 0x5a < 2) {
@@ -1110,11 +1133,13 @@ This check here:
         }
 
 ```
+{% endraw %}
 
 is never reached in valid or invalid files...
 
 We always go through this case here:
 
+{% raw %}
 ```
 
         if ((DAT_1400babf6 & 0x400) == 0) {
@@ -1122,9 +1147,11 @@ We always go through this case here:
         }
 
 ```
+{% endraw %}
 
 we should end up in the:
 
+{% raw %}
 ```
 
 LAB_140065489:
@@ -1132,9 +1159,11 @@ LAB_140065489:
       pHVar8 = local_630;
 
 ```
+{% endraw %}
 
 We never go to the ShowWindow calls here:
 
+{% raw %}
 ```
 
     if (((((uVar1 - 0x5d & 0xfffffffc) != 0) || (uVar1 == 0x5e)) && (!bVar2)) &&
@@ -1144,9 +1173,11 @@ We never go to the ShowWindow calls here:
     }
 
 ```
+{% endraw %}
 
 we never go here:
 
+{% raw %}
 ```
 
     if (local_648 != 0) {
@@ -1154,9 +1185,11 @@ we never go here:
     }
 
 ```
+{% endraw %}
 
 This here may be actually the fail thing:
 
+{% raw %}
 ```
 
       if (uVar1 != 0x5b) {
@@ -1170,11 +1203,13 @@ This here may be actually the fail thing:
       }
 
 ```
+{% endraw %}
 
 The fucking error doesn't even appear inside that function. So all of that analysis was wrong maybe???
 
 Here is the calling function (again):
 
+{% raw %}
 ```
 
 
@@ -1248,11 +1283,13 @@ LAB_140065c1c:
 
 
 ```
+{% endraw %}
 
 the openfileastempandopenwindows is the function thing...
 
 The:
 
+{% raw %}
 ```
 
   else {
@@ -1260,9 +1297,11 @@ The:
   }
 
 ```
+{% endraw %}
 
 was never triggered. Neither on valid or invalid...
 
+{% raw %}
 ```
 
   if (DAT_1400991b0 != (HWND)0x0) {
@@ -1275,11 +1314,13 @@ was never triggered. Neither on valid or invalid...
   }
 
 ```
+{% endraw %}
 
 We actually never reach this with the invalid file. We always reach this with the valid file...
 
 Here:
 
+{% raw %}
 ```
 
     if (((param_2 == 0xfffffffe) || (param_2 == 2)) || (param_2 - 0x5b < 2)) {
@@ -1289,6 +1330,7 @@ Here:
     }
 
 ```
+{% endraw %}
 
 The function there is actually the fail function maybe...
 
@@ -1296,6 +1338,7 @@ Yeah, the `FUN_1400658c0(local_res18[0],param_1,param_2);` call is the check cal
 
 Here is the check function:
 
+{% raw %}
 ```
 
 ulonglong checkvaliddatathing(HWND param_1,LPCSTR param_2,int param_3)
@@ -1350,9 +1393,11 @@ ulonglong checkvaliddatathing(HWND param_1,LPCSTR param_2,int param_3)
   return uVar3 & 0xffffffff;
 }
 ```
+{% endraw %}
 
 the checking happens before this:
 
+{% raw %}
 ```
 
   if ((int)uVar3 == 0) {
@@ -1360,32 +1405,38 @@ the checking happens before this:
     BVar2 = IsWindowVisible(pHVar4);
 
 ```
+{% endraw %}
 
 the actual checking happens inside this function here:
 
+{% raw %}
 ```
 
   uVar3 = FUN_14004e2dc(param_1,param_2,(uint)(param_3 == 0x5b),
                         (uint)((iVar1 - 0x5aU & 0xfffffffd) != 0),(uint)(param_3 != -0x5b),uVar6) ;
 
 ```
+{% endraw %}
 
 i am going to call it `check_buffer_check`.
 
 Here is the signature:
 
+{% raw %}
 ```
 
 ulonglong check_buffer_check(HWND param_1,LPCSTR param_2,int param_3,int param_4,int param_5,
                             uint param_6)
 
 ```
+{% endraw %}
 
 so I think that param_1 is the filehandle here.
 
 
 Here is some stuff:
 
+{% raw %}
 ```
 
   uVar3 = check_buffer_check(window_handle,filename,(uint)(some_integer == 0x5b),
@@ -1393,11 +1444,13 @@ Here is some stuff:
                              ,uVar6);
 
 ```
+{% endraw %}
 
 check_buffer_check
 
 Here is the bullshit:
 
+{% raw %}
 ```
 
 ulonglong check_buffer_check(HWND window_handle,LPCSTR original_filename,int param_3,int param_4 ,
@@ -1660,9 +1713,11 @@ LAB_14004e55f:
 }
 
 ```
+{% endraw %}
 
 Oh look at that!!!! We found the function which checks the CRC of the file:
 
+{% raw %}
 ```
 
 
@@ -1739,6 +1794,7 @@ void FUN_14004e904(HANDLE file_handle)
 }
 
 ```
+{% endraw %}
 
 Here is the `void filehandle_crc_check(HANDLE file_handle)`
 
@@ -1752,6 +1808,7 @@ This blog post here: https://hackmag.com/security/winafl/ was of great help in d
 
 Looking at the temporary file here:
 
+{% raw %}
 ```
 
 00000000: 02 00 ff ff 00 00 00 00 00 00 fe 61 f9 7f 00 00  ...........a....
@@ -3644,11 +3701,13 @@ Looking at the temporary file here:
 000075f0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
 
 ```
+{% endraw %}
 
 it doesn't really seem interesting for our purposes.
 
 Here is then the thing:
 
+{% raw %}
 ```
 
 
@@ -3824,9 +3883,11 @@ Säikeen tunnist Osoite           Paluun kohde     Paluun lähde     Kok Muistia
 
 
 ```
+{% endraw %}
 
 Here is the bullshit thing:
 
+{% raw %}
 ```
 
 void FUN_140065f0c(int param_1)
@@ -3891,11 +3952,13 @@ LAB_140066016:
 
 
 ```
+{% endraw %}
 
 Let's clean it up a bit more...
 
 Here is a cleaned up version:
 
+{% raw %}
 ```
 
 void FUN_140065f0c(int param_1)
@@ -3961,11 +4024,13 @@ LAB_140066016:
 
 
 ```
+{% endraw %}
 
 So the file loading function is actually just here: load_file(maybeinputfilename,some_integer);
 
 Idk, here is actually the thing:
 
+{% raw %}
 ```
 
 void FUN_140065c48(LPCSTR filename)
@@ -3994,9 +4059,11 @@ LAB_140065c9f:
 }
 
 ```
+{% endraw %}
 
 Here is the actual load function:
 
+{% raw %}
 ```
 
 
@@ -4055,12 +4122,14 @@ ulonglong checkvaliddatathing(HWND window_handle,LPCSTR filename,int some_intege
 
 
 ```
+{% endraw %}
 
 The check_buffer_check function is actually the buffer load function, so let's rename it to buffer_load
 
 
 Here are just the offset shit in python just in case:
 
+{% raw %}
 ```
 
 oof@elskun-lppri:/mnt/c/Users/elsku/orgpwn$ python3
@@ -4075,9 +4144,11 @@ Type "help", "copyright", "credits" or "license" for more information.
 >>>
 
 ```
+{% endraw %}
 
 So therefore here:
 
+{% raw %}
 ```
 
 
@@ -4342,6 +4413,7 @@ LAB_14004e55f:
 
 
 ```
+{% endraw %}
 
 is the actual parse function...
 
@@ -4359,6 +4431,7 @@ Ok, so my setup now sort of seems to work. The fuzzer runs correctly, but it jus
 
 Now, the thing is that the same function which also parses the file also does the window bullshit fuck, so therefore, we may need to patch some of the window calls out.
 
+{% raw %}
 ```
 
 
@@ -4625,6 +4698,7 @@ LAB_14004e55f:
 
 
 ```
+{% endraw %}
 
 
  cmake -A x64 .. -DDynamoRIO_DIR=C:\Users\elsku\dynamorio2\DynamoRIO-Windows-11.3.0-1\cmake -DINTELPT=1 -DUSE_COLOR=1
@@ -4648,6 +4722,7 @@ So the fucking target function actually spawns a thread inside of it. Holy shit 
 
 Here is the complete call stack:
 
+{% raw %}
 ```
 
 Säikeen tunnist Osoite           Paluun kohde     Paluun lähde     Kok Muistialue   Kommentti
@@ -4705,10 +4780,12 @@ Säikeen tunnist Osoite           Paluun kohde     Paluun lähde     Kok Muistia
 
 
 ```
+{% endraw %}
 
 
 We are calling the CreateICA function from this function here:
 
+{% raw %}
 ```
 
 
@@ -5074,6 +5151,7 @@ LAB_14007e124:
 
 
 ```
+{% endraw %}
 
 Here is some documentation:
 
@@ -5084,6 +5162,7 @@ I am going to rename this function to createdrivericathing
 
 Ok, so we call that function from:
 
+{% raw %}
 ```
 
 
@@ -5500,20 +5579,24 @@ LAB_1400647e3:
 }
 
 ```
+{% endraw %}
 
 
 Which seems quite a long function related to some rendering bullshit.
 
 
 We are then calling that function here:
+{% raw %}
 ```
 LAB_140065293:
           uVar17 = FUN_140063ae8(pHVar9,uVar17,uVar1);
 
 ```
+{% endraw %}
 
 which is in:
 
+{% raw %}
 ```
 
 
@@ -5926,11 +6009,13 @@ LAB_140065729:
 }
 
 ```
+{% endraw %}
 
 Which is in our openfileastempandopenwindows function?????????? That seems kinda sus.
 
 and here is the bullshit where we call that:
 
+{% raw %}
 ```
 
 int load_file(LPCSTR filename,uint some_integer)
@@ -5999,12 +6084,14 @@ int load_file(LPCSTR filename,uint some_integer)
   }
 
 ```
+{% endraw %}
 
 
 Wait fuck nevermind. That was the wrong call stack....
 
 Here is the actual thing:
 
+{% raw %}
 ```
 
 
@@ -6065,10 +6152,12 @@ Säikeen tunnist Osoite           Paluun kohde     Paluun lähde     Kok Muistia
 
 
 ```
+{% endraw %}
 
 
 Here is the place where we are:
 
+{% raw %}
 ```
 
 void maybe_load_data(HWND window_handle,longlong window_lock,HANDLE filehandle)
@@ -6314,9 +6403,11 @@ LAB_14004f3e1:
 
 
 ```
+{% endraw %}
 
 Here is the call table on the second thread creation call:
 
+{% raw %}
 ```
 
 Säikeen tunnist Osoite           Paluun kohde     Paluun lähde     Kok Muistialue   Kommentti
@@ -6377,12 +6468,14 @@ Säikeen tunnist Osoite           Paluun kohde     Paluun lähde     Kok Muistia
 
 
 ```
+{% endraw %}
 
 
 
 
 Here is the functionality which we want to patch out:
 
+{% raw %}
 ```
 
        14004e63d 45  85  ff       TEST       show_data_maybe ,show_data_maybe
@@ -6396,6 +6489,7 @@ Here is the functionality which we want to patch out:
 
 
 ```
+{% endraw %}
 
 Now I don't think that the program will work if we patch out the call to maybe_load_data, because some shit depends on it further down the line, but let's see..
 
@@ -6404,15 +6498,18 @@ e8  34  08 00  00
 Ok, so if we nop out those instructions, we just get an error message when opening the file thing. Instead, let's just put a mov ebx, 1 there and see what happens...
 
 
+{% raw %}
 ```
 
        14004e64b bb  00  00       MOV        EBX ,0x0
                  00  00
 
 ```
+{% endraw %}
 
 Here is the actual bullshit function:
 
+{% raw %}
 ```
 
 
@@ -6497,9 +6594,11 @@ LAB_14004f5a5:
 }
 
 ```
+{% endraw %}
 
 Here:
 
+{% raw %}
 ```
 
   if (driverbullshit != 0) {
@@ -6508,6 +6607,7 @@ Here:
   }
 
 ```
+{% endraw %}
 
 we check if the thing is not zero, so therefore if we just set zero there we should be good???
 
@@ -6515,6 +6615,7 @@ This probably fucks up something else later on, but maybe this will solve it???
 
 Here is the call thing:
 
+{% raw %}
 ```
 
        14004f57b 40  88  31       MOV        byte ptr [param_1 ],SIL
@@ -6525,6 +6626,7 @@ Here is the call thing:
 
 
 ```
+{% endraw %}
 
 
 
@@ -6533,6 +6635,7 @@ C:\Users\elsku\winafl\winafl\build\bin\Release\afl-fuzz.exe -d -i c:\Users\elsku
 
 The fail fast bullshit is called from here:
 
+{% raw %}
 ```
 
 
@@ -6565,9 +6668,11 @@ int * FUN_1400224dc(HGLOBAL param_1,int param_2)
 
 
 ```
+{% endraw %}
 
 here is the calling function again:
 
+{% raw %}
 ```
 
 
@@ -6929,9 +7034,11 @@ LAB_1400500f1:
 
 
 ```
+{% endraw %}
 
 here:
 
+{% raw %}
 ```
 
         if ((hMem_00 == (short *)0x0) || ((short)DAT_1400a97b2 != 2)) {
@@ -6944,6 +7051,7 @@ here:
         }
 
 ```
+{% endraw %}
 
 So i think that the check is just there for some size calculation or some bullshit like that.
 

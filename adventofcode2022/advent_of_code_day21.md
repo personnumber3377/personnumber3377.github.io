@@ -7,6 +7,7 @@ I think that building a hashmap with the monkey names as keys and the expression
 
 Let's program the initial parse function:
 
+{% raw %}
 ```
 def parse_monkeys() -> dict:
 	stdin_input = sys.stdin.read()
@@ -24,11 +25,13 @@ def parse_monkeys() -> dict:
 
 	return out_dict
 ```
+{% endraw %}
 
 Then in the actual evaluation function, we recursively call itself, if there is another name in the expression and we just return an integer if it represents a number.
 
 Here it is :
 
+{% raw %}
 ```
 
 def evaluate_monkeys(monkeys: dict, cur_monkey: str) -> int:
@@ -82,9 +85,11 @@ def evaluate_monkeys(monkeys: dict, cur_monkey: str) -> int:
 
 
 ```
+{% endraw %}
 
 Here is the final code:
 
+{% raw %}
 ```
 
 import sys
@@ -174,18 +179,21 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 Part two of this challenge is really difficult. My first thought is to just bruteforce the correct number, but that is probably not the intended route. Also I think that using a solver such as sympy is cheating too like in this solution: https://github.com/orfeasa/advent-of-code-2022/blob/main/day_21/main.py .
 
 One thing I should try is to just do all of the operations in reverse order, and when we traverse down the tree we record all of the operations in a list. I am going to make the assumption that the humn leaf only occurs once in the entire tree. This way there we do not need to deal with nonlinear equations which could screw us up, like this next example would not be allowed, since it has the humn leaf in two places:
 
 
+{% raw %}
 ```
 root: aaaa = bbbb
 bbbb: 100
 aaaa: humn * cccc
 cccc: humn + 2
 ```
+{% endraw %}
 
 This would basically simplify to the equation `100 = x*(x+2) = x**2 + 2*x` . When creating a binary tree out of this said group of monkeys with root as the top we get this:
 
@@ -198,6 +206,7 @@ Therefore we can traverse the binary tree backwards. We just find the route to t
 
 Here is my code:
 
+{% raw %}
 ```
 
 def traverse_backwards(monkeys, route, value):
@@ -273,11 +282,13 @@ def traverse_backwards(monkeys, route, value):
 	return value
 
 ```
+{% endraw %}
 
 I actually had the wrong mindset, because we actually need to traverse from the top down, because of course. if we had an equation like `5*(x+2) == 10`, we first divide both sides by five, not subtract two.
 
 Here is the code which works for the tiny input:
 
+{% raw %}
 ```
 
 def traverse_backwards(monkeys, route, value):
@@ -353,9 +364,11 @@ def traverse_backwards(monkeys, route, value):
 	return value
 
 ```
+{% endraw %}
 
 When using the script for the big input, I ran into a problem. The lookup function for the route to get to the humn leaf takes forever.
 
+{% raw %}
 ```
 
 def get_route(monkeys: dict, wanted_monkey: str, moves: list, cur_monkey: str):
@@ -401,6 +414,7 @@ def get_route(monkeys: dict, wanted_monkey: str, moves: list, cur_monkey: str):
 			return None
 
 ```
+{% endraw %}
 
 This is because it basically bruteforces the route by going through all of the possible routes (aka combinations of left and right in the binary tree). Instead of that we can just lookup the humn leaf and see where it gets mentioned and get the name of that node and see where that gets mentioned etc etc and we arrive at the root node. Basically going through the path backwards.
 
@@ -408,6 +422,7 @@ Let's implement that!
 
 After a bit of fiddling I came up with this:
 
+{% raw %}
 ```
 def get_route(monkeys: dict, wanted_monkey: str, moves: list, cur_monkey: str):
 
@@ -442,10 +457,12 @@ def get_route(monkeys: dict, wanted_monkey: str, moves: list, cur_monkey: str):
 	print("end")
 	return None
 ```
+{% endraw %}
 
 This gets the route, but now I am faced with the error `value % val_2 != 0` with this next following code:
 
 
+{% raw %}
 ```
 
 
@@ -758,6 +775,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 ## Logic bug
 
@@ -772,6 +790,7 @@ See, multiplication and addition are commutative operations, which means that a 
 
 Let's implement that fix:
 
+{% raw %}
 ```
 
 def traverse_backwards(monkeys, route, value):
@@ -866,6 +885,7 @@ def traverse_backwards(monkeys, route, value):
 	return value
 
 ```
+{% endraw %}
 
 ## Making it faster
 
@@ -873,6 +893,7 @@ Now, it takes plenty of time to run, so let's just as an exercise try to make it
 
 First run with cProfile (with -s time ):
 
+{% raw %}
 ```
 
          493687 function calls (491054 primitive calls) in 2.520 seconds
@@ -907,9 +928,11 @@ First run with cProfile (with -s time ):
 
 
 ```
+{% endraw %}
 
 Let's just first get rid of the print statements. IO is slow as hell!
 
+{% raw %}
 ```
          105260 function calls (102627 primitive calls) in 0.054 seconds
 
@@ -942,11 +965,13 @@ Let's just first get rid of the print statements. IO is slow as hell!
         1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
 
 ```
+{% endraw %}
 
 That looks a lot more promising! Let's get rid of all the split calls by storing the tokens as a list in the dictionary, and not as a string, so we do not have to split it every time we use it.
 
 Here are the results of doing that:
 
+{% raw %}
 ```
 
          9754 function calls (7121 primitive calls) in 0.022 seconds
@@ -981,9 +1006,11 @@ Here are the results of doing that:
 
         
 ```
+{% endraw %}
 
 We know that the monkey names are always four characters long, so the split statement in the parse_monkeys function can be replaced. This is the current version:
 
+{% raw %}
 ```
 def parse_monkeys() -> dict:
 	stdin_input = sys.stdin.read()
@@ -1001,9 +1028,11 @@ def parse_monkeys() -> dict:
 
 	return out_dict
 ```
+{% endraw %}
 
 and here is the new version:
 
+{% raw %}
 ```
 def parse_monkeys() -> dict:
 	stdin_input = sys.stdin.read()
@@ -1028,6 +1057,7 @@ def parse_monkeys() -> dict:
 
 
 ```
+{% endraw %}
 
 Except that this is actually the exact same speed, we could do a generator function which generates valid input files and then compare, but I digress.
 
@@ -1035,6 +1065,7 @@ One way to get the program to run faster is to actually instead of looking up th
 
 There is an obvious optimization in this part:
 
+{% raw %}
 ```
 
 		if cur_monkey in expression:
@@ -1052,9 +1083,11 @@ There is an obvious optimization in this part:
 				exit(1)
 
 ```
+{% endraw %}
 
 We can replace the elif with else and get rid of the current else, because it was just there for debugging reasons. We need more precise debugging so I made a script which takes one hundred runs and then takes the average:
 
+{% raw %}
 ```
 
 
@@ -1111,6 +1144,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 After running the current version a thousand times, the average time was 0.02303634697400002 seconds.
 
@@ -1118,6 +1152,7 @@ I made a modification to the actual python program, which loops over the solving
 
 Here it is:
 
+{% raw %}
 ```
 
 
@@ -1375,12 +1410,14 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 and then `python3 -m cProfile -s time prof.py < input.txt` .
 
 Here are the results:
 
+{% raw %}
 ```
 1000 runs tooks 25.104990482330322 seconds.
 Average run time was 0.025104990482330322 seconds.
@@ -1416,6 +1453,7 @@ Average run time was 0.025104990482330322 seconds.
         1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
 
 ```
+{% endraw %}
 
 So just getting the path to humn takes a lot of time.
 
@@ -1423,6 +1461,7 @@ I found this: https://github.com/bozdoz/advent-of-code-2022/blob/main/21/monkeym
 
 Ok so apparently this is actually slower:
 
+{% raw %}
 ```
 def get_route(monkeys: dict, wanted_monkey: str, moves: list, cur_monkey: str):
 
@@ -1443,9 +1482,11 @@ def get_route(monkeys: dict, wanted_monkey: str, moves: list, cur_monkey: str):
 		elif cur_monkey == expression[2]:
 			return get_route(monkeys, wanted_monkey, [1]+moves, monkey)
 ```
+{% endraw %}
 
 for some reason. Let's take a look!
 
+{% raw %}
 ```
 
 1000 runs tooks 42.495182275772095 seconds.
@@ -1482,11 +1523,13 @@ Average run time was 0.04249518227577209 seconds.
 
 
 ```
+{% endraw %}
 
 So apparently taking the length of a list takes a surprisingly long time. In python taking the length of a list I think is O(1), because the length is stored alongside the array. https://www.geeksforgeeks.org/internal-working-of-the-len-function-in-python/ so why the fuck is it taking so long? I don't know. Maybe we should make a dictionary of types of the expressions (aka mark which ones are expr and which ones are integers)?
 
 Apparently this:
 
+{% raw %}
 ```
 def get_route(monkeys: dict, wanted_monkey: str, moves: list, cur_monkey: str, types: dict):
 
@@ -1507,9 +1550,11 @@ def get_route(monkeys: dict, wanted_monkey: str, moves: list, cur_monkey: str, t
 		elif cur_monkey == expression[2]:
 			return get_route(monkeys, wanted_monkey, [1]+moves, monkey, types)
 ```
+{% endraw %}
 
 is slower than this:
 
+{% raw %}
 ```
 
 def get_route(monkeys: dict, wanted_monkey: str, moves: list, cur_monkey: str, types: dict):
@@ -1533,11 +1578,13 @@ def get_route(monkeys: dict, wanted_monkey: str, moves: list, cur_monkey: str, t
 				return get_route(monkeys, wanted_monkey, [1]+moves, monkey, types)
 
 ```
+{% endraw %}
 
 The first piece of code does in the worst case two comparisons (the if and elif thing), while the second code does in the worst case 3 comparisons (first the if cur_monkey in expression, because the expression also has the operation token in it with the monkey names and then in the condition is true then there is the if check with `expression[0]`) . Yeah whatever. I am done with this anyway. Maybe I will come back to this and optimize it further, but this I think is good enough. The rust version runs in about 12 milliseconds, when as ours runs in 20 milliseconds.
 
 Final script (for now):
 
+{% raw %}
 ```
 
 
@@ -1818,10 +1865,12 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 I couldn't let this be. I put up a question on stack overflow: https://stackoverflow.com/questions/77294215/why-is-in-list-faster-than-checking-individual-elements and the answer was because the "in" operator calls the CONTAINS_OP when as the slower version does not call that. Also taking the element by index is slow. Putting the monkeys first in the list and the operator last speeds up the program by a tiny bit:
 
+{% raw %}
 ```
 def parse_monkeys() -> dict:
 	global glob_input
@@ -1854,6 +1903,7 @@ def parse_monkeys() -> dict:
 
 	return out_dict, types#, child_monkey_dict
 ```
+{% endraw %}
 
 Anyway, now I think I am done.
 

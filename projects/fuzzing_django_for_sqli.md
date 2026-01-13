@@ -7,6 +7,7 @@ Let's take a deep dive into the structure of django and see what we can maybe do
 
 test_extract_trunc.py:
 
+{% raw %}
 ```
 
         with self.assertRaises((OperationalError, ValueError)):
@@ -17,9 +18,11 @@ test_extract_trunc.py:
             ).exists()
 
 ```
+{% endraw %}
 
 At one point I got this error here:
 
+{% raw %}
 ```
 
 Here is the string: /8/
@@ -114,6 +117,7 @@ artifact_prefix='./'; Test unit written to ./crash-8ca2dfd5d19314460e3860f7dbdc8
 Base64: X19fX19fX19fX19fbHRfX19fX2x0XyxfLF8=
 
 ```
+{% endraw %}
 
 but this seems to be by design and not SQLI...
 
@@ -121,6 +125,7 @@ but this seems to be by design and not SQLI...
 
 Ok, so maybe like this???
 
+{% raw %}
 ```
 
 # All known expression models
@@ -173,10 +178,12 @@ def dynamic_fuzz_target(test_string):
         raise  # or log it for crash deduplication
 
 ```
+{% endraw %}
 
 
 Now I am getting this stuff here:
 
+{% raw %}
 ```
 
 Here is the string: _DateField_____
@@ -268,11 +275,13 @@ Here is the string: -|
 ^CKeyboardInterrupt: stopping.
 
 ```
+{% endraw %}
 
 
 
 Maybe cutout the stuff and add them into the fuzzing dictionary????
 
+{% raw %}
 ```
 
 
@@ -302,6 +311,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Done!
 

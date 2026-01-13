@@ -9,6 +9,7 @@ My preferred programming language is python so I searched for Spice simulators w
 
 The source code is only around 17k lines:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Asioita/Ohjelmointi/spicesimulation/plagiarized/PySpice/PySpice$ find -name \*.py | xargs wc -l
    176 ./Tools/EnumFactory.py
@@ -68,14 +69,17 @@ cyberhacker@cyberhacker-h8-1131sc:~/Asioita/Ohjelmointi/spicesimulation/plagiari
  16776 total
 
 ```
+{% endraw %}
 
 Out of these subdirectories the interesting ones are the Math,  Physics,  Spice and Unit .
 
 Ok after a bit of digging I found out that the simulation of the circuit is actually done by either ngspice or Xyce which so lets look at the source code of those. I was quite suspicious about the low line count. Lets get the total lines inside src/ for ngspice:
 
+{% raw %}
 ```
   515131 total
 ```
+{% endraw %}
 
 There we go! That seems more like it!
 
@@ -98,6 +102,7 @@ After a bit of digging I found this: https://github.com/giaccone/SpicePy which i
 
 So after staring at formulas and the code for a long bit I think that I have alteast some sort of understanding of what does what. Calling the library on a siple circuit with a power source and a singular resistor basically calls the dc_solve function. The dc_solve function first creates the conductance matrix (self.G):
 
+{% raw %}
 ```
 def dc_solve(net):
     """
@@ -117,9 +122,11 @@ def dc_solve(net):
     net.x = spsolve(net.G, net.rhs)
     print("net.x == "+str(net.x))
 ```
+{% endraw %}
 
 and then after that it creates the right hand side matrix. The right hand side matrix is basically this when not in transient analysis:
 
+{% raw %}
 ```
 
             # initialize rhs
@@ -155,6 +162,7 @@ and then after that it creates the right hand side matrix. The right hand side m
 
             self.rhs = np.array(rhs)
 ```
+{% endraw %}
 
 it first initializes the matrix to zeros with length (amount of nodes + num of all components which are NOT resistors) This code basically for all of the voltage sources puts that voltage of the voltage source to that index of the resulting array. To RHS is basically the V vector with the currents.
 
@@ -162,6 +170,7 @@ The G matrix is the conductance matrix. Conductance is basically defined as the 
 
 The conductance matrix is calculated by this algorithm:
 
+{% raw %}
 ```
         g = []
         g_row = []
@@ -225,9 +234,11 @@ The conductance matrix is calculated by this algorithm:
                 g_row.append(N2 - 1)
                 g_col.append(N1 - 1)
 ```
+{% endraw %}
 
 This is repeated for the other components like inductors and stuff, but we are only going to make the conductance matrix for now. The indexR variable has the indexes of all of the resistor connections and the self.nodes has all of the connections defined in the example file:
 
+{% raw %}
 ```
 * Example of DC network
 
@@ -238,9 +249,11 @@ R3 3 2 10
 R4 0 3 10
 .op
 ```
+{% endraw %}
 
 This yields this as the nodes:
 
+{% raw %}
 ```
 self.nodes: [[1 0]
  [2 1]
@@ -248,6 +261,7 @@ self.nodes: [[1 0]
  [3 2]
  [0 3]]
 ```
+{% endraw %}
 
 I found these two pages which are really useful imo: http://lpsa.swarthmore.edu/Systems/Electrical/mna/MNA2.html and http://lpsa.swarthmore.edu/Systems/Electrical/mna/MNA3.html
 
@@ -259,6 +273,7 @@ I actually got it now! The first resistor equations are added because then the v
 
 Here is my algorithm:
 
+{% raw %}
 ```
 def generate_matrix(indexes, values):
 	print("Indexes: "+str(indexes))
@@ -393,6 +408,7 @@ def get_conductance_matrix(resistor_values, nodes):
 	print("Resulting matrix: "+str(resulting_matrix))
 	return resulting_matrix
 ```
+{% endraw %}
 
 The generate_matrix is basically a function which is synonomous with the csr_matrix function.
 
@@ -402,6 +418,7 @@ The diagonal on the conductance matrix is the sum of all of the conductances to 
 
 This schematic basically is this:
 
+{% raw %}
 ```
 V1 1 0 5 
 R1 1 2 10
@@ -409,20 +426,25 @@ R2 2 0 20
 R3 2 0 30
 .op
 ```
+{% endraw %}
 
 and the solution is this:
 
+{% raw %}
 ```
 Solution: [ 5.          2.72727273 -0.22727273]
 ```
+{% endraw %}
 
 The first two are the voltages at nodes 1 and 2 and the last is the current which goes through V1
 
 If we look at the matrix before adding the voltage sources:
 
+{% raw %}
 ```
 Matrix before voltage sources: [[0.1, -0.1], [-0.1, 0.18333333333333335]]
 ```
+{% endraw %}
 
 This is the same as this:
 
@@ -454,6 +476,7 @@ The $V_{p}(\sum_{n=1}^{k}\frac{1}{R_{n}})$ term is the sum of the conductances f
 
 If we just inspect this code:
 
+{% raw %}
 ```
 		else:
 			# This adds the admittance to the start point.
@@ -474,6 +497,7 @@ If we just inspect this code:
 			g_col.append(N1 - 1)
 
 ```
+{% endraw %}
 
 
 The first two segments just add the resistor value to the end and start indexes to the diagonal, because one resistor adds two connections. The start index is N1 so if the resistor is between indexes 1 and 2, then it adds the resistor at coordinates (1,1) and (2,2) because now the nodes 1 and 2 have this connection. The two ones after that adds the non-diagonal elements which describe the $-(\sum_{n=1}^{k}\frac{V_{n}}{R_{n}})$ elements. If some resistor already exists at that point (lets say we add a resistor between nodes 1 and 2 and there already is a resistor there), then we just subtract that from the existing value. If there is nothing there then we just set that element in the matrix to that (because anything subtracted from zero is that negative anything like 0-1 = (-1)*1 and 0-14 = (-1)*14 = -14) .
@@ -485,6 +509,7 @@ Ok so now we are going to take the inductors into the mix:
 
 if we use this circuit:
 
+{% raw %}
 ```
 * Example of DC network
 
@@ -496,31 +521,39 @@ L1 2 0 10m
 .op
 
 ```
+{% endraw %}
 
 
 the right hand side is this:
+{% raw %}
 ```
 net.rhs == [0. 0. 0. 5.]
 ```
+{% endraw %}
 and the matrix before the voltage sources is this:
 
+{% raw %}
 ```
 [[ 0.1        -0.1         0.        ]
  [-0.1         0.18333333  1.        ]
  [ 0.          1.          0.        ]]
 ```
+{% endraw %}
 
 and then after the voltage sources it is this:
 
+{% raw %}
 ```
 [[ 0.1        -0.1         0.          1.        ]
  [-0.1         0.18333333  1.          0.        ]
  [ 0.          1.          0.          0.        ]
  [ 1.          0.          0.          0.        ]]
 ```
+{% endraw %}
 
 The inductors in the circuit act as short circuits. This causes the current in the other nodes to be zero, because the inductor shorts to ground. Lets do this:
 
+{% raw %}
 ```
 V1 1 0 5 
 R1 1 2 10
@@ -531,8 +564,10 @@ L1 2 0 10m
 .op
 
 ```
+{% endraw %}
 
 
+{% raw %}
 ```
 [[ 0.1        -0.1         0.          0.          1.        ]
  [-0.1         0.18333333 -0.08333333  1.          0.        ]
@@ -540,17 +575,21 @@ L1 2 0 10m
  [ 0.          1.          0.          0.          0.        ]
  [ 1.          0.          0.          0.          0.        ]]
 ```
+{% endraw %}
 
 and:
 
+{% raw %}
 ```
 net.x == [ 5.   0.   0.   0.5 -0.5]
 ```
+{% endraw %}
 
 The reason why currents at 2 and 3 are zero is because the inductor shorts it to ground.
 
 I don't really understand the logic as to how the adding elements into the matrix accounts to the current being zero. Lets try a smaller example of just a battery and a resistor and an inductor in series:
 
+{% raw %}
 ```
 
 * Example of DC network
@@ -562,22 +601,27 @@ L1 2 0 30
 .op
 
 ```
+{% endraw %}
 
 and the resulting matrix is this:
 
+{% raw %}
 ```
 [[ 0.1 -0.1  0.   1. ]
  [-0.1  0.1  1.   0. ]
  [ 0.   1.   0.   0. ]
  [ 1.   0.   0.   0. ]]
 ```
+{% endraw %}
 
 without the inductor the matrix is this:
 
+{% raw %}
 ```
 [[0.1 1. ]
  [1.  0. ]]
 ```
+{% endraw %}
 
 Without the inductor the equations is basically just V/R-I=0 (the first line) and V=5 (the second line)
 
@@ -591,6 +635,7 @@ and then the second equation is basically this:
 
 So the inductors basically act like batteries, but with zero voltage (I think). Lets test our hypothesis by putting a battery with actually zero voltage instead of the inductor:
 
+{% raw %}
 ```
 
 * Example of DC network
@@ -602,9 +647,11 @@ V2 2 0 0
 .op
 
 ```
+{% endraw %}
 
 and this should result in the same matrix:
 
+{% raw %}
 ```
 * Example of DC network
 
@@ -614,15 +661,18 @@ V2 2 0 0
 
 .op
 ```
+{% endraw %}
 
 and:
 
+{% raw %}
 ```
 [[ 0.1 -0.1  1.   0. ]
  [-0.1  0.1  0.   1. ]
  [ 1.   0.   0.   0. ]
  [ 0.   1.   0.   0. ]]
 ```
+{% endraw %}
 
 Our hypothesis is correct! (the places of the ones is changed because the order of the currents are switched around now, but if they were in the original order then the ones would be in the original order.)
 
@@ -635,6 +685,7 @@ Now comes the hard part. Transient analysis. This is the electrical simulation w
 
 The code in the plagiarized version is this:
 
+{% raw %}
 ```
 def transient_solve(net):
 
@@ -731,12 +782,14 @@ def transient_solve(net):
         rhs = (net.C - 0.5 * h * net.G) * net.x[:, k - 1] + 0.5 * h * (rhs_fun(net.t[k - 1]) + rhs_fun(net.t[k]))
         net.x[:, k] = spsolve(K, rhs)
 ```
+{% endraw %}
 
 
 Maybe lets try understanding it with a minimal example?
 
 Lets make a simple LCR circuit:
 
+{% raw %}
 ```
 * Example transient analysis
 V1 1 0 10
@@ -747,10 +800,12 @@ C1 3 0 1u
 .plot v(C1) v(L1) i(L1) v(2) v(1,2)
 
 ```
+{% endraw %}
 
 
 The code comments basically just say that the inductors are modeled as current sources while as the capacitors are modeled as voltage sources for the initial conditions (note that the net_op netlist does not actually get used in the calculation themselves. it is purely used to calculate the initial conditions for the network.):
 
+{% raw %}
 ```
     # transform inductors (to current sources)
     for k, il in enumerate(indexL):
@@ -766,16 +821,19 @@ The code comments basically just say that the inductors are modeled as current s
         net_op.values[ic] = net_op.IC[net_op.names[ic]]
         net_op.names[ic] = new_name
 ```
+{% endraw %}
 
 
 The transient analysis method requires initial conditions, because it numerically calculates what the voltages should be after a certain timestep. This is a function of the previous voltages, so this means that we need to figure out what those initial conditions are. In the code this is done with the following:
 
+{% raw %}
 ```
     net_op.reorder()
     # change type of analysis and solve (to get IC)
     net_op.analysis = ['.op']
     net_solve(net_op)
 ```
+{% endraw %}
 
 net.x now has the initial conditions.
 
@@ -784,6 +842,7 @@ After this we calculate the conductance matrix just as with the MNA. In addition
 
 The conductance matrix before the dynamic matrix calculation is this:
 
+{% raw %}
 ```
  [[ 0.1 -0.1  0.   0.   1. ]
  [-0.1  0.1  0.   1.   0. ]
@@ -791,9 +850,11 @@ The conductance matrix before the dynamic matrix calculation is this:
  [ 0.   1.  -1.   0.   0. ]
  [ 1.   0.   0.   0.   0. ]]
 ```
+{% endraw %}
 
 After adding some debug messages we get this:
 
+{% raw %}
 ```
 Before inductors: 
 g == [0.1, 0.1, -0.1, -0.1]
@@ -815,6 +876,7 @@ the G matrix is this: [[ 0.1 -0.1  0.   0.   1. ]
  [ 0.   1.  -1.   0.   0. ]
  [ 1.   0.   0.   0.   0. ]]
 ```
+{% endraw %}
 
 Now, the before voltage sources is after the inductors notice that the matrix does not even take into account the capacitors. It is inductors and resistors and voltage sources only. Notice that on the row three the the equation is basically this: -1*I_inductor we will inspect the right hand side later.
 
@@ -822,6 +884,7 @@ After the conductance matrix we move on to the dynamic matrix calculation:
 
 The dynamic matrix for that circuit is this:
 
+{% raw %}
 ```
 
 [[ 0.e+00  0.e+00  0.e+00  0.e+00  0.e+00]
@@ -878,6 +941,7 @@ With these initial conditions if we slap the equation into wolfram alpha we get 
 Now, the function actually obtains imaginary values for some values of L, R, C and V, but after a bit of fiddling I found out that you just need to get the real component of the result. See:
 
 ```
+{% endraw %}
 from sympy import *
 import math
 import matplotlib.pyplot as plt
@@ -925,6 +989,7 @@ def I(r,l,C,V_val):
 if __name__=="__main__":
 
 	print(I(1,1,0.1,1))
+{% raw %}
 ```
 
 This shows this result:
@@ -949,6 +1014,7 @@ Lets implement the formula in python like in the other version:
 In the dynamic_matrix function in the plagiarized version there is this:
 
 ```
+{% endraw %}
 
         for k, il in enumerate(indexL):
             print("k is this: "+str(k))
@@ -958,11 +1024,13 @@ In the dynamic_matrix function in the plagiarized version there is this:
             c_col.append(self.node_num + k)
             print("poopooshitoof: "+str((c_row, c_col)))
 
+{% raw %}
 ```
 
 which had me confused for a while. The loop always puts the inductance on the diagonal of the matrix. This is because the self.node_num is the number of nodes and then the rows and columns which are after the matrix which is of shape self.node_num*self.node_num is the voltage equations. For example the matrix for this circuit in transient analysis:
 
 ```
+{% endraw %}
 * Example of DC network
 
 V1 1 0 5 
@@ -973,11 +1041,13 @@ L3 0 2 3
 
 .tran 1m 1
 .plot i(R1)
+{% raw %}
 ```
 
 are these:
 
 ```
+{% endraw %}
 
 G matrix:
 
@@ -998,6 +1068,7 @@ C matrix:
  [ 0.  0.  0.  0.  0.  0.]]
 
 
+{% raw %}
 ```
 
 See, the inductor values are added to places where the equations becoma for example the third line from both of these matrixes becomes this:
@@ -1009,6 +1080,7 @@ See, the reason why the conductance matrix goes like resistors and then inductor
 Now here is my implementation:
 
 ```
+{% endraw %}
 
 	K = C + 0.5*h*G
 
@@ -1052,6 +1124,7 @@ Now here is my implementation:
 		x_vals.append(cur_x)
 		cur_x += h
 
+{% raw %}
 ```
 
 This code won't work for some odd reason. The initial condition is somehow screwed up, because 
@@ -1062,6 +1135,7 @@ This code won't work for some odd reason. The initial condition is somehow screw
 because the initial condition isn't actually the solution to the network, but instead it is the solution to the net where the inductors are replaced with current sources and capacitors are replaced with voltage sources. Look at this:
 
 ```
+{% endraw %}
 poopoofirst = [resistor_values, resistor_nodes, voltage_nodes, voltage_values, nodes_inductors, inductor_values, nodes_capacitors, capacitor_values]
 	poopoofirst = [copy.deepcopy(x) for x in poopoofirst]
 

@@ -2,6 +2,7 @@
 
 Ok, so I had to add this stuff here:
 
+{% raw %}
 ```
 
     class InvalidContentDispositionError < StandardError
@@ -9,9 +10,11 @@ Ok, so I had to add this stuff here:
     end
 
 ```
+{% endraw %}
 
 to the multipart parser in rack and this:
 
+{% raw %}
 ```
           if (disposition = head[MULTIPART_CONTENT_DISPOSITION, 1]) &&
               disposition.bytesize <= CONTENT_DISPOSITION_MAX_BYTES
@@ -26,11 +29,13 @@ to the multipart parser in rack and this:
             param = nil
             num_params = 0
 ```
+{% endraw %}
 
 to the parsing stuff, because I had false positives during fuzzing.
 
 Here is my golang file:
 
+{% raw %}
 ```
 package main
 
@@ -205,9 +210,11 @@ func FuzzMultipartParser(f *testing.F) {
 
 
 ```
+{% endraw %}
 
 and here is `rack_parse.rb`:
 
+{% raw %}
 ```
 require 'rack'
 require 'tempfile'
@@ -257,5 +264,6 @@ end
 
 puts JSON.pretty_generate(response)
 ```
+{% endraw %}
 
 

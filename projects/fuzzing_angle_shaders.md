@@ -16,16 +16,19 @@ Checking the corpus that the unittests and the end2end tests produced, produced 
 
 In addition, I also had to modify libfuzzer to only use the custom mutator, since that was missing from it. This is because the python custom mutator which I developed always kept the syntax correct, so that the fuzzer could focus on the deeper lever logic instead of simple parsing of the shader source code. Here is my current source code for the shader fuzzer:
 
+{% raw %}
 ```
 
 
 
 ```
+{% endraw %}
 
 ## Why missing tests?
 
 Now, I didn't figure out why the exclusions didn't work, when trying to gather a good corpus from the end2end tests, so I made this script to make a command line parameter automatically which lead to me losing a bunch of tests to the aether because the tests actually do not get based off of the filenames necessarily:
 
+{% raw %}
 ```
 
 
@@ -164,14 +167,17 @@ patterns = [f"{suite_name(t)}.*" for t in tests]
 print("--gtest_filter=" + ":".join(patterns))
 
 ```
+{% endraw %}
 
 instead they must be got using `--gtest_list_tests`
 
 which results in:
 
+{% raw %}
 ```
 
 ```
+{% endraw %}
 
 ## Improving the custom mutator even further... by comparing against a real vulnerability
 
@@ -181,6 +187,7 @@ Ok, so after a ton of fiddling around I now have commit 7edea230908a2ef34650f44c
 
 The bug was because I wasn't actually mutating the qualifiers of struct definitions. After actually adding this code here:
 
+{% raw %}
 ```
         # 🔥 THIS IS THE IMPORTANT PART 🔥
         # if it.declarators and coin(rng, 0.35):
@@ -210,6 +217,7 @@ The bug was because I wasn't actually mutating the qualifiers of struct definiti
             if d.array_size is not None:
                 d.array_size = mutate_expr(d.array_size, rng, dummy_scope, env)
 ```
+{% endraw %}
 
 it now rediscovers the previous bug.
 
@@ -219,6 +227,7 @@ Ok, so time to implement custom crossover...
 
 So I added the custom crossover shit here:
 
+{% raw %}
 ```
 
 
@@ -283,16 +292,19 @@ extern "C" size_t LLVMFuzzerCustomCrossOver(const uint8_t *Data1, size_t Size1,
 
 
 ```
+{% endraw %}
 
 and then after recompiling it now calls that python function...
 
 Let's just put this kind of thing here:
 
+{% raw %}
 ```
 
 
 
 ```
+{% endraw %}
 
 
 

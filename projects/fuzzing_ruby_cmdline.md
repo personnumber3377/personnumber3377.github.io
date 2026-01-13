@@ -5,9 +5,11 @@ Ok, so command line arguments are often quite overlooked when fuzzing.
 
 There is this line in ruby.c:
 
+{% raw %}
 ```
 if (FEATURE_SET_P(opt->features, rubyopt) && (s = getenv("RUBYOPT"))) {
 ```
+{% endraw %}
 
 which checks for the environment variable called RUBYOPT . Here it is said that it can only contain certain flags, but I think it is adequate for our purposes: `https://stackoverflow.com/a/59616442`
 

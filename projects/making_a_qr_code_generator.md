@@ -5,6 +5,7 @@ This is my blog about writing a "simple" QR code generator.
 
 Looking at the spec, the alignment stuff and the corner markers are quite easy to do:
 
+{% raw %}
 ```
 
 import numpy as np
@@ -290,6 +291,7 @@ if __name__=="__main__":
 	im.show()
 
 ```
+{% endraw %}
 
 The script now at this point fills in the corner squares, alignment squares and the timing oscillating stuff. Otherwise it is empty. Also a thing to note is that in a qr code black means a one and white means zero, but in computer graphics 255 is white (aka zero in qr codes) and 0 is black (aka one in a qr code), so we actually want to invert the matrix before displaying it.
 
@@ -305,6 +307,7 @@ I think that I finally got the thing to work. The thing which fucked me over is 
 
 Here is the current BCH code:
 
+{% raw %}
 ```
 def polyremainder(dividend, divisor):
 
@@ -390,9 +393,11 @@ def polyremainder(dividend, divisor):
 	return dividend
 
 ```
+{% endraw %}
 
 this is the new code:
 
+{% raw %}
 ```
 def polyremainder(dividend, divisor):
 
@@ -478,9 +483,11 @@ def polyremainder(dividend, divisor):
 	return dividend
 
 ```
+{% endraw %}
 
 The only change is that the `#dividend = dividend << pad_bits` is now commented out. In the CRC calculation there are pad bits, but in the BCH code there are no pad bits. I implemented polyremainder_no_pad which calculates this thing and it now works correctly (I think)
 
+{% raw %}
 ```
 def polyremainder_no_pad(dividend, divisor):
 
@@ -579,6 +586,7 @@ def polyremainder_no_pad(dividend, divisor):
 	return "0"*(len(bin(original_divisor)[2:]) - len(str(bin(dividend)[2:]))-1)+str(bin(dividend)[2:])
 
 ```
+{% endraw %}
 
 Now I need to implement the way to generate the generator polynomials. (Maybe I shouldn't implement all this shit but I think that this is quite fun so I am going to generate all of the numbers from scratch instead of using a lookup table in the generation of the QR codes.)
 
@@ -629,6 +637,7 @@ Now, I really didn't understand the error correction codeword generation because
 
 After getting the error correction codewords with the half plagiarized code, I now have all of the data stuff which is needed for the placement of the actual data into the QR code. Once again I plagiarized this stuff from the github version, because I was too dumb to figure out the placement logic myself. Here it is (uncommented by me):
 
+{% raw %}
 ```
 	def _draw_codewords(self, data: bytes) -> None:
 		"""Draws the given sequence of 8-bit codewords (data and error correction) onto the entire
@@ -666,6 +675,7 @@ def _get_bit(x: int, i: int) -> bool:
 	
 
 ```
+{% endraw %}
 
 Basically what you need to understand is that self._modules is the QR code matrix.
 
@@ -674,6 +684,7 @@ The way QR codes implement the data placement is that it usually has the 8 bits 
 
 Here is the commented version:
 
+{% raw %}
 ```
 def _draw_codewords(self, data: bytes) -> None:
 	"""Draws the given sequence of 8-bit codewords (data and error correction) onto the entire
@@ -711,6 +722,7 @@ def _draw_codewords(self, data: bytes) -> None:
 	# Must have gone over each bit of data
 	assert i == len(data) * 8
 ```
+{% endraw %}
 
 So the logic is not that bad as you can see. Basically just go down and up and down and up on each column and skip said space if it is marked as functional. The program fills in the bytes like in this following picture expresses:
 
@@ -723,6 +735,7 @@ Well, actually we need a way to mark the functional parts of the QR code first b
 
 Now that we have the functionality marking, it is time to do a check to see if our QR code generator generates the same output as the other one. And as it turns out, it does not :( . I had to do quite a bit of debugging and the reason why it does not work is that the length of the encoded data is gotten from the table to get how many padding sequences to add and my code is erroneous and gets the wrong length, so it pads more than what is necessary.
 
+{% raw %}
 ```
 Plagiarized code:
 
@@ -735,9 +748,11 @@ Our code:
 (Note that the bit order is reversed. Otherwise these two are the same and our version appends too many padding sequences.)
 
 ```
+{% endraw %}
 
 As it turns out this is not even my fault. In the plagiarized version there is this:
 
+{% raw %}
 ```
         ...
         
@@ -751,6 +766,7 @@ As it turns out this is not even my fault. In the plagiarized version there is t
 		...		
 
 ```
+{% endraw %}
 
 The comment is quite self explanatory. Why even have the option to specify the error correction level when you are going to get the maximum error correction level possible anyway? What kind of retarded design is that? Why do you even offer the option to specify the error correction level if you are going to change it anyway internally? I don't see the point. Maybe someone can enlighten me on this. Anyway. After commenting out that shit I get the same answer as with my own encoder. Except no. There is some error still somewhere. Lets keep digging.
 
@@ -763,6 +779,7 @@ Next up is choosing the appropriate mask.
 The masking functions are thankfully defined as some modulo stuff with the x and y coordinates.
 
 
+{% raw %}
 ```
 
 Mask Pattern
@@ -787,6 +804,7 @@ j mod 3 = 0
 
 
 ```
+{% endraw %}
 
 In addition to checking this condition we also need to make sure that we are not applying the mask to the functional parts of the QR code with the functional matrix.
 
@@ -795,6 +813,7 @@ In addition to checking this condition we also need to make sure that we are not
 
 Now after implementing the penalty function, I am puzzled as to how the plagiarized code calculates the penalty, because here is this:
 
+{% raw %}
 ```
 
 		for y in range(size):
@@ -840,6 +859,7 @@ Now after implementing the penalty function, I am puzzled as to how the plagiari
 		     + (1 if (core and runhistory[6] >= n * 4 and runhistory[0] >= n) else 0)
 
 ```
+{% endraw %}
 
 Which calculates the penalty for the third condition. When looking at this https://www.thonky.com/qr-code-tutorial/data-masking the third conditions should only count when there are certain patterns in the QR matrix, but this code is somehow wrong and I can not figure out what goes wrong in it. Whatever. The plagiarized version of the QR code generator chooses mask number 7, when as our version chooses mask number 2 because of this error. I tried, but I do not understand how the _finder_penalty_count_patterns function works.
 

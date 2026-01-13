@@ -9,10 +9,12 @@ Let's download it and see what we can do!
 
 Ok, so if you just run the binary you get this:
 
+{% raw %}
 ```
 cyberhacker@cyberhacker-h8-1131sc:~/Asioita/Hakkerointi/www.crackmes.one/nano$ ./nano 
 usage: ./nano <flag>
 ```
+{% endraw %}
 
 so it takes an argument from argv and compares it to the flag probably.
 
@@ -20,6 +22,7 @@ Let's open up ghidra!
 
 Here is the main function in ghidra:
 
+{% raw %}
 ```
 
 undefined8 main(int param_1,undefined8 *param_2,undefined8 param_3,char param_4)
@@ -151,9 +154,11 @@ undefined8 main(int param_1,undefined8 *param_2,undefined8 param_3,char param_4)
 }
 
 ```
+{% endraw %}
 
 The interesting part is this:
 
+{% raw %}
 ```
 
   local_10 = fork();
@@ -189,11 +194,13 @@ The interesting part is this:
     }
 
 ```
+{% endraw %}
 
 now, thankfully the author included debug information so we can see that there is a check function, which checks our flag if it is correct.
 
 Here is the decompilation of that:
 
+{% raw %}
 ```
 undefined4 check(char *param_1)
 
@@ -219,6 +226,7 @@ undefined4 check(char *param_1)
 }
 
 ```
+{% endraw %}
 
 ok, so local_1d is an iterator which is an index into our flag function.
 
@@ -234,6 +242,7 @@ Then copy the FLAG too.
 
 Here is a script:
 
+{% raw %}
 ```
 
 # 7b3d144301435e2f276a474a1b1053f6acbfbc93b6dedeceb4b3c9fc9bc7c1102e4e2a39
@@ -245,12 +254,15 @@ print("Result: "+str(hex(KEY ^ FLAG)))
 
 
 ```
+{% endraw %}
 
 and tada:
 
+{% raw %}
 ```
 Result: 0x7761746368203a2068747470733a2f2f796f7574752e62652f6451773477395767586351
 ```
+{% endraw %}
 
 then convert to ascii and the result is this: `watch : https://youtu.be/dQw4w9WgXcQ` I am not going to watch that. I recognize that url!
 
@@ -258,6 +270,7 @@ Passing this to the program actually doesn't give the `yes` answer which we want
 
 If I set the follow mode to follow forks, then there is a sigsegv on the check function. This is because there is this:
 
+{% raw %}
 ```
                              LAB_00101206                                    XREF[1]:     001011fd(j)  
         00101206 0f b6 45 eb     MOVZX      EAX,byte ptr [RBP + local_1d]
@@ -272,6 +285,7 @@ If I set the follow mode to follow forks, then there is a sigsegv on the check f
                  00 00
 
 ```
+{% endraw %}
 
 Block which actually doesn't appear in the decompilation anywhere.
 
@@ -285,6 +299,7 @@ In the main function there was a lot of fork stuff going on. Then there is also 
 
 Here is a script to generate the actual key which we are comparing against:
 
+{% raw %}
 ```
 #!/bin/sh
 
@@ -295,9 +310,11 @@ sed 's/^.*\(.\{2\}\)/\1/' field.txt | sed '{:q;N;s/\n//g;t q}' | sed 's/^//'
 
 
 ```
+{% endraw %}
 
 then pass the output of that to this program as KEY:
 
+{% raw %}
 ```
 KEY = 0x3c242c141c040c747c646c545c444cb4bca4ac949c848cf4fce4ecd4dcc4cc353d252d15
 
@@ -306,6 +323,7 @@ FLAG = 0x0c5c60206963640f4f1e333a682a7cd9d5d0c9e7c3f0bcab9bd7988bafb0f8474916496
 
 print("Result: "+str(hex(KEY ^ FLAG)))
 ```
+{% endraw %}
 
 and then pass the output to an hex to ascii converter and tada: `0xL4ugh{3z_n4n0mites_t0_g3t_st4rt3d}` we found the flag!!
 

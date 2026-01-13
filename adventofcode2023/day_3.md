@@ -7,6 +7,7 @@ This puzzle is quite interesting in my humble opinion. There are two ways to go 
 
 Here was my initial attempt:
 
+{% raw %}
 ```
 
 
@@ -89,19 +90,23 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Except that it doesn't work:
 
+{% raw %}
 ```
     num_thing = int(num_thing[:num_thing.index(".")]) # Cut off the integer.
                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ValueError: invalid literal for int() with base 10: '7*'
 ```
+{% endraw %}
 
 This occurs, because my code converts integers by checking where the "." character is, so when there is a special character, then it fails.
 
 Here is my initial attempt to fix this bug:
 
+{% raw %}
 ```
 				if check_neighbours(input_matrix, x, y):
 					# We have a special character, so convert the number to an integer and add it to the total
@@ -118,19 +123,23 @@ Here is my initial attempt to fix this bug:
 						num_thing = int(num_thing)
 					tot += num_thing
 ```
+{% endraw %}
 
 Except that it doesn't work. The reason for that is because I am not breaking out of the for loop. *facepalm*
 
 After adding the "break" line to it, now the code runs, but it produces the wrong output. The reason for that is `num_index = x`. The num_index variable is supposed to be the start of the current number, but we are resetting it. After doing a couple of changes:
 
+{% raw %}
 ```
 				if num_index == None:
 
 					num_index = x # Mark the start of the number
 ```
+{% endraw %}
 
 the code now still produces a wrong answer, but it is less wrong. The reason for why it is wrong, is because I only get the neighbours which aren't diagonally. Let's fix that... Now after fixing that, we still get the wrong result. This is because when we encounter a number, we do not skip over that thing. Here is the fixed version:
 
+{% raw %}
 ```
 
 import sys
@@ -233,6 +242,7 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 and it works!
 
@@ -244,6 +254,7 @@ This is actually surprisingly difficult, because we got to make sure we are not 
 
 Here is something I quickly hacked together:
 
+{% raw %}
 ```
 
 
@@ -426,21 +437,25 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 Now, obviously it needs plenty of refactoring, but atleast it works. There are probably implementations which are orders of magnitude faster than my implementation, but hey, it works! :D Does it work for the actual output though? 
 
 Uh oh..
 
+{% raw %}
 ```
    while helper_string[x_diff] in numbers: # Check if the number continues.
           ~~~~~~~~~~~~~^^^^^^^^
 IndexError: string index out of range
 ```
+{% endraw %}
 
 That is because I forgot to add the safety checking such that we do not read past the end of the string. 76644078
 
 Here is the sort of fixed version:
 
+{% raw %}
 ```
 
 import sys
@@ -626,6 +641,7 @@ if __name__=="__main__":
 	exit(main())
 
 ```
+{% endraw %}
 
 It runs, but it produces the wrong output. Let's plagiarize someone elses and see what the actual solution is. Let's compare our solution to this: https://www.reddit.com/r/adventofcode/comments/189m3qw/comment/kc0ppxx/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
 
@@ -637,15 +653,18 @@ Let's first print all of the numbers which we spot. There appears to be quite a 
 
 Here is a minimal testcase where shit goes haywire:
 
+{% raw %}
 ```
 ................................
 ...*.....24.../.........544.436.
 .391..............*565.....*....
 ................................
 ```
+{% endraw %}
 
 let's add a couple of debug statements:
 
+{% raw %}
 ```
 
 def check_neighbours_nums(input_matrix: list, x: int, y: int) -> bool:
@@ -690,8 +709,10 @@ def check_neighbours_nums(input_matrix: list, x: int, y: int) -> bool:
 
 	return out
 ```
+{% endraw %}
 
 Now I get this output:
+{% raw %}
 ```
 ====================
 Called check_neighbours_nums
@@ -755,9 +776,11 @@ all_nums == {544, 565, 391}
 531 in all_nums: False
 
 ```
+{% endraw %}
 
 The most important bit is this:
 
+{% raw %}
 ```
 Called check_neighbours_nums
 already_checked: []
@@ -778,9 +801,11 @@ already_checked: [[25, 1], [24, 1], [23, 1], [26, 1], [27, 1], [28, 1]]
 neig: [28, 1]
 adjacent_numbers == [544]
 ```
+{% endraw %}
 
 Here are some fixes:
 
+{% raw %}
 ```
 			while x_diff != len(helper_string) and helper_string[x_diff] in numbers: # Check if the number continues.
 				#x_diff += 1
@@ -789,11 +814,13 @@ Here are some fixes:
 				already_checked.append([num_min_x + x_diff, neig[1]])
 				x_diff += 1
 ```
+{% endraw %}
 
 Now the result is a bit closer to the actual which we want.
 
 I actually made this comparison script, which compares all of the numbers which were matched and here is the current output:
 
+{% raw %}
 ```
 202 is not in our numbers.
 235 is not in our numbers.
@@ -807,6 +834,7 @@ I actually made this comparison script, which compares all of the numbers which 
 858 is not in our numbers.
 868 is not in our numbers.
 ```
+{% endraw %}
 
 ok, so let's look at where those numbers occur in the input.
 
@@ -816,17 +844,20 @@ After a bit of debugging I managed to minify an input.
 
 Here:
 
+{% raw %}
 ```
 ...................
 ....413.....42.....
 104*....461*....240
 ...................
 ```
+{% endraw %}
 
 This input produces different answers. Let's look at the debug output, when running with our code..
 
 Here is the debug output:
 
+{% raw %}
 ```
 (0, 0)
 (1, 0)
@@ -985,9 +1016,11 @@ all_nums == {240, 461, 42, 413}
 531 in all_nums: False
 
 ```
+{% endraw %}
 
 The most important part is this:
 
+{% raw %}
 ```
 
 poopoo already_checked == [[1, 2], [0, 2], [-1, 2], [-2, 2], [-3, 2], [-4, 2]]
@@ -1021,6 +1054,7 @@ Final num: 413
 adjacent_numbers == [240, 413]
 
 ```
+{% endraw %}
 
 So that's the reason my code didn't work. We go into the negative numbers when parsing the numbers. After adding a check such that we do not go into the negative numbers, now our code works!
 

@@ -6,6 +6,7 @@ Sympy has a function of calculating the hessian of a function, so maybe we can c
 
 I think this should be something like this:
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -79,12 +80,14 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 
 Now, I think we just need to calculate the derivatives as we go along the indices and then assign the result.
 
 Ok, so I think this is the thing:
 
+{% raw %}
 ```
 
 
@@ -118,12 +121,14 @@ def myhessian(function, variables): # Calculate the hessian.
 	return output_matrix
 
 ```
+{% endraw %}
 
 Fuck!!
 It seems that we are wrong, because we have the bullshit thing. The hessian matrix is a double differential, not the differential with respect to every variable. This causes our calculations to fuck up. Now, I think that the right way to do this is to just have a counter which goes over the two shits and then does the thing maybe?????
 
 Here we only differentiate two shits:
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -211,9 +216,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and it seems to work nice:
 
+{% raw %}
 ```
 
 [[2, 2*t, 2*t], [2*t, 2, 2*t], [2*t, 2*t, 2]]
@@ -221,6 +228,7 @@ Result: [[2, 2*t, 2*t], [2*t, 2, 2*t], [2*t, 2*t, 2]]
 Reference result: Matrix([[2, 2*t, 2*t], [2*t, 2, 2*t], [2*t, 2*t, 2]])
 
 ```
+{% endraw %}
 
 
 

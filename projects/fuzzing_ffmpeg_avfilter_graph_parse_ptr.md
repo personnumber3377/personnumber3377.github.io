@@ -12,6 +12,7 @@ Looking through the codebase as of writing this blog post, there are fuzzers in 
 
 Looking at the code we may need to use these functions here:
 
+{% raw %}
 ```
 
 AVFilterGraph *avfilter_graph_alloc(void)
@@ -70,6 +71,7 @@ void avfilter_graph_free(AVFilterGraph **graphp)
 }
 
 ```
+{% endraw %}
 
 to allocate and free the graphs during fuzzing...
 
@@ -83,6 +85,7 @@ To build ffmpeg you can just follow the instructions here: https://trac.ffmpeg.o
 
 
 
+{% raw %}
 ```
 sudo apt-get -y install \
   autoconf \
@@ -110,9 +113,11 @@ sudo apt-get -y install \
   yasm \
   zlib1g-dev
 ```
+{% endraw %}
 
 Actually fuck that. To compile fuzzers we need to follow the instructions in one of the fuzzing files for example target_dec_fuzzer has this:
 
+{% raw %}
 ```
 
 /*
@@ -163,9 +168,11 @@ Actually fuck that. To compile fuzzers we need to follow the instructions in one
 */
 
 ```
+{% endraw %}
 
 so I made this build_fuzz.sh script here:
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -174,27 +181,33 @@ make clean && make -j$(nproc) # Build
 
 
 ```
+{% endraw %}
 
 and then to compile the fuzzer binary, we need to run this monstrosity:
 
+{% raw %}
 ```
 clang -fsanitize=address -fsanitize-coverage=trace-pc-guard,trace-cmp tools/target_dec_fuzzer.c -o target_dec_fuzzer -I.   -DFFMPEG_CODEC=AV_CODEC_ID_MPEG1VIDEO -DFUZZ_FFMPEG_VIDEO ../../libfuzzer/libFuzzer.a   -Llibavcodec -Llibavdevice -Llibavfilter -Llibavformat -Llibavutil -Llibpostproc -Llibswscale -Llibswresample -Wl,--as-needed -Wl,-z,noexecstack -Wl,--warn-common -Wl,-rpath-link=:libpostproc:libswresample:libswscale:libavfilter:libavdevice:libavformat:libavcodec:libavutil -lavdevice -lavfilter -lavformat -lavcodec -lswresample -lswscale -lavutil -ldl -lxcb -lxcb-shm -lxcb -lxcb-xfixes  -lxcb -lxcb-shape -lxcb -lX11 -lasound -lm -lbz2 -lz -pthread
 ```
+{% endraw %}
 
 but for my own tools/target_graph_fuzzer.c instead...
 
 Actually I just modified it to this:
 
+{% raw %}
 ```
 
 clang -fsanitize=address,undefined,fuzzer -fsanitize-coverage=trace-pc-guard,trace-cmp tools/target_graph_fuzzer.c -o target_graph_fuzzer -I.   -DFFMPEG_CODEC=AV_CODEC_ID_MPEG1VIDEO -DFUZZ_FFMPEG_VIDEO   -Llibavcodec -Llibavdevice -Llibavfilter -Llibavformat -Llibavutil -Llibpostproc -Llibswscale -Llibswresample -Wl,--as-needed -Wl,-z,noexecstack -Wl,--warn-common -Wl,-rpath-link=:libpostproc:libswresample:libswscale:libavfilter:libavdevice:libavformat:libavcodec:libavutil -lavdevice -lavfilter -lavformat -lavcodec -lswresample -lswscale -lavutil -ldl -lxcb -lxcb-shm -lxcb -lxcb-xfixes  -lxcb -lxcb-shape -lxcb -lX11 -lasound -lm -lbz2 -lz -pthread
 
 ```
+{% endraw %}
 
 let's test it out...
 
 so my final build script is this:
 
+{% raw %}
 ```
 
 #!/bin/sh
@@ -203,10 +216,12 @@ make clean && make -j$(nproc) # Build
 clang -fsanitize=address,undefined,fuzzer -fsanitize-coverage=trace-pc-guard,trace-cmp tools/target_graph_fuzzer.c -o target_graph_fuzzer -I.   -DFFMPEG_CODEC=AV_CODEC_ID_MPEG1VIDEO -DFUZZ_FFMPEG_VIDEO   -Llibavcodec -Llibavdevice -Llibavfilter -Llibavformat -Llibavutil -Llibpostproc -Llibswscale -Llibswresample -Wl,--as-needed -Wl,-z,noexecstack -Wl,--warn-common -Wl,-rpath-link=:libpostproc:libswresample:libswscale:libavfilter:libavdevice:libavformat:libavcodec:libavutil -lavdevice -lavfilter -lavformat -lavcodec -lswresample -lswscale -lavutil -ldl -lxcb -lxcb-shm -lxcb -lxcb-xfixes  -lxcb -lxcb-shape -lxcb -lX11 -lasound -lm -lbz2 -lz -pthread
 
 ```
+{% endraw %}
 
 
 Here is my final fuzzer:
 
+{% raw %}
 ```
 
 /*
@@ -350,9 +365,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
 
 ```
+{% endraw %}
 
 after trying to compile I get a shit ton of linker errors here:
 
+{% raw %}
 ```
 
 tools/target_graph_fuzzer.c:130:46: warning: passing 'const uint8_t *' (aka 'const unsigned char *') to parameter of type 'const char *' converts between pointers to integer types where one is of the unique plain 'char' type and the other is not [-Wpointer-sign]
@@ -689,9 +706,11 @@ tools/target_graph_fuzzer.c:130:46: warning: passing 'const uint8_t *' (aka 'con
 clang: error: linker command failed with exit code 1 (use -v to see invocation)
 
 ```
+{% endraw %}
 
 Let's take a look at how oss-fuzz compiles the project: https://github.com/google/oss-fuzz/blob/3416b4bff87c5b6363738ce2b2524e04c687119f/projects/ffmpeg/build.sh
 
+{% raw %}
 ```
 
 ./configure \
@@ -727,17 +746,20 @@ make clean
 make -j$(nproc) install
 
 ```
+{% endraw %}
 
 Let's add a couple of these to our build script...
 
 Ok, so this build script seems to work:
 
+{% raw %}
 ```
 
 FLAGS="-fsanitize=address,undefined -fsanitize-coverage=trace-pc-guard,trace-cmp -g" CC="clang $FLAGS" CXX="clang++ $FLAGS" LD="clang" ./configure  --disable-x86asm --pkg-config-flags="--static" --optflags=-O3 --enable-gpl --enable-nonfree --enable-libass --enable-libfdk-aac --enable-libfreetype --enable-libopus --enable-libtheora --enable-libvorbis --enable-libvpx --enable-libxml2 --enable-nonfree --disable-libdrm --disable-muxers --disable-protocols --disable-demuxer=rtp,rtsp,sdp --disable-devices --disable-shared --disable-doc --disable-programs
 make clean && make -j$(nproc) # Build
 
 ```
+{% endraw %}
 
 and I had to modify the generated Makefile to include the graph fuzzer.
 
@@ -747,6 +769,7 @@ The fuzzer has a couple of bugs. First of all the parsers expect the string to e
 
 Here is my current source code:
 
+{% raw %}
 ```
 
 /*
@@ -845,9 +868,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
 
 ```
+{% endraw %}
 
 The resulting binary is over 100mb in size which seems quite large but idk... I mean it makes sense because we statically link everything...
 
+{% raw %}
 ```
 
 enabled ossfuzz && ! echo $CFLAGS | grep -q -- "-fsanitize="  && ! echo $CFLAGS | grep -q -- "-fcoverage-mapping" &&{
@@ -855,14 +880,17 @@ enabled ossfuzz && ! echo $CFLAGS | grep -q -- "-fsanitize="  && ! echo $CFLAGS 
     add_ldflags -fsanitize=address,undefined -fsanitize-coverage=trace-pc-guard,trace-cmp
 
 ```
+{% endraw %}
 
 I had to add the ` --toolchain=clang-asan ` flag to the thing to make it compile correctly....
 
 After like half an hour of compiling I finally had the working binary with coverage and shit and look at that.
 
+{% raw %}
 ```
 -fsanitize-coverage=trace-pc-guard is no longer supported by libFuzzer.
 ```
+{% endraw %}
 
 fuck!!!!
 
@@ -880,6 +908,7 @@ Looking at the webpage source, the interesting strings are encompassed in "var" 
 
 Here is a botched example:
 
+{% raw %}
 ```
 
 
@@ -931,9 +960,11 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 and it seems to work decently. Here is the output:
 
+{% raw %}
 ```
 
 crop=iw:ih/2:0:0,
@@ -1048,20 +1079,24 @@ showspectrum=mode=separate:scale=log:overlap=0.875:color=channel:slide=fullframe
 asplit=5
 
 ```
+{% endraw %}
 
 which seems decent enough. Let's program the other cases too.
 
+{% raw %}
 ```
 
 
 
 ```
+{% endraw %}
 
 
 ## Fixing the fuzzer
 
 Actually before we do that let's address a crash which the fuzzer found.
 
+{% raw %}
 ```
 
 oof@elskun-lppri:~/ffmpegfuzzerthing/myfork/FFmpeg/tools/fuzzingcampaign$ ./target_graph_fuzzer final.bin
@@ -1104,6 +1139,7 @@ SUMMARY: AddressSanitizer: SEGV (/lib/x86_64-linux-gnu/libc.so.6+0x189500) (Buil
 ==422428==ABORTING
 
 ```
+{% endraw %}
 
 This actually seems like a legit null pointer dereference from what I can see. I think it is caused by this commit here:  b8bf2f4e1758a9f7f34160245b5f663d53159c2d because when I compile a version which is before that it works as expected. This actually got fixed within two hours here: https://trac.ffmpeg.org/ticket/11392 . That seems like a good sign that we should fuzz this further. Let's continue with our original task:
 
@@ -1111,6 +1147,7 @@ Now the dictionary format expects the strings to be enclosed with double quotes,
 
 Here is my final autodictionary script:
 
+{% raw %}
 ```
 
 
@@ -1202,6 +1239,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 it converts the strings to hex represantion such that we don't need to deal with the escaping bullshit...
 
@@ -1211,6 +1249,7 @@ Ok, so let's add the examples from the documentation page to our corpus of stuff
 
 Here is my automation to generate the corpus of the good arguments and stuff:
 
+{% raw %}
 ```
 
 
@@ -1300,6 +1339,7 @@ if __name__=="__main__":
 
 
 ```
+{% endraw %}
 
 ## Final touches
 
@@ -1320,9 +1360,11 @@ Here is some documentation: https://clang.llvm.org/docs/SanitizerCoverage.html#d
 
 Here is the way with which I invoke this coverage stuff:
 
+{% raw %}
 ```
 ASAN_OPTIONS=coverage=1 ./target_graph_fuzzer final.bin
 ```
+{% endraw %}
 
 But maybe for the fuzzer there is a custom exit procedure and because the files are created on exit: `Every time you run an executable instrumented with SanitizerCoverage one *.sancov file is created during the process shutdown` this maybe means that we must compile a binary with a main function and then run it like that????
 
@@ -1337,11 +1379,13 @@ This is honestly such bullshit.
 
 I get this output from the program:
 
+{% raw %}
 ```
 -fsanitize-coverage=trace-pc-guard is no longer supported by libFuzzer.
 Please either migrate to a compiler that supports -fsanitize=fuzzer
 or use an older version of libFuzzer
 ```
+{% endraw %}
 
 so I think that we need to make a separate program which instead of having LLVMFuzzerTestOneInput it just has a normal main function???????????????????
 
@@ -1372,6 +1416,7 @@ Now I am in the 532ce4b62a177ef99912129cdc1c8d3b354ee1d2 commit of my own fork a
 
 Here is the test program which I am going to use:
 
+{% raw %}
 ```
 
 #include <unistd.h>
@@ -1392,6 +1437,7 @@ int main(int argc, char** argv) {
 
 
 ```
+{% endraw %}
 
 ok, so let's see what happens with our tool...
 
@@ -1399,17 +1445,21 @@ Let's first create a file called tests which will be our tests directory.
 
 First of all there is a glob which checks for files which start with the string: "id:" in the code:
 
+{% raw %}
 ```
 def import_test_cases(qdir):
     return sorted(glob.glob(qdir + "/id:*"))
 ```
+{% endraw %}
 
 now let's just get every file like so:
 
+{% raw %}
 ```
 def import_test_cases(qdir):
     return sorted(glob.glob(qdir + "/*"))
 ```
+{% endraw %}
 
 and check again...
 
@@ -1425,6 +1475,7 @@ Ok, so let's just create a program which loops through all of the coverage files
 
 Here is my janky hack for this:
 
+{% raw %}
 ```
 
 /*
@@ -1670,10 +1721,12 @@ int main(int argc, char** argv) {
 
 
 ```
+{% endraw %}
 
 
 Now I get this output from my afl-cov thing:
 
+{% raw %}
 ```
 
     CMD: /usr/bin/readelf -a cat
@@ -1703,6 +1756,7 @@ Traceback (most recent call last):
 UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 8129-8130: invalid continuation byte
 
 ```
+{% endraw %}
 
 I think I can just bypass this with `--disable-cmd-redirection`
 
@@ -1726,6 +1780,7 @@ Ok, so let's take a look at encoded_frame.c again and see how it does stuff...
 
 Here is an example program taken from the source code:
 
+{% raw %}
 ```
 
 /*
@@ -2052,11 +2107,13 @@ end:
 
 
 ```
+{% endraw %}
 
 where we actually use the filter, now let's code up a program which has a hardcoded input audio and input audio...
 
 Here is a backup of my code:
 
+{% raw %}
 ```
 
 /*
@@ -2641,6 +2698,7 @@ end:
 
 
 ```
+{% endraw %}
 
 Now I am wondering if there is a way to read from a buffer instead of some file. This should cut down the latency because disk operations are relatively slow. I stumbled upon this: https://stackoverflow.com/questions/20635601/ffmpeg-avformat-open-input-with-memory-located-file but the answer is C++ which we don't really want.
 
@@ -2650,6 +2708,7 @@ Let's create a simple python script which takes the input file and then just out
 
 Here is the generated file:
 
+{% raw %}
 ```
 
 #include <stdint.h>
@@ -2659,11 +2718,13 @@ static uint8_t STATIC_MP3_INPUT[] = { 0xff, 0xfb, 0x90, 0x64, 0x0, 0x0, 0x0, 0x0
 
 
 ```
+{% endraw %}
 
 that seems decent. Now let's make the program use this instead of the input file.
 
 Here is my initial draft of this code:
 
+{% raw %}
 ```
 
 
@@ -3081,6 +3142,7 @@ int main(int argc, char **argv)
 
 
 ```
+{% endraw %}
 
 let's see what we can make of this....
 
@@ -3088,6 +3150,7 @@ let's see what we can make of this....
 
 Here is my current code:
 
+{% raw %}
 ```
 
 
@@ -3523,11 +3586,13 @@ int main(int argc, char **argv)
 }
 
 ```
+{% endraw %}
 
 Ok, so I think I managed to narrow down the problem to three compiler flags: `-D_LARGEFILE_SOURCE -D_POSIX_C_SOURCE=200112 -D_XOPEN_SOURCE=600` these are the flags that cause the problem I think....
 
 Soooo maybe just remove those flags and see what happens????
 
+{% raw %}
 ```
 
 compile_bullshit.sh:# gcc -Wno-error=implicit-function-declaration -I. -I./ -D_ISOC11_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_POSIX_C_SOURCE=200112 -D_XOPEN_SOURCE=600 -DPIC -DZLIB_CONST   -std=c17 -fomit-frame-pointer -fPIC    -pthread  -I/usr/include/libdrm       -I/usr/include/libdrm   -Wno-error=implicit-function-declaration -g -Wdeclaration-after-statement -Wall -Wdisabled-optimization -Wpointer-arith -Wredundant-decls -Wwrite-strings -Wtype-limits -Wundef -Wmissing-prototypes -Wstrict-prototypes -Wempty-body -Wno-parentheses -Wno-switch -Wno-format-zero-length -Wno-pointer-sign -Wno-unused-const-variable -Wno-bool-operation -Wno-char-subscripts -O3 -fno-math-errno -fno-signed-zeros -fno-tree-vectorize -Werror=format-security -Werror=implicit-function-declaration -Werror=missing-prototypes -Werror=return-type -Werror=vla -Wformat -fdiagnostics-color=auto -Wno-maybe-uninitialized -I/usr/include/SDL2 -D_REENTRANT   -MMD -MF main_prog.d -MT main_prog.o -c -o main_prog.o main_prog.c -std=gnu11 --warn-implicit-function-declaration -Wno-error=implicit-function-declaration
@@ -3857,6 +3922,7 @@ ffbuild/config.log:gcc -D_ISOC11_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOUR
 ffbuild/config.mak:CPPFLAGS= -D_ISOC11_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_POSIX_C_SOURCE=200112 -D_XOPEN_SOURCE=600 -DPIC -DZLIB_CONST
 
 ```
+{% endraw %}
 
 Fucking bullshit!!!!
 
@@ -3867,6 +3933,7 @@ So now I think we are close to actually exercising the actual filter programs...
 
 Here is my current code:
 
+{% raw %}
 ```
 
 
@@ -4392,11 +4459,13 @@ int main(int argc, char **argv)
 
 
 ```
+{% endraw %}
 
 Now we just need to basically just write the LLVMFuzzerTestOneInput function...
 
 After a couple of modifications I now have this:
 
+{% raw %}
 ```
 
 
@@ -4927,10 +4996,12 @@ int main(int argc, char **argv)
 
 
 ```
+{% endraw %}
 
 
 Here is the minimized file:
 
+{% raw %}
 ```
 
 #include <unistd.h>
@@ -5307,11 +5378,13 @@ int main(int argc, char **argv)
 
 
 ```
+{% endraw %}
 
 I think we need to close the file memory thing...
 
 Ok, so here is my very final code of the fuzzer:
 
+{% raw %}
 ```
 
 
@@ -5713,11 +5786,13 @@ int main(int argc, char **argv)
 
 
 ```
+{% endraw %}
 
 So let's make it better by getting the video thing too maybe????
 
 Ok, so here is the thing:
 
+{% raw %}
 ```
 
 
@@ -6524,9 +6599,11 @@ end:
 
 
 ```
+{% endraw %}
 
 Now, let's see what happens:
 
+{% raw %}
 ```
 
 Now trying to fuzz the video processing part...
@@ -6537,6 +6614,7 @@ Now doing the bullshit fuck.....
 Error occurred: Operation not supported
 
 ```
+{% endraw %}
 
 After a quick google search I found this here: https://stackoverflow.com/questions/9356960/ffmpeg-operation-not-permitted-error-while-conversion so we actually can not use MP4 format videos I think.
 
@@ -6544,6 +6622,7 @@ So I had to just use a VLF file instead as the static file????
 
 Ok, so here is my fuzzer source code:
 
+{% raw %}
 ```
 
 
@@ -7352,6 +7431,7 @@ end:
 }
 
 ```
+{% endraw %}
 
 Does it work as intended????
 
@@ -7387,6 +7467,7 @@ Let's create a binary which checks if a filtergraph is actually valid or not. Th
 
 Maybe get rid of these???
 
+{% raw %}
 ```
 
 INFO: Loaded 1 PC tables (2964151 PCs): 2964151 [0x55f9850cffa0,0x55f987e0ab10),
@@ -7405,11 +7486,13 @@ Exited the loop...
 ^C==3734432== libFuzzer: run interrupted; exiting
 
 ```
+{% endraw %}
 
 ## Diagnosing false positives...
 
 Ok, so when I run with bm3d I get a crash for some reason...
 
+{% raw %}
 ```
 ./testing/betterfuzzer: Running 1 inputs 1 time(s) each.
 Running: ./testing/bm3d.txt
@@ -7496,6 +7579,7 @@ Shadow byte legend (one shadow byte represents 8 application bytes):
   Right alloca redzone:    cb
 ==2037988==ABORTING
 ```
+{% endraw %}
 
 the contents of the input file are just "bm3d" . When running with the in-memory file it runs normally. I think we can just banlist bm3d from the input and continue, but I think that we should later on actually fix this properly.
 

@@ -3,11 +3,13 @@
 
 I was given the next prompt:
 
+{% raw %}
 ```
 In a meadow temperature varies according to the function T(x,y,z)=4*x+2*y+2*z and a bee is seen flying along the path r(t) = {x(t) = t**3/40 + 7*t/30+5 , y(t) = -t**3/(60)-8*t**2/15+20 , z(t) = 2*t**2/15 + 7*t/30 - 10}
 where t is in [0,10]. Applying the chain rule, find the highest and lowest peaks of the temperature experienced by the bee.
 
 ```
+{% endraw %}
 
 One way to do this is to just iterate over the range and do it that way, but we can also do it symbolically.
 
@@ -18,6 +20,7 @@ Let's implement a function.
 
 Here seems a solution:
 
+{% raw %}
 ```
 
 def calculate_min_max_parametric_path(f, variables, parametric, param_variable, start, end):
@@ -57,6 +60,7 @@ def calculate_min_max_parametric_path(f, variables, parametric, param_variable, 
 	return min_par, max_par, min_val, max_val # Return the stuff
 
 ```
+{% endraw %}
 
 
 

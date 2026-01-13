@@ -21,6 +21,7 @@ I think that having a dictionary with the line number as key and the program lin
 
 Here is my very initial attempt:
 
+{% raw %}
 ```
 
 
@@ -50,6 +51,7 @@ class BasicProgram:
 			linenum = int(linenum)
 
 ```
+{% endraw %}
 
 Ok, so now it is `Fri Mar 22 04:10:09 AM EET 2024` (UTC+2) and let's continue.
 
@@ -67,10 +69,12 @@ I am going to create a new file called keywords.py and then add all of the funct
 
 The print function can take a comma or a semi-half colon separated list of arguments. For example, this is a valid program:
 
+{% raw %}
 ```
 10 LET X = 10
 20 PRINT "VALUE OF X: "; X
 ```
+{% endraw %}
 
 I think that I should add a function called "split_args" which tries to parse the arguments to the print command.
 
@@ -82,10 +86,12 @@ Ok, so apparently all of the characters between the stuff are completely ignored
 
 The result of this program:
 
+{% raw %}
 ```
 10 LET X = 10
 20 PRINT "value:"     ee ef"oof"X
 ```
+{% endraw %}
 
 is this: `VALUE: 0 OOF 10` ??? That is weird.
 
@@ -93,6 +99,7 @@ I think I am just going to just roll with it for now and separate on the "," and
 
 This was my very first attempt to create a parsing function:
 
+{% raw %}
 ```
 
 def parse_args(string: str) -> list: # Parses the string to tokens and variables. (This is used by the PRINT function in keywords.py)
@@ -164,9 +171,11 @@ def parse_args(string: str) -> list: # Parses the string to tokens and variables
 
 	return out_list
 ```
+{% endraw %}
 
 Create a test for this function maybe??? Here:
 
+{% raw %}
 ```
 def test_argument_parser() -> None:
 	example_string = "\"VALUE OF X: \"; X" # Example program line: PRINT "VALUE OF X: "; X
@@ -183,13 +192,16 @@ def main() -> int:
 if __name__=="__main__":
 	exit(main())
 ```
+{% endraw %}
 
 Uh oh...
 
+{% raw %}
 ```
 []
 All tests passed!
 ```
+{% endraw %}
 
 The list is empty for some reason.
 
@@ -197,6 +209,7 @@ The list is empty for some reason.
 
 Ok, so after a bit of debugging my function currently looks like this:
 
+{% raw %}
 ```
 
 def parse_args(string: str) -> list: # Parses the string to tokens and variables. (This is used by the PRINT function in keywords.py)
@@ -271,11 +284,13 @@ def parse_args(string: str) -> list: # Parses the string to tokens and variables
 	return out_list
 
 ```
+{% endraw %}
 
 which seems to work fine.
 
 These tests pass ok:
 
+{% raw %}
 ```
 
 def test_argument_parser() -> None:
@@ -288,6 +303,7 @@ def test_argument_parser() -> None:
 	print("test_argument_parser passed!")
 	return
 ```
+{% endraw %}
 
 ## Variables.
 
@@ -295,6 +311,7 @@ Ok, so when calling PRINT , we want to resolve these variables too. We of course
 
 Here is my current code for the print function:
 
+{% raw %}
 ```
 
 def PRINT(self, tokens):
@@ -320,52 +337,63 @@ def PRINT(self, tokens):
 	return
 
 ```
+{% endraw %}
 
 ## Fixing a tiny bug.
 
 Ok, so I added this testcase:
 
+{% raw %}
 ```
 	example_string = "\"SAMPLETEXT\""
 	res = parse_args(example_string)
 	assert res == [(0, "SAMPLETEXT")]
 ```
+{% endraw %}
 
 and I get this error:
 
+{% raw %}
 ```
     if string[i+1] not in ARG_SEP_CHARS:
        ~~~~~~^^^^^
 IndexError: string index out of range
 
 ```
+{% endraw %}
 
 This can be solved by just checking if we are at the end of the string before trying to access by index.
 
 Like so:
 
+{% raw %}
 ```
 				if i == len(string)-1: # The line ends in a double quote character
 					currently_in_string = False
 					continue
 ```
+{% endraw %}
 
 Commit... now I am in the 2b896fefb49d932dbd9153602698a245355bcce9 commit.
 
 I have this tiny program:
 
+{% raw %}
 ```
 10 PRINT "HELLO WORLD"
 ```
+{% endraw %}
 
 and here is the output:
 
+{% raw %}
 ```
 Now executing this line: PRINT "HELLO WORLD"
 Here is the argument string: "HELLO WORLD"
 HELLO WORLD
 Executed program succesfully!
 ```
+{% endraw %}
 
 Ok, so I think that is enough for this day. Tomorrow I think I am going to implement some if else, goto and some comparisons and maybe some type checking.
 
@@ -373,6 +401,7 @@ Ok, so I think that is enough for this day. Tomorrow I think I am going to imple
 
 Ok, so how to implement goto? I guess something like this:
 
+{% raw %}
 ```
 def GOTO(self, tokens):
 	if len(tokens) != 1:
@@ -392,9 +421,11 @@ def GOTO(self, tokens):
 	self.cur_line_num_index = self.line_num_to_index[line_num]
 	return
 ```
+{% endraw %}
 
 so I had to also modify the main program loop a bit to check for a jump:
 
+{% raw %}
 ```
 
 	def run_program(self) -> None: # Run the program.
@@ -423,6 +454,7 @@ so I had to also modify the main program loop a bit to check for a jump:
 		return
 
 ```
+{% endraw %}
 
 Yeah, that seems to work!
 
@@ -440,6 +472,7 @@ I think I need to implement a tokenization function which tokenizes the expressi
 
 Something like this maybe:
 
+{% raw %}
 ```
 
 def tokenize(self, expression): # Evaluate an expression.
@@ -478,9 +511,11 @@ def tokenize(self, expression): # Evaluate an expression.
 	return tokens
 
 ```
+{% endraw %}
 
 Maybe add a test for this function?
 
+{% raw %}
 ```
 def test_tokenize() -> None:
 	example_string = "1 * 123"
@@ -488,18 +523,22 @@ def test_tokenize() -> None:
 	assert res == ["1", "*", "123"]
 	return
 ```
+{% endraw %}
 
 Maybe also add a testcase to test strings?
 
+{% raw %}
 ```
 	example_string = "\"STRING WITH SPACES\" + \"OTHER STRING\""
 	res = tokenize(1, example_string)
 	print("res == "+str(res))
 	return
 ```
+{% endraw %}
 
 Uh oh..
 
+{% raw %}
 ```
   File "/home/cyberhacker/Asioita/Ohjelmointi/Python/basicinpython/util.py", line 115, in tokenize
     if expression[i+1] != " ":
@@ -507,6 +546,7 @@ Uh oh..
 IndexError: string index out of range
 
 ```
+{% endraw %}
 
 just add a check if we are at the end of the string? `if i != len(expression)-1 and expression[i+1] != " ":`
 
@@ -514,6 +554,7 @@ Here is the result: ` res == ['"STRING WITH SPACES', '"', '+', '"OTHER STRING', 
 
 Here is the fixed version:
 
+{% raw %}
 ```
 def tokenize(self, expression): # Evaluate an expression.
 	tokens = []
@@ -551,6 +592,7 @@ def tokenize(self, expression): # Evaluate an expression.
 		tokens.append(expression[token_start_index:])
 	return tokens
 ```
+{% endraw %}
 
 
 There was a missing `continue` so execution continued to the `if char != " " and token_start_index == None:` code block.
