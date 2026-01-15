@@ -306,6 +306,10 @@ Let's just put this kind of thing here:
 ```
 {% endraw %}
 
+## Recompiling the stuff and then figuring out some stuff....
+
+So I basically need to checkout the latest version and then see if a certain crash occurs on the newest version...
+
 
 
 
