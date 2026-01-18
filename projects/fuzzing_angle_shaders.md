@@ -310,7 +310,41 @@ Let's just put this kind of thing here:
 
 So I basically need to checkout the latest version and then see if a certain crash occurs on the newest version...
 
+And it didn't. Well, that was embarrassing...
 
+## Commenting out unneeded parts of the compiler (and doing some more research into what the fuck we are actually doing... :D)
+
+Ok, so the compiler is now checking the AST on output, but that is just wasted time for our fuzzing purposes...
+
+Also there is a bug in the actual fuzzing harness: https://github.com/google/angle/pull/99/commits/ff004c1b12f9cd8aad6b9834d481d129e4ba13ed which limits the code coverage stuff...
+
+Also we should disable AST checking since that is useless for our purposes:
+
+```
+bool TCompiler::validateAST(TIntermNode *root)
+{
+    if (mCompileOptions.validateAST)
+    {
+        bool valid = ValidateAST(root, &mDiagnostics, mValidateASTOptions);
+
+#if defined(ANGLE_ENABLE_ASSERTS)
+        if (!valid)
+        {
+            OutputTree(root, mInfoSink.info);
+            fprintf(stderr, "AST validation error(s):\n%s\n", mInfoSink.info.c_str());
+        }
+#endif
+        // In debug, assert validation.  In release, validation errors will be returned back to the
+        // application as internal ANGLE errors.
+        ASSERT(valid);
+
+        return valid;
+    }
+    return true;
+}
+```
+
+and I set that option to false for the purposes of fuzzing. Now, this minified the corpus from 7k files to 2k. I am not sure of that is due to the difference in the version numbers of the versions of the old angle and the new angle etc, but maybe I am wrong...
 
 
 
