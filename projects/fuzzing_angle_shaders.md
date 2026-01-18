@@ -346,6 +346,10 @@ bool TCompiler::validateAST(TIntermNode *root)
 
 and I set that option to false for the purposes of fuzzing. Now, this minified the corpus from 7k files to 2k. I am not sure of that is due to the difference in the version numbers of the versions of the old angle and the new angle etc, but maybe I am wrong...
 
+## Implementing layouts and layout mutations
+
+So the layout directives have made some interesting looking bugs recently, so I think that adding such will do some good for our project... I am currently on commit 2d6d5b95dd9a93d73364bd15643c508c87c43f62
+
 
 
 
