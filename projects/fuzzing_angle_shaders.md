@@ -350,6 +350,169 @@ and I set that option to false for the purposes of fuzzing. Now, this minified t
 
 So the layout directives have made some interesting looking bugs recently, so I think that adding such will do some good for our project... I am currently on commit 2d6d5b95dd9a93d73364bd15643c508c87c43f62
 
+After a bit of fiddling around, I have now implemented the layouts such that they roundtrip correctly and also the values get modified... Yay!
+
+## Investigating performance problems some more...
+
+So I already disabled the AST checking, but the numbers still do not add up, since when I try fuzzing with a null target, I was getting extremely large execs per second and the reason for such is because I was essentially just calling the other mutation things too in addition to the custom mutator but I do not want that...
+
+## Adding more mutations
+
+So there is this block of code here in TextureFunctionHLSL.cpp:
+
+{% raw %}
+```
+
+ImmutableString TextureFunctionHLSL::useTextureFunction(const ImmutableString &name,
+                                                        TBasicType samplerType,
+                                                        int coords,
+                                                        size_t argumentCount,
+                                                        bool lod0,
+                                                        sh::GLenum shaderType)
+{
+    TextureFunction textureFunction;
+    textureFunction.sampler = samplerType;
+    textureFunction.coords  = coords;
+    textureFunction.method  = TextureFunction::IMPLICIT;
+    textureFunction.proj    = false;
+    textureFunction.offset  = false;
+
+    if (name == "texture2D" || name == "textureCube" || name == "texture")
+    {
+        textureFunction.method = TextureFunction::IMPLICIT;
+    }
+    else if (name == "texture2DProj" || name == "textureProj")
+    {
+        textureFunction.method = TextureFunction::IMPLICIT;
+        textureFunction.proj   = true;
+    }
+    else if (name == "texture2DLod" || name == "textureCubeLod" || name == "textureLod" ||
+             name == "texture2DLodEXT" || name == "textureCubeLodEXT")
+    {
+        textureFunction.method = TextureFunction::LOD;
+    }
+    else if (name == "texture2DProjLod" || name == "textureProjLod" ||
+             name == "texture2DProjLodEXT")
+    {
+        textureFunction.method = TextureFunction::LOD;
+        textureFunction.proj   = true;
+    }
+    else if (name == "textureSize")
+    {
+        textureFunction.method = TextureFunction::SIZE;
+    }
+    else if (name == "textureOffset")
+    {
+        textureFunction.method = TextureFunction::IMPLICIT;
+        textureFunction.offset = true;
+    }
+    else if (name == "textureProjOffset")
+    {
+        textureFunction.method = TextureFunction::IMPLICIT;
+        textureFunction.offset = true;
+        textureFunction.proj   = true;
+    }
+    else if (name == "textureLodOffset")
+    {
+        textureFunction.method = TextureFunction::LOD;
+        textureFunction.offset = true;
+    }
+    else if (name == "textureProjLodOffset")
+    {
+        textureFunction.method = TextureFunction::LOD;
+        textureFunction.proj   = true;
+        textureFunction.offset = true;
+    }
+    else if (name == "texelFetch")
+    {
+        textureFunction.method = TextureFunction::FETCH;
+    }
+    else if (name == "texelFetchOffset")
+    {
+        textureFunction.method = TextureFunction::FETCH;
+        textureFunction.offset = true;
+    }
+    else if (name == "textureGrad" || name == "texture2DGradEXT")
+    {
+        textureFunction.method = TextureFunction::GRAD;
+    }
+    else if (name == "textureGradOffset")
+    {
+        textureFunction.method = TextureFunction::GRAD;
+        textureFunction.offset = true;
+    }
+    else if (name == "textureProjGrad" || name == "texture2DProjGradEXT" ||
+             name == "textureCubeGradEXT")
+    {
+        textureFunction.method = TextureFunction::GRAD;
+        textureFunction.proj   = true;
+    }
+    else if (name == "textureProjGradOffset")
+    {
+        textureFunction.method = TextureFunction::GRAD;
+        textureFunction.proj   = true;
+        textureFunction.offset = true;
+    }
+    else if (name == "textureGather")
+    {
+        textureFunction.method = TextureFunction::GATHER;
+    }
+    else if (name == "textureGatherOffset")
+    {
+        textureFunction.method = TextureFunction::GATHER;
+        textureFunction.offset = true;
+    }
+    else if (name == "textureVideoWEBGL")
+    {
+        textureFunction.method = TextureFunction::IMPLICIT;
+    }
+    else
+        UNREACHABLE();
+
+    if (textureFunction.method ==
+        TextureFunction::IMPLICIT)  // Could require lod 0 or have a bias argument
+    {
+        size_t mandatoryArgumentCount = 2;  // All functions have sampler and coordinate arguments
+
+        if (textureFunction.offset)
+        {
+            mandatoryArgumentCount++;
+        }
+
+        bool bias = (argumentCount > mandatoryArgumentCount);  // Bias argument is optional
+
+        if (lod0 || shaderType == GL_VERTEX_SHADER)
+        {
+            if (bias)
+            {
+                textureFunction.method = TextureFunction::LOD0BIAS;
+            }
+            else
+            {
+                textureFunction.method = TextureFunction::LOD0;
+            }
+        }
+        else if (bias)
+        {
+            textureFunction.method = TextureFunction::BIAS;
+        }
+    }
+
+    mUsesTexture.insert(textureFunction);
+    return textureFunction.name();
+}
+
+
+
+```
+{% endraw %}
+
+ so I think that adding a custom mutation which stresses those texture functions explicitly would do some good. I am also thinking about how I can extract useful patterns from existing shaders for example and then use those existing patterns without having to write an explicit mutator for every even slightly more complex mutation.
+
+In addition, I recognized that I didn't even have the custom crossover enabled, since I was running with "-cross_over=0" . I thought that it disabled only the default crossover, but it also disabled the custom crossover too, well now that that is solved, I am getting quite good coverage which is nice...
+
+
+
 
 
 
