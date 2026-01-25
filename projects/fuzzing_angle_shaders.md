@@ -511,7 +511,35 @@ ImmutableString TextureFunctionHLSL::useTextureFunction(const ImmutableString &n
 
 In addition, I recognized that I didn't even have the custom crossover enabled, since I was running with "-cross_over=0" . I thought that it disabled only the default crossover, but it also disabled the custom crossover too, well now that that is solved, I am getting quite good coverage which is nice...
 
+## Adding support for the full pipeline fuzzing stuff
 
+Here is the original shader stuff:
+
+```
+
+angle_source_set("shader_fuzzer") {
+  sources = [ "src/compiler/fuzz/shader_fuzzer.cpp" ]
+
+  include_dirs = [
+    "include",
+    "src",
+    ".", # Include that shit maybe???
+  ]
+  # Also put the custom mutator shit
+
+  deps = [
+    # ":angle_common_test_utils_shared",
+    "$angle_root:angle_gl_enum_utils",
+    "$angle_root:angle_image_util",
+    "$angle_root:translator",
+    ":translator",
+    ":mutator_helper",
+  ]
+
+  # deps = [ ":translator", ":mutator_helper", ]
+}
+
+```
 
 
 
