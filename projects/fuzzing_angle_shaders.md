@@ -541,7 +541,555 @@ angle_source_set("shader_fuzzer") {
 
 ```
 
+## Adding some even more mutations...
 
+Ok, so the RewriteLocalPixelStorage.cpp
+
+```
+//
+// Copyright 2016 The ANGLE Project Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+//
+
+// translator_fuzzer.cpp: A libfuzzer fuzzer for the shader translator.
+
+#ifdef UNSAFE_BUFFERS_BUILD
+#    pragma allow_unsafe_buffers
+#endif
+
+#include <cstddef>
+#include <cstdint>
+#include <iostream>
+#include <memory>
+#include <unordered_map>
+
+#include "angle_gl.h"
+#include "anglebase/no_destructor.h"
+#include "common/hash_containers.h"
+#include "compiler/translator/Compiler.h"
+#include "compiler/translator/util.h"
+
+// Debugging???
+
+#define DEBUGGING 1
+
+using namespace sh;
+
+namespace
+{
+struct TranslatorCacheKey
+{
+    bool operator==(const TranslatorCacheKey &other) const
+    {
+        return type == other.type && spec == other.spec && output == other.output;
+    }
+
+    uint32_t type   = 0;
+    uint32_t spec   = 0;
+    uint32_t output = 0;
+};
+}  // anonymous namespace
+
+namespace std
+{
+
+template <>
+struct hash<TranslatorCacheKey>
+{
+    std::size_t operator()(const TranslatorCacheKey &k) const
+    {
+        return (hash<uint32_t>()(k.type) << 1) ^ (hash<uint32_t>()(k.spec) >> 1) ^
+               hash<uint32_t>()(k.output);
+    }
+};
+}  // namespace std
+
+struct TCompilerDeleter
+{
+    void operator()(TCompiler *compiler) const { DeleteCompiler(compiler); }
+};
+
+
+void log(const char* msg) {
+    /*
+    FILE* fp = fopen("/home/oof/angle_log.txt", "w");
+    fwrite(msg, strlen(msg), 1, fp);
+    fclose(fp);
+    */
+#ifdef DEBUGGING
+    // fprintf(stderr, "%s", msg);
+    //std::cerr << msg << "\n";
+    ssize_t ret = write(2, msg, strlen(msg));
+    (void)ret;
+#endif
+    return;
+}
+
+void log(const std::string msg) {
+#ifdef DEBUGGING
+    // fprintf(stderr, "%s", msg.c_str()); // Convert to cstring...
+    std::cerr << msg << "\n";
+#endif
+    return;
+}
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
+{
+    ShaderDumpHeader header{};
+    if (size <= sizeof(header))
+    {
+        log("size <= sizeof(header)\n");
+        return 0;
+    }
+
+    // Make sure the rest of data will be a valid C string so that we don't have to copy it.
+    if (data[size - 1] != 0)
+    {
+        log("data[size - 1] != 0\n");
+        return 0;
+    }
+
+    memcpy(&header, data, sizeof(header));
+    ShCompileOptions options{};
+    memcpy(&options, &header.basicCompileOptions, offsetof(ShCompileOptions, metal));
+    memcpy(&options.metal, &header.metalCompileOptions, sizeof(options.metal));
+    memcpy(&options.pls, &header.plsCompileOptions, sizeof(options.pls));
+    size -= sizeof(header);
+    data += sizeof(header);
+    uint32_t type = header.type;
+    uint32_t spec = header.spec;
+
+    if (type != GL_FRAGMENT_SHADER && type != GL_VERTEX_SHADER)
+    {
+        log("invalid type\n");
+        return 0;
+    }
+
+    // Now for our fuzzing purposes we always want to pick the SH_WEBGL_SPEC thing...
+
+    // spec = SH_WEBGL_SPEC;
+
+    if (spec != SH_GLES2_SPEC && spec != SH_WEBGL_SPEC && spec != SH_GLES3_SPEC &&
+        spec != SH_WEBGL2_SPEC)
+    {
+        log("invalid spec\n");
+        return 0;
+    }
+
+    ShShaderOutput shaderOutput = static_cast<ShShaderOutput>(header.output);
+
+    // Actually always set it to webgl output...
+
+    /*
+    shaderOutput = SH_WGSL_OUTPUT;
+    */
+
+    bool hasUnsupportedOptions = false;
+
+    // --- BEGIN: Force-disable all options that can trip hasUnsupportedOptions ---
+
+
+    /*
+    options.addAndTrueToLoopCondition                 = false;
+    options.unfoldShortCircuit                        = false;
+    options.rewriteRowMajorMatrices                   = false;
+
+    options.emulateAtan2FloatFunction                 = false;
+    options.clampFragDepth                            = false;
+    options.regenerateStructNames                     = false;
+    options.rewriteRepeatedAssignToSwizzled           = false;
+    options.useUnusedStandardSharedBlocks             = false;
+    options.selectViewInNvGLSLVertexShader            = false;
+
+    options.skipAllValidationAndTransforms             = false;
+
+    options.addVulkanXfbEmulationSupportCode           = false;
+    options.roundOutputAfterDithering                  = false;
+    options.addAdvancedBlendEquationsEmulation         = false;
+
+    options.expandSelectHLSLIntegerPowExpressions      = false;
+    options.allowTranslateUniformBlockToStructuredBuffer = false;
+    options.rewriteIntegerUnaryMinusOperator           = false;
+
+    options.ensureLoopForwardProgress                  = false;
+    */
+
+
+    // --- END: Force-disable all options that can trip hasUnsupportedOptions ---
+
+    const bool hasMacGLSLOptions = options.addAndTrueToLoopCondition ||
+                                   options.unfoldShortCircuit || options.rewriteRowMajorMatrices;
+
+    if (!IsOutputGLSL(shaderOutput) && !IsOutputESSL(shaderOutput))
+    {
+        hasUnsupportedOptions =
+            hasUnsupportedOptions || options.emulateAtan2FloatFunction || options.clampFragDepth ||
+            options.regenerateStructNames || options.rewriteRepeatedAssignToSwizzled ||
+            options.useUnusedStandardSharedBlocks || options.selectViewInNvGLSLVertexShader;
+
+        hasUnsupportedOptions = hasUnsupportedOptions || hasMacGLSLOptions;
+    }
+    else
+    {
+#if !defined(ANGLE_PLATFORM_APPLE)
+        hasUnsupportedOptions = hasUnsupportedOptions || hasMacGLSLOptions;
+#endif
+    }
+    if (!IsOutputESSL(shaderOutput))
+    {
+        hasUnsupportedOptions = hasUnsupportedOptions || options.skipAllValidationAndTransforms;
+    }
+    if (!IsOutputSPIRV(shaderOutput))
+    {
+        hasUnsupportedOptions = hasUnsupportedOptions || options.addVulkanXfbEmulationSupportCode ||
+                                options.roundOutputAfterDithering ||
+                                options.addAdvancedBlendEquationsEmulation;
+    }
+    if (!IsOutputHLSL(shaderOutput))
+    {
+        hasUnsupportedOptions = hasUnsupportedOptions ||
+                                options.expandSelectHLSLIntegerPowExpressions ||
+                                options.allowTranslateUniformBlockToStructuredBuffer ||
+                                options.rewriteIntegerUnaryMinusOperator;
+    }
+    if (!IsOutputMSL(shaderOutput))
+    {
+        hasUnsupportedOptions = hasUnsupportedOptions || options.ensureLoopForwardProgress;
+    }
+
+    // If there are any options not supported with this output, don't attempt to run the translator.
+    if (hasUnsupportedOptions)
+    {
+        log("hasUnsupportedOptions\n");
+        return 0;
+    }
+
+    // Make sure the rest of the options are in a valid range.
+    options.pls.fragmentSyncType = static_cast<ShFragmentSynchronizationType>(
+        static_cast<uint32_t>(options.pls.fragmentSyncType) %
+        static_cast<uint32_t>(ShFragmentSynchronizationType::InvalidEnum));
+
+    // Force enable options that are required by the output generators.
+    if (IsOutputSPIRV(shaderOutput))
+    {
+        options.removeInactiveVariables = true;
+    }
+    if (IsOutputMSL(shaderOutput))
+    {
+        options.removeInactiveVariables = true;
+    }
+
+    std::vector<uint32_t> validOutputs;
+    validOutputs.push_back(SH_ESSL_OUTPUT);
+    validOutputs.push_back(SH_GLSL_COMPATIBILITY_OUTPUT);
+    validOutputs.push_back(SH_GLSL_130_OUTPUT);
+    validOutputs.push_back(SH_GLSL_140_OUTPUT);
+    validOutputs.push_back(SH_GLSL_150_CORE_OUTPUT);
+    validOutputs.push_back(SH_GLSL_330_CORE_OUTPUT);
+    validOutputs.push_back(SH_GLSL_400_CORE_OUTPUT);
+    validOutputs.push_back(SH_GLSL_410_CORE_OUTPUT);
+    validOutputs.push_back(SH_GLSL_420_CORE_OUTPUT);
+    validOutputs.push_back(SH_GLSL_430_CORE_OUTPUT);
+    validOutputs.push_back(SH_GLSL_440_CORE_OUTPUT);
+    validOutputs.push_back(SH_GLSL_450_CORE_OUTPUT);
+    validOutputs.push_back(SH_SPIRV_VULKAN_OUTPUT);
+    validOutputs.push_back(SH_HLSL_3_0_OUTPUT);
+    validOutputs.push_back(SH_HLSL_4_1_OUTPUT);
+    // Add some more outputs here too...
+    /*
+    // Output for MSL
+    SH_MSL_METAL_OUTPUT,
+
+    // Output for WGSL
+    SH_WGSL_OUTPUT,
+    */
+
+    validOutputs.push_back(SH_MSL_METAL_OUTPUT);
+    validOutputs.push_back(SH_WGSL_OUTPUT);
+
+    bool found = false;
+    for (auto valid : validOutputs)
+    {
+        found = found || (valid == shaderOutput);
+    }
+    if (!found)
+    {
+        log("!found\n");
+        return 0;
+    }
+
+    if (!sh::Initialize())
+    {
+        log("!sh::Initialize()\n");
+        return 0;
+    }
+
+    TranslatorCacheKey key;
+    key.type   = type;
+    key.spec   = spec;
+    key.output = shaderOutput;
+
+    using UniqueTCompiler = std::unique_ptr<TCompiler, TCompilerDeleter>;
+    static angle::base::NoDestructor<angle::HashMap<TranslatorCacheKey, UniqueTCompiler>>
+        translators;
+
+    if (translators->find(key) == translators->end())
+    {
+        UniqueTCompiler translator(
+            ConstructCompiler(type, static_cast<ShShaderSpec>(spec), shaderOutput));
+
+        if (translator == nullptr)
+        {
+            log("translator == nullptr\n");
+            return 0;
+        }
+
+        ShBuiltInResources resources;
+        sh::InitBuiltInResources(&resources);
+
+        // Enable all the extensions to have more coverage
+        resources.OES_standard_derivatives        = 1;
+        resources.OES_EGL_image_external          = 1;
+        resources.OES_EGL_image_external_essl3    = 1;
+        resources.NV_EGL_stream_consumer_external = 1;
+        resources.ARB_texture_rectangle           = 1;
+        resources.EXT_blend_func_extended         = 1;
+        resources.EXT_conservative_depth          = 1;
+        resources.EXT_draw_buffers                = 1;
+        resources.EXT_frag_depth                  = 1;
+        resources.EXT_shader_texture_lod          = 1;
+        resources.EXT_shader_framebuffer_fetch    = 1;
+        resources.ARM_shader_framebuffer_fetch    = 1;
+        resources.ARM_shader_framebuffer_fetch_depth_stencil = 1;
+        resources.EXT_YUV_target                  = 1;
+        resources.APPLE_clip_distance             = 1;
+        resources.MaxDualSourceDrawBuffers        = 1;
+        resources.EXT_gpu_shader5                 = 1;
+        resources.MaxClipDistances                = 1;
+        resources.EXT_shadow_samplers             = 1;
+        resources.EXT_clip_cull_distance          = 1;
+        resources.ANGLE_clip_cull_distance        = 1;
+        resources.EXT_primitive_bounding_box      = 1;
+        resources.OES_primitive_bounding_box      = 1;
+
+        if (!translator->Init(resources))
+        {
+            return 0;
+        }
+
+        (*translators)[key] = std::move(translator);
+    }
+
+    auto &translator = (*translators)[key];
+
+    options.limitExpressionComplexity = true;
+    const char *shaderStrings[]       = {reinterpret_cast<const char *>(data)};
+
+    // Dump the string being passed to the compiler to ease debugging.
+    // The string is written char-by-char and unwanted characters are replaced with whitespace.
+    // This is because characters such as \r can hide the shader contents.
+
+    /*
+    std::cerr << "\nCompile input with unprintable characters turned to whitespace:\n";
+    for (const char *c = shaderStrings[0]; *c; ++c)
+    {
+        if (*c < ' ' && *c != '\n')
+        {
+            std::cerr << ' ';
+        }
+        else
+        {
+            std::cerr << *c;
+        }
+    }
+    std::cerr << "\nEnd of compile input.\n\n";
+
+    translator->compile(shaderStrings, options);
+    */
+
+    // Try to print out the translated source code....
+
+    TInfoSink &infoSink      = translator->getInfoSink();
+
+    if (translator->compile(shaderStrings, options) == 0) { // 0 means failure...
+#ifdef DEBUGGING
+        fprintf(stderr,
+            "================= ANGLE COMPILE FAILED =================\n"
+            "%s\n"
+            "========================================================\n",
+            infoSink.info.c_str());
+#endif
+        return 0;
+    }
+
+    if (!(infoSink.obj.isBinary())) {
+        // Not binary, so print the source code...
+#ifdef DEBUGGING
+        fprintf(stderr, "==============================================\n");
+        // fprintf(stderr, "WGSL:\n%s\n", infoSink.obj.c_str());
+        fprintf(stderr, "%s\n", infoSink.obj.c_str());
+        fprintf(stderr, "==============================================\n");
+#endif
+    } else {
+        log("binary output...\n");
+    }
+
+    return 0;
+}
+
+```
+
+The ANGLE_shader_pixel_local_storage isn't enabled anywhere here, therefore of course it isn't getting fuzzed as you would expect...
+
+Also we need to check the "invalid spec" failure on the one of the files in the thing...
+
+I added it to the resources. section and now when I run this file here:
+```
+HEADER: frag 3 6
+#version 310 es
+#extension GL_ANGLE_shader_pixel_local_storage : require
+
+layout(binding = 0, rgba8) uniform pixelLocalANGLE pls0;
+
+void main()
+{
+    vec4 v = pixelLocalLoadANGLE(pls0);
+    pixelLocalStoreANGLE(pls0, v);
+}``` it causes this: ```================= ANGLE COMPILE FAILED =================
+ERROR: 0:4: 'pixelLocalANGLE' : No precision specified
+ERROR: 0:4: 'layout qualifier' : pixel local storage binding out of range
+ERROR: 0:8: '' : No precision specified for (float)
+
+========================================================
+Executed ./tests_complex_binary/local_pixel_storage.glsl.bin in 4 ms
+***
+*** NOTE: fuzzing was not performed, you have only
+***       executed the target code on a fixed set of inputs.
+***
+```
+
+It gets that... That is peculiar.
+
+After grepping the source code for the stuff I noticed this:
+
+```
+void TParseContext::checkPixelLocalStorageBindingIsValid(const TSourceLoc &location,
+                                                         const TType &type)
+{
+    TLayoutQualifier layoutQualifier = type.getLayoutQualifier();
+    if (type.isArray())
+    {
+        // PLS is not allowed in arrays.
+        // TODO(anglebug.com/40096838): Consider allowing this once more backends are implemented.
+        error(location, "pixel local storage handles cannot be aggregated in arrays", "array");
+    }
+    else if (layoutQualifier.binding < 0)
+    {
+        error(location, "pixel local storage requires a binding index", "layout qualifier");
+    }
+    // TODO(anglebug.com/40096838):
+    else if (layoutQualifier.binding >= mResources.MaxPixelLocalStoragePlanes)
+    {
+        error(location, "pixel local storage binding out of range", "layout qualifier");
+    }
+    else if (mPLSFormats.find(layoutQualifier.binding) != mPLSFormats.end())
+    {
+        error(location, "duplicate pixel local storage binding index",
+              std::to_string(layoutQualifier.binding).c_str());
+    }
+    else
+    {
+```
+
+so therefore the angle translator mutator must be improved slightly further...
+
+Then next I got this error here:
+
+```
+oof@oof-h8-1440eo:~/shader_custom_mutator$ ./run_pixelstorage.sh
+[seed] 32956562
+[text→bin] tests_complex/local_pixel_storage.glsl -> tests_complex/local_pixel_storage.glsl.bin
+INFO: Running with entropic power schedule (0xFF, 100).
+INFO: Seed: 4019013082
+INFO: Loaded 1 modules   (107830 inline 8-bit counters): 107830 [0x55b3ace70400, 0x55b3ace8a936),
+INFO: Loaded 1 PC tables (107830 PCs): 107830 [0x55b3ace8a938,0x55b3ad02fc98),
+/home/oof/chromiumstuff/source/src/out/canvasfuzz/angle_translator_fuzzer: Running 1 inputs 1 time(s) each.
+Running: ./tests_complex_binary/local_pixel_storage.glsl.bin
+FATAL: RewritePixelLocalStorage.cpp:892 (RewritePixelLocalStorage): 	! Unreachable reached: RewritePixelLocalStorage(../../third_party/angle/src/compiler/translator/tree_ops/RewritePixelLocalStorage.cpp:892)
+==331318== ERROR: libFuzzer: deadly signal
+    #0 0x55b3ac267ac1 in __sanitizer_print_stack_trace (/home/oof/chromiumstuff/source/src/out/canvasfuzz/angle_translator_fuzzer+0x8b3ac1) (BuildId: b57dc503ade9246f)
+    #1 0x55b3ac316e1b in fuzzer::PrintStackTrace() third_party/libFuzzer/src/FuzzerUtil.cpp:210:5
+    #2 0x55b3ac2d809e in fuzzer::Fuzzer::CrashCallback() third_party/libFuzzer/src/FuzzerLoop.cpp:231:3
+    #3 0x7f9f21cdb51f  (/lib/x86_64-linux-gnu/libc.so.6+0x4251f) (BuildId: 4f7b0c955c3d81d7cac1501a2498b69d1d82bfe7)
+    #4 0x55b3ac61dedd in sh::RewritePixelLocalStorage(sh::TCompiler*, sh::TIntermBlock*, sh::TSymbolTable&, ShCompileOptions const&, int) third_party/angle/src/compiler/translator/tree_ops/RewritePixelLocalStorage.cpp:892:13
+    #5 0x55b3ac4309ef in sh::TCompiler::checkAndSimplifyAST(sh::TIntermBlock*, sh::TParseContext const&, ShCompileOptions const&) third_party/angle/src/compiler/translator/Compiler.cpp:1008:14
+    #6 0x55b3ac42c0da in sh::TCompiler::compileTreeImpl(angle::Span<char const* const, 18446744073709551615ul, char const* const*>, ShCompileOptions const&) third_party/angle/src/compiler/translator/Compiler.cpp:583:14
+    #7 0x55b3ac433415 in sh::TCompiler::compile(angle::Span<char const* const, 18446744073709551615ul, char const* const*>, ShCompileOptions const&) third_party/angle/src/compiler/translator/Compiler.cpp:1413:26
+    #8 0x55b3ac298027 in LLVMFuzzerTestOneInput third_party/angle/src/compiler/fuzz/translator_fuzzer.cpp:374:21
+    #9 0x55b3ac2db1f6 in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) third_party/libFuzzer/src/FuzzerLoop.cpp:619:13
+    #10 0x55b3ac2acacd in fuzzer::RunOneTest(fuzzer::Fuzzer*, char const*, unsigned long) third_party/libFuzzer/src/FuzzerDriver.cpp:329:6
+    #11 0x55b3ac2b5af0 in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) third_party/libFuzzer/src/FuzzerDriver.cpp:870:9
+    #12 0x55b3ac29c055 in main third_party/libFuzzer/src/FuzzerMain.cpp:20:10
+    #13 0x7f9f21cc2d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+
+NOTE: libFuzzer has rudimentary signal handlers.
+      Combine libFuzzer with AddressSanitizer or similar for better crash reports.
+SUMMARY: libFuzzer: deadly signal
+
+```
+
+and this was solved by adding this stuff here:
+
+```
+    // Make sure the rest of the options are in a valid range.
+    options.pls.fragmentSyncType = static_cast<ShFragmentSynchronizationType>(
+        static_cast<uint32_t>(options.pls.fragmentSyncType) %
+        static_cast<uint32_t>(ShFragmentSynchronizationType::InvalidEnum));
+
+    // Check for the required PLS element stuff...
+
+    // Set as default...
+    if (options.pls.type == ShPixelLocalStorageType::NotSupported) {
+        options.pls.type = ShPixelLocalStorageType::ImageLoadStore;
+    }
+
+```
+
+and now it seems to compile all fine...
+
+TODO: We should add some mutations that specifically target this functionality to our thing...
+
+
+## Improving fuzzing
+
+So, I decided to move to a non assert build of angle, since assertions are slowing us down. I basically just seeded the thing with the previous crashes that do not crash on the non assert build of the thing and then the previous corpus, minimized said corpus and then used the same exact setup as before.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## COntinuing the actual dawn fuzzing stuff in the thing...
 
 
 
