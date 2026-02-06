@@ -689,7 +689,20 @@ to
 
 ```
 
+## Improving the darthshader custom mutator
 
+There is the `test/tint/builtins/gen/gen.wgsl.tmpl` file in the dawn source tree that seems quite interesting...
+
+## Investigating some performance bottlenecks...
+
+
+
+
+## Making it work with the direct X compiler stuff...
+
+
+
+## Learning rust through implementing more mutations to the custom mutator thingy...
 
 
 
