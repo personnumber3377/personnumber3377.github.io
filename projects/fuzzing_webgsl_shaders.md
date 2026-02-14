@@ -708,6 +708,192 @@ There is the `test/tint/builtins/gen/gen.wgsl.tmpl` file in the dawn source tree
 
 
 
+## Actually using angle translator to fuzz the HLSL compiler in directX...
+
+I have this stuff here:
+
+```
+// webgsl_translator.cpp
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <string>
+
+#include "angle_gl.h"
+#include "compiler/translator/Compiler.h"
+#include "compiler/translator/util.h"
+
+// Debugging?
+
+// #define DEBUGGING 1
+
+/*
+#ifdef
+#undef DEBUGGING
+#endif
+*/
+
+using namespace sh;
+
+// RAII deleter for ANGLE compiler
+struct CompilerDeleter {
+    void operator()(TCompiler* c) const {
+        if (c) {
+            DeleteCompiler(c);
+        }
+    }
+};
+
+void log(const char* msg) {
+    /*
+    FILE* fp = fopen("/home/oof/angle_log.txt", "w");
+    fwrite(msg, strlen(msg), 1, fp);
+    fclose(fp);
+    */
+#ifdef DEBUGGING
+    fprintf(stderr, "%s", msg);
+#endif
+    return;
+}
+
+void log(const std::string msg) {
+#ifdef DEBUGGING
+    fprintf(stderr, "%s", msg.c_str()); // Convert to cstring...
+#endif
+    return;
+}
+
+extern "C" int LLVMFuzzerInitialize(int*, char***) {
+    // ANGLE global init (safe to call once)
+    sh::Initialize();
+    return 0;
+}
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+    // Require non-empty, null-terminated GLSL
+    if (size < 2 || data[size - 1] != 0) {
+        log("size < 2 || data[size - 1] != 0\n");
+        return -1;
+    }
+
+    const char* glsl = reinterpret_cast<const char*>(data);
+
+    // Choose shader type (you can also fuzz this)
+    constexpr GLenum kShaderType = GL_FRAGMENT_SHADER;
+    constexpr ShShaderSpec kSpec = SH_WEBGL2_SPEC;
+    constexpr ShShaderOutput kOutput = SH_WGSL_OUTPUT;
+
+    // Create compiler
+    std::unique_ptr<TCompiler, CompilerDeleter> compiler(
+        ConstructCompiler(kShaderType, kSpec, kOutput));
+
+    if (!compiler) {
+        log("!compiler\n");
+        return -1;
+    }
+
+    // Init built-in resources
+    ShBuiltInResources resources;
+    sh::InitBuiltInResources(&resources);
+
+    // Enable many extensions for better coverage
+    resources.OES_standard_derivatives = 1;
+    resources.EXT_draw_buffers = 1;
+    resources.EXT_frag_depth = 1;
+    resources.EXT_shader_texture_lod = 1;
+    resources.MaxDrawBuffers = 8;
+
+    if (!compiler->Init(resources)) {
+        return -1;
+    }
+
+    // Compile options
+    ShCompileOptions options{};
+    options.objectCode = true;            // REQUIRED to get translated source
+    options.validateAST = true;            // reject invalid GLSL
+    options.limitExpressionComplexity = true;
+
+    const char* sources[] = { glsl };
+
+    // Compile
+    bool ok = compiler->compile(sources, options);
+    if (!ok) {
+        log("!ok\n");
+        // Invalid GLSL → reject corpus entry
+        return -1;
+    }
+
+
+    /*
+    TInfoSink &infoSink      = translator->getInfoSink();
+    if (translatedCode)
+    {
+        *translatedCode = infoSink.obj.isBinary() ? kBinaryBlob : infoSink.obj.c_str();
+    }
+    if (infoLog)
+    {
+        *infoLog = infoSink.info.c_str();
+    }
+    SafeDelete(translator);
+    */
+
+    // Retrieve translated WGSL
+
+
+    TInfoSink &infoSink      = compiler->getInfoSink();
+    if (!(infoSink.obj.isBinary())) {
+        // Not binary, so print the source code...
+#ifdef DEBUGGING
+        fprintf(stderr, "==============================================\n");
+        fprintf(stderr, "WGSL:\n%s\n", infoSink.obj.c_str());
+        fprintf(stderr, "==============================================\n");
+#endif
+    }
+
+    /*
+    const std::string& wgsl = compiler->getTranslatedSource();
+
+    // Optional: sanity-check output
+    if (wgsl.empty()) {
+        return -1;
+    }
+
+    // OPTIONAL: dump WGSL for debugging
+    fprintf(stderr, "WGSL:\n%s\n", wgsl.c_str());
+    */
+
+    // Valid GLSL → WGSL
+    log("end\n");
+    return 0;
+}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
