@@ -871,7 +871,226 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
 ```
 
+Here is the corrected code:
 
+```
+// webgsl_translator.cpp
+// Standalone ANGLE GLSL → WGSL translator (header-driven)
+
+#ifdef UNSAFE_BUFFERS_BUILD
+#    pragma allow_unsafe_buffers
+#endif
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <unordered_map>
+#include <vector>
+#include <fstream>
+
+#include "angle_gl.h"
+#include "anglebase/no_destructor.h"
+#include "common/hash_containers.h"
+#include "compiler/translator/Compiler.h"
+#include "compiler/translator/util.h"
+
+using namespace sh;
+
+// -------------------------------------------------------------
+// Translator cache key
+// -------------------------------------------------------------
+
+namespace {
+struct TranslatorCacheKey {
+    bool operator==(const TranslatorCacheKey& other) const {
+        return type == other.type &&
+               spec == other.spec &&
+               output == other.output;
+    }
+
+    uint32_t type   = 0;
+    uint32_t spec   = 0;
+    uint32_t output = 0;
+};
+}
+
+namespace std {
+template <>
+struct hash<TranslatorCacheKey> {
+    std::size_t operator()(const TranslatorCacheKey& k) const {
+        return (hash<uint32_t>()(k.type) << 1) ^
+               (hash<uint32_t>()(k.spec) >> 1) ^
+               hash<uint32_t>()(k.output);
+    }
+};
+}
+
+// -------------------------------------------------------------
+// RAII compiler deleter
+// -------------------------------------------------------------
+
+struct TCompilerDeleter {
+    void operator()(TCompiler* compiler) const {
+        DeleteCompiler(compiler);
+    }
+};
+
+// -------------------------------------------------------------
+// Main
+// -------------------------------------------------------------
+
+int main(int argc, char** argv)
+{
+    if (argc != 2)
+        return -1;
+
+    // Read file
+    std::ifstream in(argv[1], std::ios::binary);
+    if (!in)
+        return -1;
+
+    std::vector<uint8_t> input(
+        (std::istreambuf_iterator<char>(in)),
+        std::istreambuf_iterator<char>());
+
+    if (input.size() <= sizeof(ShaderDumpHeader))
+        return -1;
+
+    if (input.back() != 0)
+        return -1;
+
+    ShaderDumpHeader header{};
+    memcpy(&header, input.data(), sizeof(header));
+
+    ShCompileOptions options{};
+    memcpy(&options, &header.basicCompileOptions,
+           offsetof(ShCompileOptions, metal));
+    memcpy(&options.metal, &header.metalCompileOptions,
+           sizeof(options.metal));
+    memcpy(&options.pls, &header.plsCompileOptions,
+           sizeof(options.pls));
+
+    uint8_t* shaderData = input.data() + sizeof(header);
+    size_t shaderSize = input.size() - sizeof(header);
+
+    uint32_t type = header.type;
+    uint32_t spec = header.spec;
+
+    if (type != GL_FRAGMENT_SHADER &&
+        type != GL_VERTEX_SHADER)
+        return -1;
+
+    if (spec != SH_GLES2_SPEC &&
+        spec != SH_WEBGL_SPEC &&
+        spec != SH_GLES3_SPEC &&
+        spec != SH_WEBGL2_SPEC)
+        return -1;
+
+    // -------------------------------------------------------------
+    // FORCE WGSL OUTPUT
+    // -------------------------------------------------------------
+
+    ShShaderOutput shaderOutput = SH_WGSL_OUTPUT;
+
+    // -------------------------------------------------------------
+    // Disable incompatible options
+    // -------------------------------------------------------------
+
+    options.addVulkanXfbEmulationSupportCode = false;
+    options.roundOutputAfterDithering        = false;
+    options.addAdvancedBlendEquationsEmulation = false;
+    options.ensureLoopForwardProgress        = false;
+    options.skipAllValidationAndTransforms   = false;
+
+    // Force object code emission
+    options.objectCode = true;
+
+    // Reduce fuzz slowness
+    options.validateAST = false;
+    options.limitExpressionComplexity = true;
+
+    // Normalize PLS enum
+    options.pls.fragmentSyncType =
+        static_cast<ShFragmentSynchronizationType>(
+            static_cast<uint32_t>(options.pls.fragmentSyncType) %
+            static_cast<uint32_t>(ShFragmentSynchronizationType::InvalidEnum));
+
+    if (options.pls.type == ShPixelLocalStorageType::NotSupported)
+        options.pls.type = ShPixelLocalStorageType::ImageLoadStore;
+
+    // -------------------------------------------------------------
+    // ANGLE global init
+    // -------------------------------------------------------------
+
+    if (!sh::Initialize())
+        return -1;
+
+    // -------------------------------------------------------------
+    // Translator caching
+    // -------------------------------------------------------------
+
+    TranslatorCacheKey key;
+    key.type   = type;
+    key.spec   = spec;
+    key.output = shaderOutput;
+
+    using UniqueTCompiler = std::unique_ptr<TCompiler, TCompilerDeleter>;
+    static angle::base::NoDestructor<
+        angle::HashMap<TranslatorCacheKey, UniqueTCompiler>> translators;
+
+    if (translators->find(key) == translators->end())
+    {
+        UniqueTCompiler translator(
+            ConstructCompiler(type,
+                              static_cast<ShShaderSpec>(spec),
+                              shaderOutput));
+
+        if (!translator)
+            return -1;
+
+        ShBuiltInResources resources;
+        sh::InitBuiltInResources(&resources);
+
+        // Enable many extensions for deeper coverage
+        resources.OES_standard_derivatives = 1;
+        resources.EXT_draw_buffers = 1;
+        resources.EXT_frag_depth = 1;
+        resources.EXT_shader_texture_lod = 1;
+        resources.EXT_shader_framebuffer_fetch = 1;
+        resources.EXT_gpu_shader5 = 1;
+        resources.MaxDrawBuffers = 8;
+        resources.MaxClipDistances = 8;
+
+        if (!translator->Init(resources))
+            return -1;
+
+        (*translators)[key] = std::move(translator);
+    }
+
+    auto& translator = (*translators)[key];
+
+    const char* sources[] = {
+        reinterpret_cast<const char*>(shaderData)
+    };
+
+    TInfoSink& infoSink = translator->getInfoSink();
+
+    if (translator->compile(sources, options) == 0)
+        return -1;
+
+    if (!infoSink.obj.isBinary())
+    {
+        // Emit markers for parent process
+        std::cerr << "===== BEGIN WGSL =====\n";
+        std::cerr << infoSink.obj.c_str() << "\n";
+        std::cerr << "===== END WGSL =====\n";
+    }
+
+    return 0;
+}
+```
 
 
 
