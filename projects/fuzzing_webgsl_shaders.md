@@ -1092,9 +1092,18 @@ int main(int argc, char** argv)
 }
 ```
 
+Also as a sidenote, remember to put the fuzzer stuff into the `/home/oof/chromiumstuff/source/src/testing/libfuzzer/fuzzers` directory too...
 
+The shitfuck bug was that these two statements were the other way around:
 
+```
+    if "VALID" in output:
+        return "VALID"
 
+    for line in output.splitlines():
+        if line.startswith("ERROR:"):
+            return line.replace("ERROR: ", "").strip()
+```
 
 
 
