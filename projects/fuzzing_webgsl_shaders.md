@@ -1105,11 +1105,512 @@ The shitfuck bug was that these two statements were the other way around:
             return line.replace("ERROR: ", "").strip()
 ```
 
+## Trying to improve the passthrough rate...
 
+Ok, so now roughly 30 percent of the corpus files even reach the HLSL compiler, so I need to basically do the stuff...
 
+```
+// webgsl_translator.cpp
+// Standalone ANGLE GLSL → WGSL translator (header-driven)
 
+#ifdef UNSAFE_BUFFERS_BUILD
+#    pragma allow_unsafe_buffers
+#endif
 
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <unordered_map>
+#include <vector>
 
+#include "angle_gl.h"
+#include "anglebase/no_destructor.h"
+#include "common/hash_containers.h"
+#include "compiler/translator/Compiler.h"
+#include "compiler/translator/util.h"
+
+using namespace sh;
+
+// -------------------------------------------------------------
+// Logging helpers
+// -------------------------------------------------------------
+
+static void print_error(const char* reason) {
+    std::cerr << "ERROR: " << reason << std::endl;
+}
+
+static void print_valid() {
+    std::cerr << "VALID" << std::endl;
+}
+
+// -------------------------------------------------------------
+// Translator cache key
+// -------------------------------------------------------------
+
+namespace {
+struct TranslatorCacheKey {
+    bool operator==(const TranslatorCacheKey& other) const {
+        return type == other.type &&
+               spec == other.spec &&
+               output == other.output;
+    }
+
+    uint32_t type   = 0;
+    uint32_t spec   = 0;
+    uint32_t output = 0;
+};
+}
+
+namespace std {
+template <>
+struct hash<TranslatorCacheKey> {
+    std::size_t operator()(const TranslatorCacheKey& k) const {
+        return (hash<uint32_t>()(k.type) << 1) ^
+               (hash<uint32_t>()(k.spec) >> 1) ^
+               hash<uint32_t>()(k.output);
+    }
+};
+}
+
+struct TCompilerDeleter {
+    void operator()(TCompiler* compiler) const {
+        DeleteCompiler(compiler);
+    }
+};
+
+// -------------------------------------------------------------
+// LibFuzzer entry (can also be used standalone)
+// -------------------------------------------------------------
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+
+    if (size <= sizeof(ShaderDumpHeader)) {
+        print_error("NOT_ENOUGH_DATA_FOR_HEADER");
+        return -1;
+    }
+
+    if (data[size - 1] != 0x00) {
+        print_error("NOT_NULL_TERMINATED");
+        return -1;
+    }
+
+    ShaderDumpHeader header{};
+    memcpy(&header, data, sizeof(header));
+
+    ShCompileOptions options{};
+    memcpy(&options, &header.basicCompileOptions,
+           offsetof(ShCompileOptions, metal));
+    memcpy(&options.metal, &header.metalCompileOptions,
+           sizeof(options.metal));
+    memcpy(&options.pls, &header.plsCompileOptions,
+           sizeof(options.pls));
+
+    const uint8_t* shaderData = data + sizeof(header);
+
+    uint32_t type = header.type;
+    uint32_t spec = header.spec;
+
+    if (type != GL_FRAGMENT_SHADER &&
+        type != GL_VERTEX_SHADER) {
+        print_error("INVALID_SHADER_TYPE");
+        return -1;
+    }
+
+    if (spec != SH_GLES2_SPEC &&
+        spec != SH_WEBGL_SPEC &&
+        spec != SH_GLES3_SPEC &&
+        spec != SH_WEBGL2_SPEC) {
+        print_error("INVALID_SHADER_SPEC");
+        return -1;
+    }
+
+    // Force WGSL output
+    ShShaderOutput shaderOutput = SH_WGSL_OUTPUT;
+
+    // Disable incompatible options
+    options.addVulkanXfbEmulationSupportCode = false;
+    options.roundOutputAfterDithering        = false;
+    options.addAdvancedBlendEquationsEmulation = false;
+    options.ensureLoopForwardProgress        = false;
+    options.skipAllValidationAndTransforms   = false;
+
+    options.objectCode = true;
+    options.validateAST = false;
+    options.limitExpressionComplexity = true;
+
+    options.pls.fragmentSyncType =
+        static_cast<ShFragmentSynchronizationType>(
+            static_cast<uint32_t>(options.pls.fragmentSyncType) %
+            static_cast<uint32_t>(ShFragmentSynchronizationType::InvalidEnum));
+
+    if (options.pls.type == ShPixelLocalStorageType::NotSupported)
+        options.pls.type = ShPixelLocalStorageType::ImageLoadStore;
+
+    if (!sh::Initialize()) {
+        print_error("ANGLE_INIT_FAILED");
+        return -1;
+    }
+
+    TranslatorCacheKey key;
+    key.type   = type;
+    key.spec   = spec;
+    key.output = shaderOutput;
+
+    using UniqueTCompiler = std::unique_ptr<TCompiler, TCompilerDeleter>;
+    static angle::base::NoDestructor<
+        angle::HashMap<TranslatorCacheKey, UniqueTCompiler>> translators;
+
+    if (translators->find(key) == translators->end()) {
+        UniqueTCompiler translator(
+            ConstructCompiler(type,
+                              static_cast<ShShaderSpec>(spec),
+                              shaderOutput));
+
+        if (!translator) {
+            print_error("CONSTRUCT_COMPILER_FAILED");
+            return -1;
+        }
+
+        ShBuiltInResources resources;
+        sh::InitBuiltInResources(&resources);
+
+        resources.OES_standard_derivatives = 1;
+        resources.EXT_draw_buffers = 1;
+        resources.EXT_frag_depth = 1;
+        resources.EXT_shader_texture_lod = 1;
+        resources.MaxDrawBuffers = 8;
+
+        if (!translator->Init(resources)) {
+            print_error("COMPILER_INIT_FAILED");
+            return -1;
+        }
+
+        (*translators)[key] = std::move(translator);
+    }
+
+    auto& translator = (*translators)[key];
+
+    const char* sources[] = {
+        reinterpret_cast<const char*>(shaderData)
+    };
+
+    TInfoSink& infoSink = translator->getInfoSink();
+
+    if (translator->compile(sources, options) == 0) {
+
+        fprintf(stderr,
+            " ANGLE COMPILE FAILED \n"
+            "%s\n"
+            " END OF COMPILE FAILED\n",
+            infoSink.info.c_str());
+
+        print_error("GLSL_COMPILE_FAILED");
+        return -1;
+    }
+
+    if (!infoSink.obj.isBinary()) {
+        std::cerr << "===== BEGIN WGSL =====\n";
+        std::cerr << infoSink.obj.c_str() << "\n";
+        std::cerr << "===== END WGSL =====\n";
+    }
+
+    print_valid();
+    return 0;
+}
+
+```
+
+this now is this:
+
+```
+// webgsl_translator.cpp
+// Standalone ANGLE GLSL → WGSL translator (header-driven)
+
+#ifdef UNSAFE_BUFFERS_BUILD
+#    pragma allow_unsafe_buffers
+#endif
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <unordered_map>
+#include <vector>
+
+#include "angle_gl.h"
+#include "anglebase/no_destructor.h"
+#include "common/hash_containers.h"
+#include "compiler/translator/Compiler.h"
+#include "compiler/translator/util.h"
+
+using namespace sh;
+
+// -------------------------------------------------------------
+// Logging helpers
+// -------------------------------------------------------------
+
+static void print_error(const char* reason) {
+    std::cerr << "ERROR: " << reason << std::endl;
+}
+
+static void print_valid() {
+    std::cerr << "VALID" << std::endl;
+}
+
+// -------------------------------------------------------------
+// Translator cache key
+// -------------------------------------------------------------
+
+namespace {
+struct TranslatorCacheKey {
+    bool operator==(const TranslatorCacheKey& other) const {
+        return type == other.type &&
+               spec == other.spec &&
+               output == other.output;
+    }
+
+    uint32_t type   = 0;
+    uint32_t spec   = 0;
+    uint32_t output = 0;
+};
+}
+
+namespace std {
+template <>
+struct hash<TranslatorCacheKey> {
+    std::size_t operator()(const TranslatorCacheKey& k) const {
+        return (hash<uint32_t>()(k.type) << 1) ^
+               (hash<uint32_t>()(k.spec) >> 1) ^
+               hash<uint32_t>()(k.output);
+    }
+};
+}
+
+struct TCompilerDeleter {
+    void operator()(TCompiler* compiler) const {
+        DeleteCompiler(compiler);
+    }
+};
+
+// -------------------------------------------------------------
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
+
+    if (size <= sizeof(ShaderDumpHeader)) {
+        print_error("NOT_ENOUGH_DATA_FOR_HEADER");
+        return -1;
+    }
+
+    if (data[size - 1] != 0x00) {
+        print_error("NOT_NULL_TERMINATED");
+        return -1;
+    }
+
+    ShaderDumpHeader header{};
+    memcpy(&header, data, sizeof(header));
+
+    ShCompileOptions options{};
+    memcpy(&options, &header.basicCompileOptions,
+           offsetof(ShCompileOptions, metal));
+    memcpy(&options.metal, &header.metalCompileOptions,
+           sizeof(options.metal));
+    memcpy(&options.pls, &header.plsCompileOptions,
+           sizeof(options.pls));
+
+    const uint8_t* shaderData = data + sizeof(header);
+
+    uint32_t type = header.type;
+    uint32_t spec = header.spec;
+
+    if (type != GL_FRAGMENT_SHADER &&
+        type != GL_VERTEX_SHADER) {
+        print_error("INVALID_SHADER_TYPE");
+        return -1;
+    }
+
+    if (spec != SH_GLES2_SPEC &&
+        spec != SH_WEBGL_SPEC &&
+        spec != SH_GLES3_SPEC &&
+        spec != SH_WEBGL2_SPEC) {
+        print_error("INVALID_SHADER_SPEC");
+        return -1;
+    }
+
+    // Force WGSL output
+    ShShaderOutput shaderOutput = SH_WGSL_OUTPUT;
+
+    // Match original fuzzer behavior
+    options.limitExpressionComplexity = true;
+    options.validateAST = false;
+
+    options.addVulkanXfbEmulationSupportCode = false;
+    options.roundOutputAfterDithering = false;
+    options.addAdvancedBlendEquationsEmulation = false;
+    options.ensureLoopForwardProgress = false;
+    options.skipAllValidationAndTransforms = false;
+
+    options.pls.fragmentSyncType =
+        static_cast<ShFragmentSynchronizationType>(
+            static_cast<uint32_t>(options.pls.fragmentSyncType) %
+            static_cast<uint32_t>(ShFragmentSynchronizationType::InvalidEnum));
+
+    if (options.pls.type == ShPixelLocalStorageType::NotSupported)
+        options.pls.type = ShPixelLocalStorageType::ImageLoadStore;
+
+    if (!sh::Initialize()) {
+        print_error("ANGLE_INIT_FAILED");
+        return -1;
+    }
+
+    TranslatorCacheKey key;
+    key.type   = type;
+    key.spec   = spec;
+    key.output = shaderOutput;
+
+    using UniqueTCompiler = std::unique_ptr<TCompiler, TCompilerDeleter>;
+    static angle::base::NoDestructor<
+        angle::HashMap<TranslatorCacheKey, UniqueTCompiler>> translators;
+
+    if (translators->find(key) == translators->end()) {
+
+        UniqueTCompiler translator(
+            ConstructCompiler(type,
+                              static_cast<ShShaderSpec>(spec),
+                              shaderOutput));
+
+        if (!translator) {
+            print_error("CONSTRUCT_COMPILER_FAILED");
+            return -1;
+        }
+
+        ShBuiltInResources resources;
+        sh::InitBuiltInResources(&resources);
+
+        // ---- Enable ALL extensions like original fuzzer ----
+
+        resources.OES_standard_derivatives        = 1;
+        resources.OES_EGL_image_external          = 1;
+        resources.OES_EGL_image_external_essl3    = 1;
+        resources.NV_EGL_stream_consumer_external = 1;
+        resources.ARB_texture_rectangle           = 1;
+        resources.EXT_blend_func_extended         = 1;
+        resources.EXT_conservative_depth          = 1;
+        resources.EXT_draw_buffers                = 1;
+        resources.EXT_frag_depth                  = 1;
+        resources.EXT_shader_texture_lod          = 1;
+        resources.EXT_shader_framebuffer_fetch    = 1;
+        resources.ARM_shader_framebuffer_fetch    = 1;
+        resources.ARM_shader_framebuffer_fetch_depth_stencil = 1;
+        resources.EXT_YUV_target                  = 1;
+        resources.APPLE_clip_distance             = 1;
+        resources.EXT_gpu_shader5                 = 1;
+        resources.EXT_shadow_samplers             = 1;
+        resources.EXT_clip_cull_distance          = 1;
+        resources.ANGLE_clip_cull_distance        = 1;
+        resources.EXT_primitive_bounding_box      = 1;
+        resources.OES_primitive_bounding_box      = 1;
+        resources.ANGLE_shader_pixel_local_storage = 1;
+
+        resources.MaxClipDistances = 8;
+        resources.MaxDrawBuffers = 8;
+        resources.MaxDualSourceDrawBuffers = 1;
+
+        resources.MaxPixelLocalStoragePlanes = 4;
+        resources.MaxCombinedDrawBuffersAndPixelLocalStoragePlanes = 8;
+
+        if (!translator->Init(resources)) {
+            print_error("COMPILER_INIT_FAILED");
+            return -1;
+        }
+
+        (*translators)[key] = std::move(translator);
+    }
+
+    auto& translator = (*translators)[key];
+
+    const char* sources[] = {
+        reinterpret_cast<const char*>(shaderData)
+    };
+
+    TInfoSink& infoSink = translator->getInfoSink();
+
+    if (translator->compile(sources, options) == 0) {
+
+        fprintf(stderr,
+            "ANGLE COMPILE FAILED\n%s\nEND\n",
+            infoSink.info.c_str());
+
+        print_error("GLSL_COMPILE_FAILED");
+        return -1;
+    }
+
+    if (!infoSink.obj.isBinary()) {
+        std::cerr << "===== BEGIN WGSL =====\n";
+        std::cerr << infoSink.obj.c_str() << "\n";
+        std::cerr << "===== END WGSL =====\n";
+    }
+
+    print_valid();
+    return 0;
+}
+```
+
+The statistics before the thing were these here:
+
+```
+==== Statistics ====
+Total files: 8145
+CRASH: 4
+INPUT_SIZE_INVALID: 1
+NO_BEGIN_MARKER: 1759
+TIMEOUT: 12
+TINT_PARSE_FAILED: 3597
+TRANSLATOR_NONZERO_EXIT: 376
+VALID: 2396
+```
+
+## Getting coverage information
+
+Ok, so now I decided to spin up a coverage build of the thing and let's see what happens if we get anything good from it...
+
+## Trying to solve some of th GLSL mutation problems...
+
+I did this script here:
+
+```
+import os
+import random
+import shutil
+
+src_dir = "/path/to/source"
+dst_dir = "/path/to/destination"
+n = 100
+
+# Ensure destination exists
+os.makedirs(dst_dir, exist_ok=True)
+
+# List only regular files
+files = [
+    f for f in os.listdir(src_dir)
+    if os.path.isfile(os.path.join(src_dir, f))
+]
+
+# Sample (will error if fewer than n files)
+selected = random.sample(files, min(n, len(files)))
+
+for filename in selected:
+    shutil.copy2(
+        os.path.join(src_dir, filename),
+        os.path.join(dst_dir, filename)
+    )
+
+print(f"Copied {len(selected)} files.")
+```
+
+and let's see if I can find something with it...
 
 
 
