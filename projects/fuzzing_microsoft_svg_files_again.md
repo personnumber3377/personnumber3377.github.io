@@ -1754,6 +1754,73 @@ I think that maybe calling the AcquireEffectTree method of the newly created svg
 
 I think that just trying to get the snapshot based fuzzer to at least somewhat work first should be a good goal. Let's try to spin up something that actually fuzzes that XML parsing at the very least.
 
+Here is the stuff again:
+
+```
+45 00000009`9b2ff480 00007ffa`f8594fdc     wwlib!MsgPump::WaitForPostedMessage+0x2b9
+46 00000009`9b2ff500 00007ffa`f8d0738b     wwlib!MsgPump::FMainLoop+0x19c
+47 00000009`9b2ff620 00007ff6`b3c21f7e     wwlib!FMain+0x7b
+48 00000009`9b2ff650 00007ff6`b3c21c76     WINWORD!WinMain+0x28e
+49 00000009`9b2ff900 00007ffb`44c97344     WINWORD!_imp_load_?MsoShouldTraceLoggingMsoYA_NKW4Category+0x20b
+4a 00000009`9b2ff940 00007ffb`463026b1     KERNEL32!BaseThreadInitThunk+0x14
+4b 00000009`9b2ff970 00000000`00000000     ntdll!RtlUserThreadStart+0x21
+kd> r
+rax=00000000ffffffff rbx=0000000000000000 rcx=000001378bf03980
+rdx=00000000000189e1 rsi=0000000000000001 rdi=000001378bf03901
+rip=00007ffb1d544ac6 rsp=000000099b2ec5c0 rbp=000000099b2ec6c0
+ r8=000001378bf03980  r9=000000000002232d r10=00007ffb26510000
+r11=00007ffb2652236d r12=00000000000009e1 r13=0000000000001000
+r14=000000099b2ef6d8 r15=0000000000000000
+iopl=0         nv up ei ng nz ac pe cy
+cs=0033  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000297
+msosvg!Mso::SVG::SVGImage::LoadXMLRepresentation+0x3d6:
+0033:00007ffb`1d544ac6 ff15a4161400    call    qword ptr [msosvg!_imp_SysAllocStringLen (00007ffb`1d686170)] ds:002b:00007ffb`1d686170={oleaut32!SysAllocStringLen (00007ffb`46002b50)}
+kd> ds 000001378bf03980
+00640069`00770020  "????????????????????????????????"
+00640069`00770040  "????????????????????????????"
+kd> du 000001378bf03980
+00000137`8bf03980  "<svg width="1000" height="1000" "
+00000137`8bf039c0  "xmlns="http://www.w3.org/2000/sv"
+00000137`8bf03a00  "g" xmlns:xlink="http://www.w3.or"
+00000137`8bf03a40  "g/1999/xlink" overflow="hidden">"
+00000137`8bf03a80  "<rect x="535" y="902" width="21""
+00000137`8bf03ac0  " height="198" fill="#61631C"/><r"
+00000137`8bf03b00  "ect x="882" y="181" width="61" h"
+00000137`8bf03b40  "eight="96" fill="#2FE681"/><rect"
+00000137`8bf03b80  " x="854" y="611" width="112" hei"
+00000137`8bf03bc0  "ght="123" fill="#F678E7"/><rect "
+00000137`8bf03c00  "x="895" y="312" width="84" heigh"
+00000137`8bf03c40  "t="39" fill="#8F0671"/><rect x=""
+kd> du rcx + rdx - 5
+00000137`8bf1c35c  ""/><rect x="432" y="243" width=""
+00000137`8bf1c39c  "30" height="155" fill="#9ABA58"/"
+00000137`8bf1c3dc  "><rect x="614" y="388" width="40"
+00000137`8bf1c41c  "" height="59" fill="#A025FE"/><r"
+00000137`8bf1c45c  "ect x="718" y="831" width="11" h"
+00000137`8bf1c49c  "eight="135" fill="#64E605"/><rec"
+00000137`8bf1c4dc  "t x="194" y="210" width="57" hei"
+00000137`8bf1c51c  "ght="187" fill="#89484C"/><rect "
+00000137`8bf1c55c  "x="530" y="708" width="23" heigh"
+00000137`8bf1c59c  "t="116" fill="#53B311"/><rect x="
+00000137`8bf1c5dc  ""226" y="373" width="139" height"
+00000137`8bf1c61c  "="120" fill="#F0036F"/><rect x=""
+kd> du rcx + rdx * 2 - 5
+00000137`8bf34d3d  "最㸀"
+kd> du rcx + rdx * 2 - 50
+00000137`8bf34cf2  ""50" height="142" fill="#6A84F5""
+00000137`8bf34d32  "/></svg>"
+```
+
+
+
+
+
+
+
+
+
+
+
 
 
 
