@@ -1,0 +1,79 @@
+*******************************************************************************
+nt!DbgBreakPointWithStatus:
+fffff801`38006f80 cc              int     3
+kd> u msosvg!Mso::SVG::SVGImage::AcquireEffectTree
+Couldn't resolve error at 'msosvg!Mso::SVG::SVGImage::AcquireEffectTree'
+kd> .reload
+Connected to Windows 10 19041 x64 target at (Mon May  4 05:41:49.824 2026 (UTC + 3:00)), ptr64 TRUE
+Loading Kernel Symbols
+...............................................................
+................................................................
+...........................................................
+Loading User Symbols
+................................................................
+................................................................
+...............................................
+Loading unloaded module list
+....................................
+kd> u msosvg!Mso::SVG::SVGImage::AcquireEffectTree
+msosvg!Mso::SVG::SVGImage::AcquireEffectTree:
+00007ff8`c53b5080 488bc4          mov     rax,rsp
+00007ff8`c53b5083 48895808        mov     qword ptr [rax+8],rbx
+00007ff8`c53b5087 48897018        mov     qword ptr [rax+18h],rsi
+00007ff8`c53b508b 48897820        mov     qword ptr [rax+20h],rdi
+00007ff8`c53b508f 48895010        mov     qword ptr [rax+10h],rdx
+00007ff8`c53b5093 55              push    rbp
+00007ff8`c53b5094 4156            push    r14
+00007ff8`c53b5096 4157            push    r15
+kd> bu msosvg!Mso::SVG::SVGImage::AcquireEffectTree
+kd> bu msosvg!Mso::SVG::SVGImage::LoadXMLRepresentation
+kd> g
+Breakpoint 1 hit
+msosvg!Mso::SVG::SVGImage::LoadXMLRepresentation:
+0033:00007ff8`c53b46f0 48895c2418      mov     qword ptr [rsp+18h],rbx
+kd> bu msosvg!Mso::SVG::SVGImage::LoadXMLRepresentation+0x3d6
+kd> g
+Breakpoint 2 hit
+msosvg!Mso::SVG::SVGImage::LoadXMLRepresentation+0x3d6:
+0033:00007ff8`c53b4ac6 ff15a4161400    call    qword ptr [msosvg!_imp_SysAllocStringLen (00007ff8`c54f6170)]
+kd> x msosvg!*viewBox*
+00007ff8`c5547240 msosvg!`svgpp::detail::parse_viewBox<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,double>'::`2'::comma_wsp = <no type information>
+00007ff8`c53c8c90 msosvg!svgpp::detail::parse_viewBox<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,double> (bool __cdecl svgpp::detail::parse_viewBox<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > >,double>(class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > &,class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > >,double &,double &,double &,double &))
+00007ff8`c5547234 msosvg!`svgpp::detail::parse_viewBox<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,double>'::`2'::number = <no type information>
+00007ff8`c53b5d50 msosvg!Mso::SVG::SVGImage::GetViewboxSize (public: virtual struct Math::TSize<class Math::TUnits<unsigned int,struct Math::DevicePixels> > __cdecl Mso::SVG::SVGImage::GetViewboxSize(void)const )
+00007ff8`c53c2bb0 msosvg!Mso::SVG::Environment::GetViewboxSize (public: void __cdecl Mso::SVG::Environment::GetViewboxSize(struct Math::TSize<class Math::TUnits<unsigned int,struct Math::DevicePixels> > &)const )
+00007ff8`c54b11a4 msosvg!Mso::SVG::PatternContext::GetViewbox (public: class std::optional<struct Mso::SVG::Viewbox> const & __cdecl Mso::SVG::PatternContext::GetViewbox(void)const )
+00007ff8`c5547238 msosvg!`svgpp::detail::parse_viewBox<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,double>'::`2'::$TSS1 = <no type information>
+00007ff8`c54e9658 msosvg!Mso::SVG::ViewboxAdapter::CalculateViewboxTransform (public: void __cdecl Mso::SVG::ViewboxAdapter::CalculateViewboxTransform(double,double,struct Math::TAffine3x3<double> &)const )
+00007ff8`c5547230 msosvg!`svgpp::detail::parse_viewBox<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,double>'::`2'::$TSS0 = <no type information>
+kd> u 00007ff8`c53c8c90
+msosvg!svgpp::detail::parse_viewBox<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,double>:
+00007ff8`c53c8c90 48895c2408      mov     qword ptr [rsp+8],rbx
+00007ff8`c53c8c95 55              push    rbp
+00007ff8`c53c8c96 56              push    rsi
+00007ff8`c53c8c97 57              push    rdi
+00007ff8`c53c8c98 4154            push    r12
+00007ff8`c53c8c9a 4155            push    r13
+00007ff8`c53c8c9c 4156            push    r14
+00007ff8`c53c8c9e 4157            push    r15
+kd> x msosvg!*comma_wsp*
+00007ff8`c5547240 msosvg!`svgpp::detail::parse_viewBox<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,double>'::`2'::comma_wsp = <no type information>
+00007ff8`c546fd20 msosvg!svgpp::detail::finite_function_iterator<svgpp::detail::parse_list_iterator<std::pair<double,double>,std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,svgpp::coordinate_pair_grammar<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,double>,svgpp::detail::comma_wsp_rule_no_skip<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > >,boost::proto::exprns_::expr<boost::proto::tagns_::tag::terminal,boost::proto::argsns_::term<boost::spirit::tag::char_code<boost::spirit::tag::space,boost::spirit::char_encoding::ascii> >,0> > >::increment (public: void __cdecl svgpp::detail::finite_function_iterator<class svgpp::detail::parse_list_iterator<struct std::pair<double,double>,class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > >,class svgpp::coordinate_pair_grammar<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > >,double>,struct svgpp::detail::comma_wsp_rule_no_skip<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > >,struct boost::proto::exprns_::expr<struct boost::proto::tagns_::tag::terminal,struct boost::proto::argsns_::term<struct boost::spirit::tag::char_code<struct boost::spirit::tag::space,struct boost::spirit::char_encoding::ascii> >,0> > >::increment(void))
+00007ff8`c543c91c msosvg!svgpp::detail::finite_function_iterator<svgpp::detail::parse_list_iterator<Mso::SVG::Length,std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,boost::spirit::qi::rule<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,Mso::SVG::Length __cdecl(void),boost::spirit::unused_type,boost::spirit::unused_type,boost::spirit::unused_type>,svgpp::detail::comma_wsp_rule_no_skip<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > >,boost::spirit::unused_type> >::increment (public: void __cdecl svgpp::detail::finite_function_iterator<class svgpp::detail::parse_list_iterator<struct Mso::SVG::Length,class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > >,struct boost::spirit::qi::rule<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > >,struct Mso::SVG::Length __cdecl(void),struct boost::spirit::unused_type,struct boost::spirit::unused_type,struct boost::spirit::unused_type>,struct svgpp::detail::comma_wsp_rule_no_skip<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > >,struct boost::spirit::unused_type> >::increment(void))
+00007ff8`c53d01a8 msosvg!svgpp::detail::comma_wsp_rule_no_skip<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > >::comma_wsp_rule_no_skip<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > > (public: __cdecl svgpp::detail::comma_wsp_rule_no_skip<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > >::comma_wsp_rule_no_skip<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > >(void))
+00007ff8`c53cc078 msosvg!svgpp::detail::comma_wsp_rule_no_skip<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > >::~comma_wsp_rule_no_skip<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > > (public: __cdecl svgpp::detail::comma_wsp_rule_no_skip<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > >::~comma_wsp_rule_no_skip<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > >(void))
+00007ff8`c54a2b24 msosvg!svgpp::detail::finite_function_iterator<svgpp::detail::parse_list_iterator<double,std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,boost::spirit::qi::real_parser<double,svgpp::detail::number_policies<double,svgpp::tag::source::attribute> >,svgpp::detail::comma_wsp_rule_no_skip<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > >,boost::spirit::unused_type> >::increment (public: void __cdecl svgpp::detail::finite_function_iterator<class svgpp::detail::parse_list_iterator<double,class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > >,struct boost::spirit::qi::real_parser<double,struct svgpp::detail::number_policies<double,struct svgpp::tag::source::attribute> >,struct svgpp::detail::comma_wsp_rule_no_skip<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > >,struct boost::spirit::unused_type> >::increment(void))
+00007ff8`c542dfb0 msosvg!Mso::SVG::StylableContext::set<boost::iterator_range<svgpp::detail::finite_function_iterator<svgpp::detail::parse_list_iterator<Mso::SVG::Length,std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,boost::spirit::qi::rule<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > >,Mso::SVG::Length __cdecl(void),boost::spirit::unused_type,boost::spirit::unused_type,boost::spirit::unused_type>,svgpp::detail::comma_wsp_rule_no_skip<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > >,boost::spirit::unused_type> > > > (public: void __cdecl Mso::SVG::StylableContext::set<class boost::iterator_range<class svgpp::detail::finite_function_iterator<class svgpp::detail::parse_list_iterator<struct Mso::SVG::Length,class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > >,struct boost::spirit::qi::rule<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > >,struct Mso::SVG::Length __cdecl(void),struct boost::spirit::unused_type,struct boost::spirit::unused_type,struct boost::spirit::unused_type>,struct svgpp::detail::comma_wsp_rule_no_skip<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > >,struct boost::spirit::unused_type> > > >(struct svgpp::tag::attribute::stroke_dasharray,class boost::iterator_range<class svgpp::detail::finite_function_iterator<class svgpp::detail::parse_list_iterator<struct Mso::SVG::Length,class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > >,struct boost::spirit::qi::rule<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > >,struct Mso::SVG::Length __cdecl(void),struct boost::spirit::unused_type,struct boost::spirit::unused_type,struct boost::spirit::unused_type>,struct svgpp::detail::comma_wsp_rule_no_skip<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > >,struct boost::spirit::unused_type> > > const &))
+00007ff8`c53cc078 msosvg!svgpp::detail::comma_wsp_rule<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > >::~comma_wsp_rule<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > > (public: __cdecl svgpp::detail::comma_wsp_rule<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > >::~comma_wsp_rule<class std::_String_const_iterator<class std::_String_val<struct std::_Simple_types<wchar_t> > > >(void))
+kd> u 00007ff8`c53d01a8
+msosvg!svgpp::detail::comma_wsp_rule_no_skip<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > >::comma_wsp_rule_no_skip<std::_String_const_iterator<std::_String_val<std::_Simple_types<wchar_t> > > >:
+00007ff8`c53d01a8 48895c2410      mov     qword ptr [rsp+10h],rbx
+00007ff8`c53d01ad 48897c2418      mov     qword ptr [rsp+18h],rdi
+00007ff8`c53d01b2 55              push    rbp
+00007ff8`c53d01b3 488d6c24a9      lea     rbp,[rsp-57h]
+00007ff8`c53d01b8 4881ecb0000000  sub     rsp,0B0h
+00007ff8`c53d01bf 488b057a1e1600  mov     rax,qword ptr [msosvg!_security_cookie (00007ff8`c5532040)]
+00007ff8`c53d01c6 4833c4          xor     rax,rsp
+00007ff8`c53d01c9 4889454f        mov     qword ptr [rbp+4Fh],rax
+kd> .load C:\Users\elsku\snapshot\snapshot.dll
+
