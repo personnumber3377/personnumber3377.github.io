@@ -1811,6 +1811,1044 @@ kd> du rcx + rdx * 2 - 50
 00000137`8bf34d32  "/></svg>"
 ```
 
+Ok, so now it has been a few days since I last wrote to this blog. First of all, I had some issues using the newest version of windbg since it produced a newer kernel dump of type "0x0a" instead of the one that I wanted. That sucks, but thankfully I worked through that. The next bug was that my harness actually immediately hit the kernel page fault handler upon execution. This was because some kernel memory maps were disabled and stuff like that, so I had to run the `disable-kva.cmd` script in the wtf scripts directory. This made it actually work. Here is my current vibecoded harness:
+
+```
+// Axel '0vercl0k' Souchet - February 25 2020
+#include "CLI/CLI.hpp"
+#include "backend.h"
+#include "bochscpu_backend.h"
+#include "kvm_backend.h"
+#include "platform.h"
+#include "subcommands.h"
+#include "utils.h"
+#include "whv_backend.h"
+#include <filesystem>
+#include <fmt/format.h>
+#include <random>
+
+namespace fs = std::filesystem;
+
+int main(int argc, const char *argv[]) {
+  //
+  // Set up the arguments.
+  //
+
+  Options_t Opts;
+
+  CLI::App Wtf("what the fuzz: a distributed, code-coverage guided, "
+               "customizable,\ncross-platform snapshot-based fuzzer by Axel "
+               "'0vercl0k' Souchet.\n");
+
+  Wtf.require_subcommand(1);
+  Wtf.allow_windows_style_options();
+  Wtf.set_help_all_flag("--help-all", "Expand all help");
+
+  Wtf.add_option("-v,--verbose", Opts.Verbose, "Turn on verbose mode");
+
+  CLI::App *MasterCmd =
+      Wtf.add_subcommand("master", "Master options")->callback([&Opts] {
+        //
+        // Use the CWD if the target path hasn't been specified.
+        //
+
+        if (Opts.Master.TargetPath.empty()) {
+          Opts.Master.TargetPath = fs::current_path();
+        }
+
+        //
+        // Populate other paths based on the base target path.. unless the user
+        // has overriden them.
+        //
+
+        if (Opts.Master.InputsPath.empty()) {
+          Opts.Master.InputsPath = Opts.Master.TargetPath / "inputs";
+        }
+
+        if (Opts.Master.OutputsPath.empty()) {
+          Opts.Master.OutputsPath = Opts.Master.TargetPath / "outputs";
+        }
+
+        if (Opts.Master.CrashesPath.empty()) {
+          Opts.Master.CrashesPath = Opts.Master.TargetPath / "crashes";
+        }
+
+        if (!fs::exists(Opts.Master.InputsPath) ||
+            !fs::exists(Opts.Master.OutputsPath) ||
+            !fs::exists(Opts.Master.CrashesPath)) {
+          throw CLI::ParseError(
+              fmt::format("Expected to find inputs/outputs/crashes directories "
+                          "in '{}'.",
+                          Opts.Master.TargetPath.string()),
+              EXIT_FAILURE);
+        }
+
+        if (Opts.Master.Seed == 0) {
+          std::random_device R;
+          Opts.Master.Seed = (uint64_t(R()) << 32) | R();
+        }
+      });
+
+  MasterCmd
+      ->add_option("--address", Opts.Master.Address,
+                   "Which address to listen in")
+      ->default_val("tcp://localhost:31337");
+
+  MasterCmd->add_option("--runs", Opts.Master.Runs, "Runs")
+      ->description("Number of mutations done.")
+      ->default_val(std::numeric_limits<decltype(Opts.Master.Runs)>::max());
+
+  MasterCmd
+      ->add_option("--max_len", Opts.Master.TestcaseBufferMaxSize,
+                   "Testcase size")
+      ->description("Maximum size of a generated testcase.")
+      ->required();
+
+  MasterCmd->add_option("--name", Opts.TargetName, "Target name")
+      ->description("Name of the target fuzzer.")
+      ->required();
+
+  MasterCmd->add_option("--target", Opts.Master.TargetPath, "Target path")
+      ->description("Target directory");
+
+  MasterCmd->add_option("--inputs", Opts.Master.InputsPath, "Inputs")
+      ->description("Input corpus");
+
+  MasterCmd->add_option("--outputs", Opts.Master.OutputsPath, "Outputs")
+      ->description("Outputs path");
+
+  MasterCmd->add_option("--crashes", Opts.Master.CrashesPath, "Crashes")
+      ->description("Crashes path");
+
+  MasterCmd
+      ->add_option("--seed", Opts.Master.Seed, "Specify a seed for the RNG")
+      ->description("Override the seed used to initialize RNG.");
+
+  CLI::App *RunCmd =
+      Wtf.add_subcommand("run", "Run and trace options")->callback([&Opts] {
+        //
+        // If the state path is empty and a 'state' folder is available, let's
+        // use it.
+        //
+
+        if (Opts.StatePath.empty() && fs::is_directory("state")) {
+          fmt::print("Found a 'state' folder in the cwd, so using it.\n");
+          Opts.StatePath = "state";
+        }
+
+        //
+        // Populate other paths based on the base state path.
+        //
+
+        Opts.DumpPath = Opts.StatePath / "mem.dmp";
+        Opts.CpuStatePath = Opts.StatePath / "regs.json";
+        Opts.SymbolFilePath = Opts.StatePath / "symbol-store.json";
+
+        if (Opts.GuestFilesPath.empty()) {
+          Opts.GuestFilesPath = Opts.StatePath.parent_path() / "guest-files";
+        }
+
+        if (Opts.CoveragePath.empty()) {
+          Opts.CoveragePath = Opts.StatePath.parent_path() / "coverage";
+        }
+
+        //
+        // If a trace path was specified but no trace type, then defaults it to
+        //   - 'rip' for the bxcpu backend
+        //   - 'uniquerip' for the other ones
+        //
+
+        if (!Opts.Run.BaseTracePath.empty() &&
+            Opts.Run.TraceType == TraceType_t::NoTrace) {
+
+          switch (Opts.Backend) {
+          case BackendType_t::Bochscpu: {
+            Opts.Run.TraceType = TraceType_t::Rip;
+            break;
+          }
+
+          case BackendType_t::Whv:
+          case BackendType_t::Kvm: {
+            Opts.Run.TraceType = TraceType_t::UniqueRip;
+            break;
+          }
+          }
+        }
+
+        //
+        // If a trace type was specified but no path, then defaults it
+        // to the cwd.
+        //
+
+        if (Opts.Run.TraceType != TraceType_t::NoTrace &&
+            Opts.Run.BaseTracePath.empty()) {
+          Opts.Run.BaseTracePath = fs::current_path();
+        }
+
+        //
+        // Ensure that they exist just as a quick check.
+        //
+
+        if (!fs::exists(Opts.DumpPath) || !fs::exists(Opts.CpuStatePath)) {
+          throw CLI::ParseError(fmt::format("Expected to find state/mem.dmp, "
+                                            "state/regs.json files in '{}'.",
+                                            Opts.StatePath.string()),
+                                EXIT_FAILURE);
+        }
+
+        //
+        // Ensure that if the 'edge' mode is turned on, bxcpu is used as the
+        // backend.
+        //
+
+        if (Opts.Edges && Opts.Backend != BackendType_t::Bochscpu) {
+          throw CLI::ParseError(
+              "Edge coverage is only available with the bxcpu backend.",
+              EXIT_FAILURE);
+        }
+
+#ifdef LINUX
+        if (!fs::exists(Opts.SymbolFilePath)) {
+          throw CLI::ParseError(
+              fmt::format("Expected to find a state/symbol-store.json file in "
+                          "'{}'. You need to generate it from Windows.",
+                          Opts.Fuzz.TargetPath.string()),
+              EXIT_FAILURE);
+        }
+#endif
+      });
+
+  CLI::Option_group *TraceOpt = RunCmd->add_option_group(
+      "trace", "Describe the type of trace and where to store it");
+
+  TraceOpt
+      ->add_option("--trace-path", Opts.Run.BaseTracePath,
+                   "Base folder where to output traces")
+      ->check(CLI::ExistingDirectory);
+
+  const std::unordered_map<std::string, TraceType_t> TraceTypeMap = {
+      {"rip", TraceType_t::Rip},
+      {"cov", TraceType_t::UniqueRip},
+      {"tenet", TraceType_t::Tenet}};
+
+  TraceOpt->add_option("--trace-type", Opts.Run.TraceType, "Trace type")
+      ->transform(CLI::CheckedTransformer(TraceTypeMap, CLI::ignore_case))
+      ->description("Type of trace to generate.");
+
+  TraceOpt->require_option(0, 2);
+
+  const std::unordered_map<std::string, BackendType_t> BackendTypeMap = {
+      {"bochscpu", BackendType_t::Bochscpu},
+      {"bxcpu", BackendType_t::Bochscpu},
+#ifdef WINDOWS
+      //
+      // We disable whv on Linux for obvious reasons.
+      //
+
+      {"whv", BackendType_t::Whv}
+#endif
+#ifdef LINUX
+      //
+      // KVM supports is only available on Linux.
+      //
+
+      {"kvm", BackendType_t::Kvm}
+#endif
+  };
+
+  RunCmd->add_option("--name", Opts.TargetName, "Target name")
+      ->description("Name of the target fuzzer.")
+      ->required();
+
+  RunCmd->add_option("--backend", Opts.Backend, "Execution backend")
+      ->transform(CLI::CheckedTransformer(BackendTypeMap, CLI::ignore_case))
+      ->description("Execution backend.");
+
+  RunCmd->add_option("--state", Opts.StatePath, "State directory")
+      ->check(CLI::ExistingDirectory)
+      ->description("State directory which contains memory and cpu state.");
+
+  RunCmd
+      ->add_option("--guest-files", Opts.GuestFilesPath,
+                   "Guest files directory")
+      ->check(CLI::ExistingDirectory)
+      ->description("Directory where all the guest files are stored in.");
+
+  RunCmd->add_option("--input", Opts.Run.InputPath, "Input file / folder")
+      ->check(CLI::ExistingFile | CLI::ExistingDirectory)
+      ->description("Input file or input folders to run.")
+      ->required();
+
+  RunCmd->add_option("--limit", Opts.Limit, "Limit")
+      ->description("Limit per testcase (instruction count for bochscpu, time "
+                    "in second for whv).");
+
+  RunCmd->add_option("--coverage", Opts.CoveragePath, "Coverage files")
+      ->check(CLI::ExistingDirectory)
+      ->description("Directory where all the coverage files are stored in.");
+
+  RunCmd->add_flag("--edges", Opts.Edges, "Edge coverage")
+      ->default_val(false)
+      ->description("Turn on edge coverage (bxcpu only).");
+
+  RunCmd->add_option("--runs", Opts.Run.Runs, "Runs")
+      ->description("Number of mutations done.")
+      ->default_val(1);
+
+  CLI::App *FuzzCmd =
+      Wtf.add_subcommand("fuzz", "Fuzzing options")->callback([&Opts] {
+        //
+        // Use the CWD if the target path hasn't been specified.
+        //
+
+        if (Opts.Fuzz.TargetPath.empty()) {
+          Opts.Fuzz.TargetPath = fs::current_path();
+        }
+
+        //
+        // Populate other paths based on the base target path.. unless the
+        // user has overriden them. One use-case for this for example, is to
+        // be able to launch two instances fuzzing the same target but using
+        // two different dumps; let's say one with PageHeap and one without.
+        // One can override every option to customize which paths to use.
+        //
+
+        if (Opts.GuestFilesPath.empty()) {
+          Opts.GuestFilesPath = Opts.Fuzz.TargetPath / "guest-files";
+        }
+
+        if (Opts.StatePath.empty()) {
+          Opts.StatePath = Opts.Fuzz.TargetPath / "state";
+        }
+
+        if (Opts.CoveragePath.empty()) {
+          Opts.CoveragePath = Opts.Fuzz.TargetPath / "coverage";
+        }
+
+        Opts.DumpPath = Opts.StatePath / "mem.dmp";
+        Opts.CpuStatePath = Opts.StatePath / "regs.json";
+        Opts.SymbolFilePath = Opts.StatePath / "symbol-store.json";
+
+        //
+        // Ensure that they exist just as a quick check.
+        //
+
+        if (!fs::exists(Opts.DumpPath) || !fs::exists(Opts.CpuStatePath)) {
+          throw CLI::ParseError(
+              fmt::format(
+                  "Expected to find mem.dmp/regs.json files in '{}/state', "
+                  "inputs/outputs/crashes directories in '{}'.",
+                  Opts.Fuzz.TargetPath.string(), Opts.Fuzz.TargetPath.string()),
+              EXIT_FAILURE);
+        }
+
+        //
+        // Ensure that if the 'edge' mode is turned on, bxcpu is used as the
+        // backend.
+        //
+
+        if (Opts.Edges && Opts.Backend != BackendType_t::Bochscpu) {
+          throw CLI::ParseError(
+              "Edge coverage is only available with the bxcpu backend.",
+              EXIT_FAILURE);
+        }
+
+        if (Opts.Fuzz.Seed == 0) {
+          std::random_device R;
+          Opts.Fuzz.Seed = (uint64_t(R()) << 32) | R();
+        }
+
+#ifdef LINUX
+        if (!fs::exists(Opts.SymbolFilePath)) {
+          throw CLI::ParseError(
+              fmt::format("Expected to find a state/symbol-store.json file in "
+                          "'{}'; you need to generate it from Windows.",
+                          Opts.Fuzz.TargetPath.string()),
+              EXIT_FAILURE);
+        }
+#endif
+      });
+
+  FuzzCmd->add_option("--backend", Opts.Backend, "Execution backend")
+      ->transform(CLI::CheckedTransformer(BackendTypeMap, CLI::ignore_case))
+      ->description("Execution backend.");
+
+  FuzzCmd->add_flag("--edges", Opts.Edges, "Edge coverage")
+      ->default_val(false)
+      ->description("Turn on edge coverage (bxcpu only).");
+
+  FuzzCmd->add_option("--name", Opts.TargetName, "Target name")
+      ->description("Name of the target fuzzer.")
+      ->required();
+
+  FuzzCmd->add_option("--target", Opts.Fuzz.TargetPath, "Target directory")
+      ->description("Target directory which contains state/ inputs/ "
+                    "outputs/ folders.");
+
+  FuzzCmd->add_option("--limit", Opts.Limit, "Limit")
+      ->description("Limit per testcase (instruction count for bochscpu, time "
+                    "in second for whv).");
+
+  FuzzCmd->add_option("--state", Opts.StatePath, "State directory")
+      ->check(CLI::ExistingDirectory)
+      ->description("State directory which contains memory and cpu state.");
+
+  FuzzCmd
+      ->add_option("--guest-files", Opts.GuestFilesPath,
+                   "Guest files directory")
+      ->check(CLI::ExistingDirectory)
+      ->description("Directory where all the guest files are stored in.");
+
+  FuzzCmd->add_option("--seed", Opts.Fuzz.Seed, "Specify a seed for the RNGs")
+      ->description("Override the seed used to initialize RNGs.");
+
+  FuzzCmd
+      ->add_option("--address", Opts.Fuzz.Address,
+                   "Specify what address to connect to the master node")
+      ->default_val("tcp://localhost:31337/")
+      ->description("Connect to the master node.");
+
+  CLI11_PARSE(Wtf, argc, argv);
+
+  //
+  // Check if the user has the right target before doing any heavy lifting.
+  //
+
+  Targets_t &Targets = Targets_t::Instance();
+  const Target_t *Target = Targets.Get(Opts.TargetName);
+  if (Target == nullptr) {
+    Targets.DisplayRegisteredTargets();
+    return EXIT_FAILURE;
+  }
+
+  //
+  // If we are in master mode, no need to initialize the heavy machinery.
+  //
+
+  if (Wtf.got_subcommand("master")) {
+    return MasterSubcommand(Opts, *Target);
+  }
+
+  //
+  // Populate the state from the file.
+  //
+
+  CpuState_t CpuState;
+  if (!LoadCpuStateFromJSON(CpuState, Opts.CpuStatePath)) {
+    fmt::print("LoadCpuStateFromJSON failed, no take off today.\n");
+    return EXIT_FAILURE;
+  }
+
+  switch (Opts.Backend) {
+#ifdef WINDOWS
+  case BackendType_t::Whv: {
+    g_Backend = new WhvBackend_t();
+    break;
+  }
+#endif
+
+#ifdef LINUX
+  case BackendType_t::Kvm: {
+    g_Backend = new KvmBackend_t();
+    break;
+  }
+#endif
+
+  case BackendType_t::Bochscpu: {
+    g_Backend = new BochscpuBackend_t();
+    break;
+  }
+
+  default: {
+    return EXIT_FAILURE;
+  }
+  }
+
+  //
+  // If the target name starts with 'linux', then assume that we won't be
+  // able to have WinDbg operate on the dump file, so let's swap the
+  // debugger instance.
+  //
+
+#ifdef WINDOWS
+  if (Opts.TargetName.starts_with("linux_")) {
+    fmt::print("Target name starts with 'linux_' so turning off the Windows "
+               "debugger..\n");
+    g_Dbg = &g_NoDbg;
+  }
+#endif
+
+  //
+  // Initialize the debugger instance.
+  //
+
+  if (!g_Dbg->Init(Opts.DumpPath, Opts.SymbolFilePath)) {
+    return EXIT_FAILURE;
+  }
+
+  //
+  // Set an instruction limit to avoid infinite loops, etc.
+  //
+
+  if (Opts.Limit != 0) {
+    g_Backend->SetLimit(Opts.Limit);
+  }
+
+  //
+  // Initialize the backend with a state. This ensures the backend is ready
+  // to service memory / register access, etc.
+  //
+  // Because SanitizeCpuState needs to read virtual memory, the backend has
+  // to start from somewhere. We first flush the state as is and this should
+  // be enough to have SanitizeCpuState do its job.
+  //
+
+  if (!g_Backend->Initialize(Opts, CpuState)) {
+    fmt::print("Backend failed initialization.\n");
+    return EXIT_FAILURE;
+  }
+
+  //
+  // Sanitize the state before running.
+  //
+
+  fmt::print("Before sanitize RIP={:#x} RFLAGS={:#x} CR3={:#x}\n",
+           CpuState.Rip, CpuState.Rflags, CpuState.Cr3);
+
+  if (!SanitizeCpuState(CpuState)) {
+    fmt::print("SanitizeCpuState failed, no take off today.\n");
+    return EXIT_FAILURE;
+  }
+
+  // CpuState.Rflags &= ~0x200ULL; // clear IF
+
+  fmt::print("After sanitize RIP={:#x} RFLAGS={:#x} CR3={:#x}\n",
+           CpuState.Rip, CpuState.Rflags, CpuState.Cr3);
+
+  //
+  // Turn on single step before we load any state in the backend as single
+  // stepping might require to take over a few registers.
+  //
+
+  if (Wtf.got_subcommand("run") && Opts.Run.TraceType == TraceType_t::Rip) {
+    if (!g_Backend->EnableSingleStep(CpuState)) {
+      return EXIT_FAILURE;
+    }
+  }
+
+  //
+  // We now have the real starting state we want to start with, so we make
+  // sure it gets set in the backend and to do that we call the Restore
+  // function. This ensures we start from a clean state.
+  //
+
+  if (!g_Backend->Restore(CpuState)) {
+    fmt::print("Backend failed to restore.\n");
+    return EXIT_FAILURE;
+  }
+
+  //
+  // Now invoke the fuzz command if this is what we want.
+  //
+
+  if (Wtf.got_subcommand("fuzz")) {
+    return FuzzSubcommand(Opts, *Target, CpuState);
+  }
+
+  //
+  // Or the run command.
+  //
+
+  if (Wtf.got_subcommand("run")) {
+    return RunSubcommand(Opts, *Target, CpuState);
+  }
+
+  return EXIT_FAILURE;
+}
+
+```
+
+It basically fuzzes the SVG initialization function, but it doesn't fuzz the interesting `AcquireEffectTree` function which has all of the interesting bugs in it.
+
+## Making it fuzz AcquireEffectTree
+
+Now, the plan here is to essentially add a manual jump in our harness or some code that constructs the stack in such a way that we can call the `AcquireEffectTree` function right after the SVG image creation function.
+
+See, the first argument to the AcquireEffectTree function is actually the SVGImage object itself:
+
+```
+
+SVGImage * __thiscall
+Mso::SVG::SVGImage::SVGImage
+          (SVGImage *this,IConstructionEnvironment *param_1,ISVGShape *param_2,Rect *param_3,
+          SVGCreationParams *param_4)
+
+{
+  undefined8 uVar1;
+  Environment *this_00;
+
+  *(undefined4 *)(this + 8) = 0;
+  *(undefined ***)this = &??_7SVGImage@SVG@Mso@@6B?$TRefCountedImpl@UISVGImage@SVG@Mso@@@2@@;
+  *(undefined ***)(this + 0x10) = &??_7SVGImage@SVG@Mso@@6BIResourceState@Cache@@@;
+  *(undefined ***)(this + 0x18) = &??_7SVGImage@SVG@Mso@@6BICacheResourceStateProvider@@@;
+  *(undefined8 *)(this + 0x20) = 0;
+  *(undefined4 *)(this + 0x28) = 0;
+  *(undefined8 *)(this + 0x30) = 0;
+  *(undefined8 *)(this + 0x38) = 0;
+  *(undefined8 *)(this + 0x40) = 0;
+  *(undefined8 *)(this + 0x48) = 0;
+  *(undefined8 *)(this + 0x50) = 0;
+  *(undefined8 *)(this + 0x58) = 0;
+  *(undefined8 *)(this + 0x60) = 0;
+  *(undefined8 *)(this + 0x68) = 0;
+  *(undefined8 *)(this + 0x70) = 0;
+  *(undefined8 *)(this + 0x78) = 0;
+  _Mtx_init_in_situ(this + 0x30,0x102);
+  *(undefined8 *)(this + 0x80) = 0;
+  this[0x88] = (SVGImage)0x0;
+  *(undefined8 *)(this + 0x90) = 0;
+  *(undefined2 *)(this + 0x98) = 0;
+  uVar1 = *(undefined8 *)(param_1 + 0x10);
+  *(undefined8 *)(param_1 + 0x10) = 0;
+  this_00 = *(Environment **)(this + 0x80);
+  *(undefined8 *)(this + 0x80) = uVar1;
+  if (this_00 != (Environment *)0x0) {
+    Environment::~Environment(this_00);
+    Ordinal_53248(this_00);
+  }
+  Environment::Init(*(Environment **)(this + 0x80),param_2,param_3,param_4);
+  return this;
+}
+```
+
+and the acquire effect tree function looks like this here:
+
+```
+TAffine3x3<double> * __thiscall
+Mso::SVG::SVGImage::AcquireEffectTree
+          (SVGImage *this,TAffine3x3<double> *param_1,IColorResolver *param_2)
+
+{
+  longlong *plVar1;
+  code *pcVar2;
+  undefined8 uVar3;
+  longlong lVar4;
+  char cVar5;
+  TAffine3x3<double> *pTVar6;
+  EnvironmentRenderer *this_00;
+  longlong *local_70;
+  EnvironmentRenderer *local_68;
+  EnvironmentRenderer *local_60;
+  undefined8 local_58;
+  undefined8 uStack_50;
+  undefined8 local_48;
+  undefined8 uStack_40;
+  undefined8 local_38;
+  undefined8 uStack_30;
+  undefined8 local_28;
+  undefined8 uStack_20;
+
+  local_68 = (EnvironmentRenderer *)Ordinal_52497(0x50);
+  if (local_68 == (EnvironmentRenderer *)0x0) {
+    Ordinal_59938();
+    pcVar2 = (code *)swi(3);
+    pTVar6 = (TAffine3x3<double> *)(*pcVar2)();
+    return pTVar6;
+  }
+  this_00 = (EnvironmentRenderer *)
+            EnvironmentRenderer::EnvironmentRenderer(local_68,*(Environment **)(this + 0x80));
+  local_60 = this_00;
+  ?Create@ITopLevelEffect@GEL@@SA?AV?$TCntPtr@UITopLevelEffect@GEL@@@Ofc@@W4RenderingPolicy@Gfx@@@Z
+            (param_1,1);
+  if ((this_00 != (EnvironmentRenderer *)0x0) &&
+     (cVar5 = (**(code **)(*(longlong *)this + 0x38))(this), cVar5 == '\0')) {
+    uVar3 = *(undefined8 *)(param_2 + 8);
+    *(undefined8 *)(this_00 + 0x10) = *(undefined8 *)param_2;
+    *(undefined8 *)(this_00 + 0x18) = uVar3;
+    uVar3 = *(undefined8 *)(param_2 + 0x18);
+    *(undefined8 *)(this_00 + 0x20) = *(undefined8 *)(param_2 + 0x10);
+    *(undefined8 *)(this_00 + 0x28) = uVar3;
+    uVar3 = *(undefined8 *)(param_2 + 0x28);
+    *(undefined8 *)(this_00 + 0x30) = *(undefined8 *)(param_2 + 0x20);
+    *(undefined8 *)(this_00 + 0x38) = uVar3;
+    (**(code **)(*(longlong *)this + 0x20))(this,&local_68);
+    local_58 = 0x3ff0000000000000;
+    uStack_50 = 0x3ff0000000000000;
+    EnvironmentRenderer::RenderRoot
+              (this_00,(TSize<> *)&local_70,(TScaling2<double> *)&local_68,
+               (IColorResolver *)&local_58);
+    local_48 = 0x40c29a8000000000;
+    uStack_40 = 0;
+    local_38 = 0;
+    uStack_30 = 0x40c29a8000000000;
+    local_28 = 0;
+    uStack_20 = 0;
+    (**(code **)(**(longlong **)param_1 + 0x78))(*(longlong **)param_1,local_70,&local_48);
+    plVar1 = *(longlong **)(*(longlong *)(this_00 + 0x40) + 0x210);
+    if (plVar1 == (longlong *)0x0) {
+LAB_18000529e:
+      Ordinal_21217(0x1e3c3840,0);
+      pcVar2 = (code *)swi(3);
+      pTVar6 = (TAffine3x3<double> *)(*pcVar2)();
+      return pTVar6;
+    }
+    (**(code **)*plVar1)(plVar1);
+    lVar4 = plVar1[0x43];
+    (**(code **)(*plVar1 + 8))(plVar1);
+    if ((char)lVar4 != '\0') {
+      this[0x88] = (SVGImage)0x0;
+      plVar1 = *(longlong **)(*(longlong *)(this_00 + 0x40) + 0x210);
+      if (plVar1 == (longlong *)0x0) {
+        Ordinal_21217(0x1e3c3840,0);
+        goto LAB_18000529e;
+      }
+      (**(code **)*plVar1)(plVar1);
+      *(undefined1 *)(plVar1 + 0x43) = 0;
+      (**(code **)(*plVar1 + 8))(plVar1);
+    }
+    if (local_70 != (longlong *)0x0) {
+      (**(code **)(*local_70 + 8))();
+    }
+  }
+  if (this_00 != (EnvironmentRenderer *)0x0) {
+    plVar1 = *(longlong **)(this_00 + 0x48);
+    if (plVar1 != (longlong *)0x0) {
+      *(undefined8 *)(this_00 + 0x48) = 0;
+      (**(code **)(*plVar1 + 8))();
+    }
+    Ordinal_53248(this_00);
+  }
+  return param_1;
+}
+
+```
+
+so we aren't really interested in the stuff that the param 1 does since it is after the RenderRoot call, but the param 2 stuff is interesting and we need to potentially fake it.
+
+here is the RenderRoot function:
+
+```
+
+
+/* WARNING: Function: _guard_dispatch_icall replaced with injection: guard_dispatch_icall */
+/* public: class Ofc::TCntPtr<struct GEL::IEffect const > __cdecl
+   Mso::SVG::EnvironmentRenderer::RenderRoot(struct Math::TSize<class Math::TUnits<unsigned
+   int,struct Math::DevicePixels> > const & __ptr64,struct Math::TScaling2<double> const &
+   __ptr64,struct GEL::IColorResolver const * __ptr64) __ptr64 */
+
+TSize<> * __thiscall
+Mso::SVG::EnvironmentRenderer::RenderRoot
+          (EnvironmentRenderer *this,TSize<> *param_1,TScaling2<double> *param_2,
+          IColorResolver *color_resolver)
+
+{
+  undefined8 uVar1;
+  code *pcVar2;
+  double dVar3;
+  bool bVar4;
+  undefined8 *puVar5;
+  longlong *plVar6;
+  TSize<> *pTVar7;
+  uint uVar8;
+  ulonglong uVar9;
+  undefined4 uVar10;
+  undefined8 in_stack_00000028;
+  longlong *local_d8;
+  undefined4 local_d0;
+  longlong *local_c8;
+  longlong *plStack_c0;
+  int *local_b8;
+  double local_b0;
+  double local_a8;
+  undefined8 local_a0;
+  undefined8 local_98;
+  int *local_90;
+  double *local_88;
+  double local_80 [6];
+  undefined8 local_50;
+  undefined8 uStack_48;
+
+  *(undefined8 *)param_1 = 0;
+  local_d0 = 1;
+  plVar6 = *(longlong **)(this + 0x48);
+  if (plVar6 != (longlong *)0x0) {
+    dVar3 = (double)*(uint *)(param_2 + 4);
+    local_b0 = (double)*(uint *)param_2;
+    uVar10 = SUB84(local_b0,0);
+    local_a8 = dVar3;
+    local_a0 = sqrt(SUB84((local_b0 * local_b0 + dVar3 * dVar3) * 0.5,0));
+    local_b8 = *(int **)(*(longlong *)(this + 0x40) + 0x208);
+    if (local_b8 != (int *)0x0) {
+      LOCK();
+      *local_b8 = *local_b8 + 1;
+      UNLOCK();
+      plVar6 = *(longlong **)(this + 0x48);
+    }
+    local_98 = 0;
+    local_88 = &local_b0;
+    *(undefined4 *)this = 0;
+    *(undefined8 *)(this + 8) = 0;
+    local_c8 = (longlong *)0x0;
+    plStack_c0 = (longlong *)0x0;
+    local_90 = local_b8;
+    if (plVar6 == (longlong *)0x0) {
+      Ordinal_21217(0x1e3c3840,0);
+      pcVar2 = (code *)swi(3);
+      pTVar7 = (TSize<> *)(*pcVar2)();
+      return pTVar7;
+    }
+    (**(code **)(*plVar6 + 0x28))(plVar6,&local_c8,&local_98,uVar10,dVar3,0,in_stack_00000028);
+    puVar5 = (undefined8 *)
+             GEL::EffectAccumulator::GetEffectOrEmptyContainer((EffectAccumulator *)&local_c8);
+    uVar1 = *puVar5;
+    *puVar5 = 0;
+    if (*(longlong **)param_1 != (longlong *)0x0) {
+      (**(code **)(**(longlong **)param_1 + 8))();
+    }
+    *(undefined8 *)param_1 = uVar1;
+    if (local_d8 != (longlong *)0x0) {
+      (**(code **)(*local_d8 + 8))();
+    }
+    local_d8 = (longlong *)&DAT_3cd203afa0000000;
+    local_80[0] = 1.0;
+    local_80[1] = 1.0;
+    uVar9 = 0;
+    do {
+      bVar4 = Math::IsNotEqualTo<double,0>
+                        ((double *)(color_resolver + uVar9 * 8),local_80 + uVar9,(double *)&local_d8
+                        );
+      if (bVar4) {
+        local_80[2] = *(double *)color_resolver;
+        local_80[5] = *(double *)(color_resolver + 8);
+        local_80[3] = 0.0;
+        local_80[4] = 0.0;
+        local_50 = 0;
+        uStack_48 = 0;
+        plVar6 = (longlong *)ApplyTransform((IEffect *)&local_d8,*(TAffine3x3<double> **)param_1);
+        puVar5 = (undefined8 *)*plVar6;
+        if (puVar5 != (undefined8 *)0x0) {
+          (**(code **)*puVar5)(puVar5);
+        }
+        if (*(longlong **)param_1 != (longlong *)0x0) {
+          (**(code **)(**(longlong **)param_1 + 8))();
+        }
+        plVar6 = local_d8;
+        *(undefined8 **)param_1 = puVar5;
+        if (local_d8 != (longlong *)0x0) {
+          local_d8 = (longlong *)0x0;
+          (**(code **)(*plVar6 + 8))();
+        }
+        break;
+      }
+      uVar8 = (int)uVar9 + 1;
+      uVar9 = (ulonglong)uVar8;
+    } while (uVar8 < 2);
+    if (plStack_c0 != (longlong *)0x0) {
+      (**(code **)(*plStack_c0 + 8))();
+    }
+    if (local_c8 != (longlong *)0x0) {
+      (**(code **)(*local_c8 + 8))();
+    }
+    TCntPtr<>::~TCntPtr<>((TCntPtr<> *)&local_b8);
+  }
+  return param_1;
+}
+
+```
+
+now, the color resolver is only used in the postprocessing of the thing.
+
+I think this is the place:
+
+```
+undefined8 * FUN_180006538(undefined8 *param_1,IStream *param_2,bool param_3)
+
+{
+  SVGImage *this;
+  undefined8 *puVar1;
+
+  this = (SVGImage *)alloc_executable_memory_maybe(0xa0,0);
+  if (this == (SVGImage *)0x0) {
+    this = (SVGImage *)Ordinal_59938();
+  }
+  puVar1 = (undefined8 *)Mso::SVG::SVGImage::SVGImage(this,param_2,param_3);
+  *param_1 = puVar1;
+  if (puVar1 != (undefined8 *)0x0) {
+    (**(code **)*puVar1)(puVar1);
+  }
+  return param_1;
+}
+```
+
+where we want to jump to the AcquireEffectTree function since the `(undefined8 *)Mso::SVG::SVGImage::SVGImage(this,param_2,param_3);` call returns the SVGImage object...
+
+After a lot of debugging and smashing my head against the wall I came up with this here:
+
+```
+bc *
+
+bp msosvg!Mso::SVG::SVGImage::HasFilters+0x296 "
+.echo === SVGImage READY ===;
+r @$t0 = rax;
+r @$t1 = rsp;
+
+r @$t2 = (rsp - 0x800) & 0xfffffffffffffff0;
+r @$t2 = @$t2 - 8;
+
+r @$t3 = @$t2 + 0x40;
+r @$t4 = @$t2 + 0x100;
+
+eq @$t2 @rip;
+eq @$t3 0;
+
+eq @$t4+0x00 3ff0000000000000;
+eq @$t4+0x08 3ff0000000000000;
+eq @$t4+0x10 0;
+eq @$t4+0x18 0;
+eq @$t4+0x20 0;
+eq @$t4+0x28 0;
+
+r rsp = @$t2;
+r rcx = @$t0;
+r rdx = @$t3;
+r r8  = @$t4;
+r r9  = 0;
+
+bp msosvg!Mso::SVG::SVGImage::AcquireEffectTree+0xed;
+
+.echo Calling AcquireEffectTree;
+r rip = msosvg!Mso::SVG::SVGImage::AcquireEffectTree;
+gc
+"
+```
+
+which emulates the fuzzer behaviour inside windbg and it seems to work decently well. I had problems noticing that you actually need to set r9 to zero to avoid a fanthom crash. Also stack alignment took a while to figure out, but now it is at least somewhat working...
+
+In c++ code it would look like this I guess:
+
+```
+
+#include "backend.h"
+#include "targets.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <fmt/format.h>
+#include <vector>
+
+// Mso::SVG::CreateSVGImage
+
+// 00007fff`20bfe496
+
+// #define MSO_SVG_CREATESVGIMAGE_RETURN_INSTRUCTION_ADDRESS 0x00007fff20bfe496
+
+// 00007fff`20bfe496  is the ret instruction...
+// 00007fff`20b04ac6
+
+// So the return instruction offset is 0xf99d0
+
+#define RET_INSTRUCTION_OFFSET 0xb4
+
+/*
+       180006581 e8 ee cd        CALL       Mso::SVG::SVGImage::SVGImage                     undefined SVGImage(SVGImage * th
+                 ff ff
+       180006586 48 8b d0        MOV        param_2,RAX
+
+// Initial RIP in ghidra is 180004ac6
+
+180006586 - 180004ac6
+
+// 0x1ac0 is the offset therefore...
+
+
+
+                             **************************************************************
+                             *                          FUNCTION                          *
+                             **************************************************************
+                             undefined8 * __fastcall FUN_180006538(undefined8 * param
+             undefined8 *      RAX:8          <RETURN>
+             undefined8 *      RCX:8          param_1
+             IStream *         RDX:8          param_2
+             bool              R8B:1          param_3
+             undefined8        Stack[0x20]:8  local_res20                             XREF[1]:     180006570(W)
+             undefined8        Stack[0x18]:8  local_res18                             XREF[2]:     18000653d(W),
+                                                                                                   1800065c0(R)
+             undefined8        Stack[0x10]:8  local_res10                             XREF[2]:     180006538(W),
+                                                                                                   1800065bc(R)
+             undefined8        Stack[0x8]:8   local_res8                              XREF[1]:     180006542(W)
+             undefined         Stack[-0x8]:1  local_8                                 XREF[1]:     1800065b4(*)
+                             FUN_180006538                                   XREF[6]:     CreateSVGImage1Proxy:180002a71(c
+                                                                                          CreateSVGImage2Proxy:180002aae(c
+                                                                                          CreateSVGImage:1800fe3e6(c),
+                                                                                          CreateSVGImage:1800fe46c(c),
+                                                                                          CreateSVGImage:1800fe489(c),
+                                                                                          1801ad504(*)
+       180006538 48 89 5c        MOV        qword ptr [RSP + local_res10],RBX
+                 24 10
+       18000653d 48 89 74        MOV        qword ptr [RSP + local_res18],RSI
+                 24 18
+       180006542 48 89 4c        MOV        qword ptr [RSP + local_res8],param_1
+                 24 08
+       180006547 57              PUSH       RDI
+       180006548 48 81 ec        SUB        RSP,0x80
+                 80 00 00 00
+       18000654f 41 8a f8        MOV        DIL,param_3
+       180006552 48 8b f2        MOV        RSI,param_2
+       180006555 48 8b d9        MOV        RBX,param_1
+       180006558 33 d2           XOR        param_2,param_2
+       18000655a b9 a0 00        MOV        param_1,0xa0
+                 00 00
+       18000655f ff 15 b3        CALL       qword ptr [->MSO20WIN32CLIENT.DLL::alloc_execu   = 800000000000cd11
+                 fc 13 00
+       180006565 48 85 c0        TEST       RAX,RAX
+       180006568 75 06           JNZ        LAB_180006570
+       18000656a ff 15 d8        CALL       qword ptr [->MSO20WIN32CLIENT.DLL::Ordinal_599   = 800000000000ea22
+                 fc 13 00
+                             LAB_180006570                                   XREF[1]:     180006568(j)
+       180006570 48 89 84        MOV        qword ptr [RSP + local_res20],RAX
+                 24 a8 00
+                 00 00
+       180006578 44 8a c7        MOV        param_3,DIL
+       18000657b 48 8b d6        MOV        param_2,RSI
+       18000657e 48 8b c8        MOV        param_1,RAX
+       180006581 e8 ee cd        CALL       Mso::SVG::SVGImage::SVGImage                     undefined SVGImage(SVGImage * th
+                 ff ff
+       180006586 48 8b d0        MOV        param_2,RAX
+       180006589 48 89 03        MOV        qword ptr [RBX],RAX
+       18000658c 48 85 c0        TEST       RAX,RAX
+       18000658f 74 0f           JZ         LAB_1800065a0
+       180006591 48 8b 08        MOV        param_1,qword ptr [RAX]
+       180006594 48 8b 01        MOV        RAX,qword ptr [param_1]
+       180006597 48 8b ca        MOV        param_1,param_2
+       18000659a ff 15 48        CALL       qword ptr [->_guard_dispatch_icall]              undefined _guard_dispatch_icall(
+                 01 14 00                                                                    = 18013f810
+                             LAB_1800065a0                                   XREF[1]:     18000658f(j)
+       1800065a0 48 8b c3        MOV        RAX,RBX
+       1800065a3 eb 0f           JMP        LAB_1800065b4
+       1800065a5 48              ??         48h    H
+       1800065a6 8b              ??         8Bh
+       1800065a7 84              ??         84h
+       1800065a8 24              ??         24h    $
+       1800065a9 90              ??         90h
+       1800065aa 00              ??         00h
+       1800065ab 00              ??         00h
+       1800065ac 00              ??         00h
+       1800065ad 48              ??         48h    H
+       1800065ae c7              ??         C7h
+       1800065af 00              ??         00h
+       1800065b0 00              ??         00h
+       1800065b1 00              ??         00h
+       1800065b2 00              ??         00h
+       1800065b3 00              ??         00h
+                             LAB_1800065b4                                   XREF[1]:     1800065a3(j)
+       1800065b4 4c 8d 9c        LEA        R11=>local_8,[RSP + 0x80]
+                 24 80 00
+                 00 00
+       1800065bc 49 8b 5b 18     MOV        RBX,qword ptr [R11 + local_res10]
+       1800065c0 49 8b 73 20     MOV        RSI,qword ptr [R11 + local_res18]
+       1800065c4 49 8b e3        MOV        RSP,R11
+       1800065c7 5f              POP        RDI
+       1800065c8 c3              RET
 
 
 
@@ -1824,6 +2862,716 @@ kd> du rcx + rdx * 2 - 50
 
 
 
+                             **************************************************************
+                             * public: virtual class Ofc::TCntPtr<struct GEL::ITopLeve... *
+                             **************************************************************
+                             TCntPtr<> __thiscall AcquireEffectTree(SVGImage * this,
+             TCntPtr<>         <UNASSIGNED>   <RETURN>
+             SVGImage *        RCX:8 (auto)   this
+             TAffine3x3<dou    RDX:8          param_1
+             IColorResolver    R8:8           color_resolver
+             undefined8        RAX:8          environment_renderer_object             XREF[1]:     1800050db(W)
+             undefined8        Stack[0x20]:8  local_res20                             XREF[2]:     18000508b(W),
+                                                                                                   180005283(R)
+             undefined8        Stack[0x18]:8  local_res18                             XREF[2]:     180005087(W),
+                                                                                                   18000527f(R)
+             undefined8        Stack[0x10]:8  local_res10                             XREF[1]:     18000508f(W)
+             undefined8        Stack[0x8]:8   local_res8                              XREF[2]:     180005083(W),
+                                                                                                   18000527b(R)
+             undefined         Stack[-0x18]:1 local_18                                XREF[1]:     180005273(*)
+             undefined1[16]    Stack[-0x28]   local_28                                XREF[1]:     18000518f(W)
+             undefined1[16]    Stack[-0x38]   local_38                                XREF[1]:     180005188(W)
+             undefined1[16]    Stack[-0x48]   local_48                                XREF[2]:     18000517c(W),
+                                                                                                   180005193(*)
+             undefined8        Stack[-0x58]:8 unknown_stuff                           XREF[2]:     180005150(W),
+                                                                                                   180005159(*)
+             undefined8        Stack[-0x60]:8 local_60                                XREF[1,1]:   1800050e3(W),
+                                                                                                   180005098(*)
+             undefined8        Stack[-0x68]:8 executable_memory_block_maybe           XREF[3]:     1800050cd(W),
+                                                                                                   180005137(*),
+                                                                                                   18000515d(*)
+             undefined8        Stack[-0x70]:8 some_other_stuff                        XREF[3]:     180005161(*),
+                                                                                                   180005197(*),
+                                                                                                   18000522d(R)
+             undefined4        Stack[-0x78]:4 local_78                                XREF[2]:     1800050af(W),
+                                                                                                   1800050f5(W)
+             undefined8        Stack[-0x88]:8 local_88                                XREF[1]:     180005154(W)
+             undefined8        HASH:105f700   color_resolv_stuff
+                             ?AcquireEffectTree@SVGImage@SVG@Mso@@UEBA?AV?$  XREF[3]:     180147158(*), 180156520(*),
+                             Mso::SVG::SVGImage::AcquireEffectTree                        1801ad420(*)
+       180005080 48 8b c4        MOV        RAX,RSP
+       180005083 48 89 58 08     MOV        qword ptr [RAX + local_res8],RBX
+       180005087 48 89 70 18     MOV        qword ptr [RAX + local_res18],RSI
+       18000508b 48 89 78 20     MOV        qword ptr [RAX + local_res20],RDI
+       18000508f 48 89 50 10     MOV        qword ptr [RAX + local_res10],param_1
+       180005093 55              PUSH       RBP
+       180005094 41 56           PUSH       R14
+       180005096 41 57           PUSH       R15
+       180005098 48 8d 68 a1     LEA        RBP=>local_60+0x1,[RAX + -0x5f]
+       18000509c 48 81 ec        SUB        RSP,0x90
+                 90 00 00 00
+       1800050a3 49 8b f1        MOV        RSI,R9
+       1800050a6 49 8b d8        MOV        RBX,color_resolver
+       1800050a9 4c 8b fa        MOV        R15,param_1
+       1800050ac 4c 8b f1        MOV        R14,this
+       1800050af c7 45 e7        MOV        dword ptr [RBP + local_78],0x0
+                 00 00 00 00
+       1800050b6 33 d2           XOR        param_1,param_1
+       1800050b8 8d 4a 50        LEA        this,[param_1 + 0x50]
+       1800050bb ff 15 57        CALL       qword ptr [->MSO20WIN32CLIENT.DLL::alloc_execu   = 800000000000cd11
+                 11 14 00
+       1800050c1 48 85 c0        TEST       RAX,RAX
+
+
+
+
+0:000> k
+ # Child-SP          RetAddr           Call Site
+00 000000a0`38f01540 00007ffa`61b7ae39 ucrtbase!invoke_watson+0x18
+01 000000a0`38f01570 00007ffa`61b79b05 msosvg!Mso::SVG::FeConvolveMatrixRenderer::ApplyUnaryFilter+0x1b9
+02 000000a0`38f01600 00007ffa`61ac2f10 msosvg!Mso::SVG::UnaryFilterPrimitiveRenderer::ApplyFilter+0xb5
+03 000000a0`38f01670 00007ffa`61b8c52a msosvg!Mso::SVG::RenderableRenderer::ApplyFilter+0x995
+04 000000a0`38f01920 00007ffa`61acec1e msosvg!Mso::SVG::ShapeRenderer::Render+0x64a
+05 000000a0`38f01ac0 00007ffa`61acf358 msosvg!Mso::SVG::ContainerRenderer::RenderChildren+0x7a
+06 000000a0`38f01b10 00007ffa`61b75c15 msosvg!Mso::SVG::ViewportRenderer::RenderAtSize+0x1e8
+07 000000a0`38f01cc0 00007ffa`61a8516d msosvg!Mso::SVG::EnvironmentRenderer::RenderRoot+0x131
+08 000000a0`38f01de0 00007ffa`61a86586 msosvg!Mso::SVG::SVGImage::AcquireEffectTree+0xed
+09 000000a0`38f01e90 00000245`80ef8fe0 msosvg!Mso::SVG::SVGImage::HasFilters+0x296
+0a 000000a0`38f01f20 00000246`50942f28 0x00000245`80ef8fe0
+0b 000000a0`38f01f28 00000000`00000000 0x00000246`50942f28
+0:000> u ucrtbase!invoke_watson
+ucrtbase!invoke_watson:
+00007ffa`eacf11f0 4883ec28        sub     rsp,28h
+00007ffa`eacf11f4 b917000000      mov     ecx,17h
+00007ffa`eacf11f9 ff1591830400    call    qword ptr [ucrtbase!_imp_IsProcessorFeaturePresent (00007ffa`ead39590)]
+00007ffa`eacf11ff 85c0            test    eax,eax
+00007ffa`eacf1201 7407            je      ucrtbase!invoke_watson+0x1a (00007ffa`eacf120a)
+00007ffa`eacf1203 b905000000      mov     ecx,5
+00007ffa`eacf1208 cd29            int     29h
+00007ffa`eacf120a ba170400c0      mov     edx,0C0000417h
+
+
+
+
+*/
+
+#define ACQUIRE_EFFECT_TREE_ADDRESS 0x00007fff20b05080
+
+// 180005080 is the acquireeffecttree thing...
+
+// 1800050db is the call to the EnvironmentRenderer function...
+
+// Create toplevel rendering policy stuff is 1800050ef
+
+// The toplevel failure path is at 180005244 (meaning that toplevel rendering policy call returned null..)
+
+// The call to the render root function is at 180005168
+
+#define GHIDRA_ACQUIRE_EFFECT_TREE 0x180005080
+
+#define CALL_ENVIRONMENT_RENDERER_OFFSET (0x1800050db - GHIDRA_ACQUIRE_EFFECT_TREE)
+
+
+
+#define FAILURE_PATH_OFFSET (0x180005244 - GHIDRA_ACQUIRE_EFFECT_TREE)
+
+
+#define ENVIRONMENT_RENDERER_CALL ACQUIRE_EFFECT_TREE_ADDRESS + CALL_ENVIRONMENT_RENDERER_OFFSET
+
+#define FAILURE_PATH_ADDRESS ACQUIRE_EFFECT_TREE_ADDRESS + FAILURE_PATH_OFFSET
+
+#define ALLOCATE_CALL_OFFSET 0x1800050bb - GHIDRA_ACQUIRE_EFFECT_TREE
+
+#define ALLOCATE_CALL_ADDRESS ACQUIRE_EFFECT_TREE_ADDRESS + ALLOCATE_CALL_OFFSET
+
+
+
+#define RENDER_ROOT_ADDRESS 0x00007fff20bf5ae4
+
+// To actually put the testcases???
+
+#define INSERT_TESTCASES 1
+
+// THis is the place where the RAX should now contain the SVGImage object.
+#define RAX_IS_SVGIMAGE_OFFSET 0x1ac0
+
+namespace MSOSVG {
+
+constexpr bool LoggingOn = true;
+
+// Snapshot starts at:
+// msosvg!Mso::SVG::SVGImage::LoadXMLRepresentation+0x3d6
+//
+// 00007fff`...4ac6 call qword ptr [msosvg!_imp_SysAllocStringLen]
+// End/return-ish stop point observed at RIP + 0xb4.
+constexpr uint64_t EndOfXmlOffset = 0xb4;
+
+template <typename... Args_t>
+void DebugPrint(const char *Format, const Args_t &...args) {
+  if constexpr (LoggingOn) {
+    fmt::print("MSOSVG: ");
+    fmt::print(fmt::runtime(Format), args...);
+  }
+}
+
+static std::string Hex(uint64_t Value) {
+  return fmt::format("{:#x}", Value);
+}
+
+// ============================================================
+// INSERT TESTCASE
+// ============================================================
+
+
+
+/*
+bool InsertTestcase(const uint8_t *Buffer, const size_t BufferSize) {
+  const Gva_t XmlPtr = Gva_t(g_Backend->Rcx());
+
+  // At this snapshot:
+  // RCX = WCHAR* XML buffer
+  // RDX = original WCHAR length/capacity used by SysAllocStringLen.
+
+#ifdef INSERT_TESTCASES
+  const uint64_t OriginalMaxWchars = g_Backend->Rdx();
+
+  if (Buffer == nullptr || BufferSize == 0) {
+    return false;
+  }
+
+  if (OriginalMaxWchars == 0) {
+    return false;
+  }
+
+  // Keep room for a NUL terminator.
+  const size_t MaxInputBytes =
+      static_cast<size_t>(std::min<uint64_t>(OriginalMaxWchars - 1, 0x100000));
+
+  const size_t InputSize = std::min(BufferSize, MaxInputBytes);
+  if (InputSize == 0) {
+    return false;
+  }
+
+  std::vector<uint16_t> Wide;
+  Wide.reserve(InputSize + 1);
+
+  // Naive ASCII/byte-to-UTF16 widening.
+  // This is fine for fuzzing XML-ish parser logic, and keeps the WCHAR count
+  // coherent with RDX.
+  for (size_t i = 0; i < InputSize; i++) {
+    Wide.push_back(static_cast<uint16_t>(Buffer[i]));
+  }
+
+  Wide.push_back(0);
+
+  const size_t WideBytes = Wide.size() * sizeof(uint16_t);
+
+  if (!g_Backend->VirtWriteDirty(
+          XmlPtr,
+          reinterpret_cast<const uint8_t *>(Wide.data()),
+          WideBytes)) {
+    DebugPrint("VirtWriteDirty failed: XmlPtr={}, WideBytes={}\n",
+               Hex(XmlPtr.U64()), WideBytes);
+    return false;
+  }
+
+  // SysAllocStringLen expects WCHAR count, not byte count.
+  g_Backend->Rdx(InputSize);
+
+#endif
+
+  return true;
+}
+*/
+
+bool InsertTestcase(const uint8_t *, const size_t) {
+  const Gva_t XmlPtr = Gva_t(g_Backend->Rcx());
+  const uint64_t OriginalMaxWchars = g_Backend->Rdx();
+
+  std::vector<uint16_t> dump(256);
+
+  if (g_Backend->VirtRead(XmlPtr,
+      (uint8_t*)dump.data(), dump.size() * 2)) {
+
+    DebugPrint("Buffer preview:\n");
+
+    for (int i = 0; i < 32; i++) {
+      DebugPrint("{:04x} ", dump[i]);
+    }
+
+    DebugPrint("\n");
+  }
+
+  if (OriginalMaxWchars == 0)
+    return false;
+
+  const char *svg =
+      "<svg viewBox='0 0 105 93' xmlns='http://www.w3.org/2000/svg'>"
+      "<path d='M66,0h39v93zM38,0h-38v93zM52,35l25,58h-16l-8-18h-18z' fill='#ED1C24'/>"
+      "</svg>";
+
+  size_t len = strlen(svg);
+  size_t max = std::min<size_t>(OriginalMaxWchars - 1, len);
+
+  std::vector<uint16_t> wide;
+  wide.reserve(max + 1);
+
+  for (size_t i = 0; i < max; i++)
+    wide.push_back((uint16_t)svg[i]);
+
+  wide.push_back(0);
+
+  size_t bytes = wide.size() * 2;
+
+  if (!g_Backend->VirtWriteDirty(XmlPtr,
+        (uint8_t*)wide.data(), bytes)) {
+    DebugPrint("Write failed\n");
+    return false;
+  }
+
+
+
+  // Zero out the remaining data here...
+  size_t remaining = (OriginalMaxWchars - wide.size()) * 2;
+
+  if (remaining > 0) {
+    std::vector<uint8_t> zeros(remaining, 0);
+
+    g_Backend->VirtWriteDirty(
+        XmlPtr + Gva_t(wide.size() * 2),
+        zeros.data(),
+        remaining);
+  }
+
+
+
+
+  // g_Backend->Rdx(max);
+
+  DebugPrint("Injected SVG (%zu bytes)\n", max);
+
+  return true;
+}
+
+// ============================================================
+// INIT
+// ============================================================
+
+bool Init(const Options_t &, const CpuState_t &) {
+  const Gva_t StartRip = Gva_t(g_Backend->Rip());
+
+  // const Gva_t EndOfXML = StartRip + Gva_t(EndOfXmlOffset);
+
+  // RET_INSTRUCTION_OFFSET
+
+  const Gva_t EndOfXML = StartRip + Gva_t(RET_INSTRUCTION_OFFSET);
+
+  // const Gva_t EndOfXML = Gva_t(MSO_SVG_CREATESVGIMAGE_RETURN_INSTRUCTION_ADDRESS); // This is the return address from the function...
+
+  DebugPrint("Initial RIP={}, RSP={}, RCX={}, RDX={}, CR3={}\n",
+             Hex(StartRip.U64()),
+             Hex(g_Backend->GetReg(Registers_t::Rsp)),
+             Hex(g_Backend->GetReg(Registers_t::Rcx)),
+             Hex(g_Backend->GetReg(Registers_t::Rdx)),
+             Hex(g_Backend->GetReg(Registers_t::Cr3)));
+
+  // Optional sanity check: verify the snapshot starts at the expected call.
+  uint8_t RipBytes[6] = {};
+  if (!g_Backend->VirtRead(StartRip, RipBytes, sizeof(RipBytes))) {
+    DebugPrint("Warning: could not read RIP bytes at {}\n", Hex(StartRip.U64()));
+  } else if (!(RipBytes[0] == 0xff && RipBytes[1] == 0x15)) {
+    DebugPrint("Warning: unexpected first instruction bytes at {}: "
+               "{:02x} {:02x} {:02x} {:02x} {:02x} {:02x}\n",
+               Hex(StartRip.U64()),
+               RipBytes[0], RipBytes[1], RipBytes[2],
+               RipBytes[3], RipBytes[4], RipBytes[5]);
+  }
+
+  // Normal successful testcase completion.
+  if (!g_Backend->SetBreakpoint(EndOfXML, [](Backend_t *B) {
+        DebugPrint("At the LoadXMLRepresentation return instruction!!!\n");
+        // B->Stop(Ok_t());
+      })) {
+    DebugPrint("Failed to set EndOfXML breakpoint at {}\n", Hex(EndOfXML.U64()));
+    return false;
+  }
+
+  // Set the breakpoint at the AcquireEffectTree
+
+  g_Backend->SetBreakpoint("msosvg!Mso::SVG::SVGImage::AcquireEffectTree",
+  [](Backend_t *B) {
+      fmt::print("Entered AcquireEffectTree\n");
+      // B->Stop(Ok_t());
+  });
+
+  // ACQUIRE_EFFECT_TREE_ADDRESS
+
+  g_Backend->SetBreakpoint(Gva_t(ACQUIRE_EFFECT_TREE_ADDRESS + 0x03), // This is the instruction after the first instruction in the AcquireEffectTree so the second instruction inside that function...
+  [](Backend_t *B) {
+      fmt::print("Second instruction in AcquireEffectTree\n");
+      // B->Stop(Ok_t());
+  });
+
+  // RENDER_ROOT_ADDRESS
+
+  // RenderRoot
+  g_Backend->SetBreakpoint(Gva_t(RENDER_ROOT_ADDRESS),
+  [](Backend_t *B) {
+      fmt::print("Entered RenderRoot\n");
+      // B->Stop(Ok_t());
+  });
+
+  // Here is the end basically...
+  g_Backend->SetBreakpoint(Gva_t(RENDER_ROOT_ADDRESS + 0x5),
+  [](Backend_t *B) {
+      fmt::print("Entered RenderRoot\n");
+      // B->Stop(Ok_t());
+  });
+
+  // This is supposed to be the code to call the AcquireEffectTree function..
+
+  // Replace with your actual offset where RAX = SVGImage*
+  const Gva_t AfterCtor = StartRip + Gva_t(RAX_IS_SVGIMAGE_OFFSET); // Add the offset thing...
+
+
+  /*
+  g_Backend->SetBreakpoint(AfterCtor, [](Backend_t *B) {
+      const uint64_t svg = B->GetReg(Registers_t::Rax);
+
+      fmt::print("SVGImage @ {:#x}\n", svg);
+
+      // --------------------------------------------------
+      // Allocate scratch memory inside guest
+      // --------------------------------------------------
+
+      const Gva_t Scratch = Gva_t(0x0000000050000000); // pick safe RW page
+
+      // Layout:
+      // [transform (72 bytes)]
+      // [color (48 bytes)]
+      // [shadow space (32 bytes)]
+
+      const Gva_t Transform = Scratch;
+      const Gva_t Color     = Scratch + Gva_t(0x100); // Add some stuff...
+
+      // --------------------------------------------------
+      // Build identity transform (3x3 double matrix)
+      // --------------------------------------------------
+
+      double identity[9] = {
+          1.0, 0.0, 0.0,
+          0.0, 1.0, 0.0,
+          0.0, 0.0, 1.0
+      };
+
+      B->VirtWriteDirty(Transform,
+          reinterpret_cast<uint8_t*>(identity),
+          sizeof(identity));
+
+      // --------------------------------------------------
+      // Build minimal color resolver (safe values)
+      // --------------------------------------------------
+
+      double color_vals[6] = {
+          1.0, 1.0, 0.0, 0.0, 0.0, 0.0
+      };
+
+      B->VirtWriteDirty(Color,
+          reinterpret_cast<uint8_t*>(color_vals),
+          sizeof(color_vals));
+
+      // --------------------------------------------------
+      // Setup stack (VERY IMPORTANT)
+      // --------------------------------------------------
+
+      uint64_t rsp = B->GetReg(Registers_t::Rsp);
+
+      // align stack to 16 bytes
+      rsp &= ~0xF;
+
+      // reserve shadow space (MS x64 ABI)
+      rsp -= 0x20;
+
+      // fake return address (stop cleanly)
+      const uint64_t ReturnAddr = 0x4141414141414141;
+
+      rsp -= 8;
+      B->VirtWriteDirty(Gva_t(rsp), (uint8_t*)&ReturnAddr, 8);
+
+      B->SetReg(Registers_t::Rsp, rsp);
+
+      // --------------------------------------------------
+      // Set arguments
+      // --------------------------------------------------
+
+      B->SetReg(Registers_t::Rcx, svg);                // this
+      B->SetReg(Registers_t::Rdx, Transform.U64());    // transform
+      B->SetReg(Registers_t::R8,  Color.U64());        // color
+
+      // --------------------------------------------------
+      // Jump into AcquireEffectTree
+      // --------------------------------------------------
+
+      // 00007fff`20b05080 is the AcquireEffectTree
+
+      const uint64_t AcquireEffectTreeAddr = 0x00007fff20b05080; // ← FIX THIS
+
+      fmt::print("Jumping to AcquireEffectTree @ {:#x}\n",
+                 AcquireEffectTreeAddr);
+
+      B->SetReg(Registers_t::Rip, AcquireEffectTreeAddr);
+
+      // --------------------------------------------------
+      // Stop when returning
+      // --------------------------------------------------
+
+      B->SetBreakpoint(Gva_t(ReturnAddr), [](Backend_t *B2) {
+          fmt::print("Returned from AcquireEffectTree!\n");
+          B2->Stop(Ok_t());
+      });
+  });
+
+#define ENVIRONMENT_RENDERER_CALL ACQUIRE_EFFECT_TREE_ADDRESS + CALL_ENVIRONMENT_RENDERER_OFFSET
+
+#define FAILURE_PATH_ADDRESS ACQUIRE_EFFECT_TREE_ADDRESS + FAILURE_PATH_ADDRESS
+  */
+
+
+  g_Backend->SetBreakpoint(Gva_t(ENVIRONMENT_RENDERER_CALL), [](Backend_t *B) {
+    DebugPrint("Environment renderer call...\n");
+  });
+
+  g_Backend->SetBreakpoint(Gva_t(FAILURE_PATH_ADDRESS), [](Backend_t *B) {
+    DebugPrint("Failure path in AcquireEffectTree function call...\n");
+  });
+
+  // ALLOCATE_CALL_ADDRESS
+
+  g_Backend->SetBreakpoint(Gva_t(ALLOCATE_CALL_ADDRESS), [](Backend_t *B) {
+    DebugPrint("Now we are in the allocation call...\n");
+    DebugPrint("ALLOCATE_CALL_ADDRESS: {:#x}\n", ALLOCATE_CALL_ADDRESS);
+  });
+
+  // The 0x0b is the failure to allocate thing...
+  g_Backend->SetBreakpoint(Gva_t(ALLOCATE_CALL_ADDRESS + 0x0b), [](Backend_t *B) {
+    DebugPrint("Allocation failed for some reason!!!\n");
+  });
+
+  // The 0x06 is the instruction after the allocation call
+  g_Backend->SetBreakpoint(Gva_t(ALLOCATE_CALL_ADDRESS + 0x06), [](Backend_t *B) {
+    DebugPrint("Returned from allocation!!!\n");
+  });
+
+  g_Backend->SetBreakpoint(AfterCtor, [](Backend_t *B) {
+      const uint64_t SvgImage = B->GetReg(Registers_t::Rax);
+      DebugPrint("SVGImage @ {:#x}\n", SvgImage);
+
+      uint64_t Rsp = B->GetReg(Registers_t::Rsp);
+
+      // --------------------------------------------------
+      // Proper stack setup (CRITICAL)
+      // --------------------------------------------------
+
+      // Reserve large safe region + align
+      Rsp = (Rsp - 0x800) & ~0xFULL;
+
+      // Simulate CALL (push return address)
+      Rsp -= 8;
+
+      const Gva_t FakeReturn = Gva_t(Rsp);
+      const Gva_t OutEffect  = Gva_t(Rsp + 0x40);
+      const Gva_t Color      = Gva_t(Rsp + 0x100);
+
+      // --------------------------------------------------
+      // Write fake return address (use current RIP)
+      // --------------------------------------------------
+
+      const uint64_t ReturnRip = B->GetReg(Registers_t::Rip);
+
+      if (!B->VirtWriteDirty(FakeReturn,
+              reinterpret_cast<const uint8_t *>(&ReturnRip),
+              sizeof(ReturnRip))) {
+          DebugPrint("Failed to write fake return\n");
+          B->Stop(Crash_t("stack-write-failed"));
+          return;
+      }
+
+      // --------------------------------------------------
+      // Zero output (TCntPtr)
+      // --------------------------------------------------
+
+      uint64_t zero = 0;
+      B->VirtWriteDirty(OutEffect,
+          reinterpret_cast<const uint8_t *>(&zero),
+          sizeof(zero));
+
+      // --------------------------------------------------
+      // Color resolver (identity)
+      // --------------------------------------------------
+
+      double color[6] = {
+          1.0, 1.0,
+          0.0, 0.0,
+          0.0, 0.0,
+      };
+
+      if (!B->VirtWriteDirty(Color,
+              reinterpret_cast<const uint8_t *>(color),
+              sizeof(color))) {
+          DebugPrint("Failed to write color\n");
+          B->Stop(Crash_t("color-write-failed"));
+          return;
+      }
+
+      // --------------------------------------------------
+      // Apply registers (ABI FIX)
+      // --------------------------------------------------
+
+      B->SetReg(Registers_t::Rsp, Rsp);
+
+      B->SetReg(Registers_t::Rcx, SvgImage);        // this
+      B->SetReg(Registers_t::Rdx, OutEffect.U64()); // out param
+      B->SetReg(Registers_t::R8,  Color.U64());     // color
+      B->SetReg(Registers_t::R9,  0);               // ✅ CRITICAL FIX
+
+      // --------------------------------------------------
+      // Jump into function
+      // --------------------------------------------------
+
+      DebugPrint("Calling AcquireEffectTree({:#x})\n", SvgImage);
+
+      B->SetReg(Registers_t::Rip, ACQUIRE_EFFECT_TREE_ADDRESS);
+  });
+
+
+
+  // ------------------------------------------------------------
+  // User-mode exception / fail-fast / abort-ish paths
+  // ------------------------------------------------------------
+
+  // Also check for page faults...
+
+  // ntoskrnl.exe!KiPageFault
+
+  g_Backend->SetBreakpoint("ntoskrnl.exe!KiPageFault", [](Backend_t *B) {
+    DebugPrint("KiPageFault!\n");
+    B->Stop(Crash_t("KiPageFault"));
+  });
+
+  g_Backend->SetBreakpoint("ntdll!KiUserExceptionDispatcher", [](Backend_t *B) {
+      const uint64_t ExceptionRecord = B->GetReg(Registers_t::Rcx);
+
+      DebugPrint("KiUserExceptionDispatcher: ExceptionRecord={:#x}\n", ExceptionRecord);
+
+      // Read exception code
+      uint32_t code = 0;
+      if (B->VirtRead(Gva_t(ExceptionRecord), (uint8_t*)&code, sizeof(code))) {
+          DebugPrint("Exception code: {:#x}\n", code);
+
+          if (code == 0xC0000005) { // ACCESS_VIOLATION
+              DebugPrint("Access violation detected!\n");
+              B->Stop(Crash_t("access-violation"));
+          }
+      } else {
+          DebugPrint("Failed to read exception record\n");
+          B->Stop(Crash_t("unknown-exception"));
+      }
+  });
+
+
+  g_Backend->SetBreakpoint("ntdll!RtlRaiseException", [](Backend_t *B) {
+    const uint64_t ExceptionRecord = B->GetReg(Registers_t::Rcx);
+    DebugPrint("RtlRaiseException(ExceptionRecord={})\n", Hex(ExceptionRecord));
+    B->Stop(Crash_t("RtlRaiseException"));
+  });
+
+  g_Backend->SetBreakpoint("ntdll!RtlRaiseStatus", [](Backend_t *B) {
+    const uint64_t Status = B->GetReg(Registers_t::Rcx);
+    DebugPrint("RtlRaiseStatus(Status={})\n", Hex(Status));
+    B->Stop(Crash_t(fmt::format("RtlRaiseStatus-{}", Hex(Status))));
+  });
+
+  g_Backend->SetBreakpoint("ntdll!RtlFailFast2", [](Backend_t *B) {
+    DebugPrint("RtlFailFast2\n");
+    B->Stop(Crash_t("RtlFailFast2"));
+  });
+
+  g_Backend->SetBreakpoint("ntdll!RtlReportFatalFailure", [](Backend_t *B) {
+    DebugPrint("RtlReportFatalFailure\n");
+    B->Stop(Crash_t("RtlReportFatalFailure"));
+  });
+
+  g_Backend->SetBreakpoint("ucrtbase!abort", [](Backend_t *B) {
+    DebugPrint("ucrtbase!abort\n");
+    B->Stop(Crash_t("abort"));
+  });
+
+  g_Backend->SetBreakpoint("ucrtbase!_invoke_watson", [](Backend_t *B) {
+    DebugPrint("ucrtbase!_invoke_watson\n");
+    B->Stop(Crash_t("_invoke_watson"));
+  });
+
+  // ------------------------------------------------------------
+  // Heap corruption / verifier-ish signals
+  // ------------------------------------------------------------
+
+  g_Backend->SetBreakpoint("ntdll!RtlpHeapHandleError", [](Backend_t *B) {
+    DebugPrint("RtlpHeapHandleError\n");
+    B->Stop(Crash_t("heap-corruption"));
+  });
+
+  g_Backend->SetBreakpoint("ntdll!RtlpLogHeapFailure", [](Backend_t *B) {
+    DebugPrint("RtlpLogHeapFailure\n");
+    B->Stop(Crash_t("heap-failure"));
+  });
+
+  g_Backend->SetBreakpoint("ntdll!RtlReportCriticalFailure", [](Backend_t *B) {
+    DebugPrint("RtlReportCriticalFailure\n");
+    B->Stop(Crash_t("critical-failure"));
+  });
+
+  // ------------------------------------------------------------
+  // Kernel bugcheck paths
+  // ------------------------------------------------------------
+
+  g_Backend->SetBreakpoint("nt!KeBugCheckEx", [](Backend_t *B) {
+    const uint64_t Code = B->GetReg(Registers_t::Rcx);
+    const uint64_t P1 = B->GetReg(Registers_t::Rdx);
+    const uint64_t P2 = B->GetReg(Registers_t::R8);
+    const uint64_t P3 = B->GetReg(Registers_t::R9);
+
+    DebugPrint("KeBugCheckEx: code={}, p1={}, p2={}, p3={}\n",
+               Hex(Code), Hex(P1), Hex(P2), Hex(P3));
+
+    B->Stop(Crash_t(fmt::format("bugcheck-{}-{}-{}-{}",
+                                Hex(Code), Hex(P1), Hex(P2), Hex(P3))));
+  });
+
+  g_Backend->SetBreakpoint("nt!KeBugCheck2", [](Backend_t *B) {
+    const uint64_t Code = B->GetReg(Registers_t::Rcx);
+    const uint64_t P1 = B->GetReg(Registers_t::Rdx);
+    const uint64_t P2 = B->GetReg(Registers_t::R8);
+    const uint64_t P3 = B->GetReg(Registers_t::R9);
+
+    DebugPrint("KeBugCheck2: code={}, p1={}, p2={}, p3={}\n",
+               Hex(Code), Hex(P1), Hex(P2), Hex(P3));
+
+    B->Stop(Crash_t(fmt::format("bugcheck2-{}-{}-{}-{}",
+                                Hex(Code), Hex(P1), Hex(P2), Hex(P3))));
+  });
+
+  return true;
+}
+
+Target_t MSOSVGTarget("msosvg", Init, InsertTestcase);
+
+} // namespace MSOSVG
+
+```
+
+Ok, so to store the traces I need to run `x msosvg!*` and then run `x nt!*` and redirect those to a log file.
+
+Now, there are cases when taking the snapshot that we end up calling KeStackAttachProcess for some reason during the XML parsing. This is of course not ideal. I think this may have to do with some cache stuff when loading SVG files that screw up our attempt. The LoadXMLRepresentation function get's called like four times before any actual loading takes place. Therefore taking a snapshot on the previous ones is futile and leads to bad stuff...
 
 
 
