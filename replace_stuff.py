@@ -1,11 +1,13 @@
-
-
 import os
 import re
 
-# Regex to match fenced code blocks ```...```
 FENCED_BLOCK_RE = re.compile(
     r"(^```[\s\S]*?^```)",
+    re.MULTILINE
+)
+
+RAW_REGION_RE = re.compile(
+    r"{%\s*raw\s*%}[\s\S]*?{%\s*endraw\s*%}",
     re.MULTILINE
 )
 
@@ -13,23 +15,14 @@ RAW_START = "{% raw %}"
 RAW_END = "{% endraw %}"
 
 
-def already_wrapped(text, start, end):
-    """
-    Check whether the fenced block is already inside {% raw %} ... {% endraw %}
-    by looking around the match.
-    """
-    before = text[:start]
-    after = text[end:]
+def get_raw_regions(text):
+    return [m.span() for m in RAW_REGION_RE.finditer(text)]
 
-    last_raw_start = before.rfind(RAW_START)
-    last_raw_end = before.rfind(RAW_END)
 
-    # If the last raw start is after the last raw end, we are inside raw
-    if last_raw_start != -1 and last_raw_start > last_raw_end:
-        # Also ensure there is a closing endraw later
-        if RAW_END in after:
+def inside_raw(start, end, raw_regions):
+    for raw_start, raw_end in raw_regions:
+        if start >= raw_start and end <= raw_end:
             return True
-
     return False
 
 
@@ -37,34 +30,39 @@ def process_file(path):
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    modified = False
-    new_content = content
-    offset = 0
+    raw_regions = get_raw_regions(content)
+
+    replacements = []
 
     for match in FENCED_BLOCK_RE.finditer(content):
         start, end = match.span()
-        start += offset
-        end += offset
 
-        if already_wrapped(new_content, start, end):
+        if inside_raw(start, end, raw_regions):
             continue
 
-        block = new_content[start:end]
-        wrapped = f"{RAW_START}\n{block}\n{RAW_END}"
+        block = match.group(0)
 
-        new_content = (
-            new_content[:start] +
-            wrapped +
-            new_content[end:]
+        replacements.append(
+            (start, end,
+             f"{RAW_START}\n{block}\n{RAW_END}")
         )
 
-        offset += len(wrapped) - len(block)
-        modified = True
+    if not replacements:
+        return
 
-    if modified:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(new_content)
-        print(f"Modified: {path}")
+    new_content = content
+
+    for start, end, replacement in reversed(replacements):
+        new_content = (
+            new_content[:start]
+            + replacement
+            + new_content[end:]
+        )
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(new_content)
+
+    print(f"Modified: {path}")
 
 
 def main():
@@ -76,4 +74,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

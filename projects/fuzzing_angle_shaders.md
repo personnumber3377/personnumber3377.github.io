@@ -320,6 +320,7 @@ Also there is a bug in the actual fuzzing harness: https://github.com/google/ang
 
 Also we should disable AST checking since that is useless for our purposes:
 
+{% raw %}
 ```
 bool TCompiler::validateAST(TIntermNode *root)
 {
@@ -343,6 +344,7 @@ bool TCompiler::validateAST(TIntermNode *root)
     return true;
 }
 ```
+{% endraw %}
 
 and I set that option to false for the purposes of fuzzing. Now, this minified the corpus from 7k files to 2k. I am not sure of that is due to the difference in the version numbers of the versions of the old angle and the new angle etc, but maybe I am wrong...
 
@@ -515,6 +517,7 @@ In addition, I recognized that I didn't even have the custom crossover enabled, 
 
 Here is the original shader stuff:
 
+{% raw %}
 ```
 
 angle_source_set("shader_fuzzer") {
@@ -540,11 +543,13 @@ angle_source_set("shader_fuzzer") {
 }
 
 ```
+{% endraw %}
 
 ## Adding some even more mutations...
 
 Ok, so the RewriteLocalPixelStorage.cpp
 
+{% raw %}
 ```
 //
 // Copyright 2016 The ANGLE Project Authors. All rights reserved.
@@ -939,12 +944,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 }
 
 ```
+{% endraw %}
 
 The ANGLE_shader_pixel_local_storage isn't enabled anywhere here, therefore of course it isn't getting fuzzed as you would expect...
 
 Also we need to check the "invalid spec" failure on the one of the files in the thing...
 
 I added it to the resources. section and now when I run this file here:
+{% raw %}
 ```
 HEADER: frag 3 6
 #version 310 es
@@ -968,11 +975,13 @@ Executed ./tests_complex_binary/local_pixel_storage.glsl.bin in 4 ms
 ***       executed the target code on a fixed set of inputs.
 ***
 ```
+{% endraw %}
 
 It gets that... That is peculiar.
 
 After grepping the source code for the stuff I noticed this:
 
+{% raw %}
 ```
 void TParseContext::checkPixelLocalStorageBindingIsValid(const TSourceLoc &location,
                                                          const TType &type)
@@ -1001,11 +1010,13 @@ void TParseContext::checkPixelLocalStorageBindingIsValid(const TSourceLoc &locat
     else
     {
 ```
+{% endraw %}
 
 so therefore the angle translator mutator must be improved slightly further...
 
 Then next I got this error here:
 
+{% raw %}
 ```
 oof@oof-h8-1440eo:~/shader_custom_mutator$ ./run_pixelstorage.sh
 [seed] 32956562
@@ -1038,9 +1049,11 @@ NOTE: libFuzzer has rudimentary signal handlers.
 SUMMARY: libFuzzer: deadly signal
 
 ```
+{% endraw %}
 
 and this was solved by adding this stuff here:
 
+{% raw %}
 ```
     // Make sure the rest of the options are in a valid range.
     options.pls.fragmentSyncType = static_cast<ShFragmentSynchronizationType>(
@@ -1055,6 +1068,7 @@ and this was solved by adding this stuff here:
     }
 
 ```
+{% endraw %}
 
 and now it seems to compile all fine...
 

@@ -4,6 +4,7 @@
 
 Here is some stuff:
 
+{% raw %}
 ```
 Ok, so now it actually fuzzes the stuff correctly!!!
 now, I have whipped up a similar custom mutator I want to build for hlsl already in glsl for the ANGLE shader translator. Here is the source code for it:
@@ -3340,6 +3341,7 @@ def lex(src: str) -> List[Token]:
     return out
 can you make a similar shader custom mutator for this input format we have (aka header + the hlsl source code?) I want it to have the lexer, parser, unparser (back to the input format from the mutated structure) and the actual mutator.. Also can you please tell me a test file in python that for example does round trip parsing tests with the fuzzer binary? (see if errors, then parse and unparse and then see if errors. if different, then failure.)
 ```
+{% endraw %}
 
 
 

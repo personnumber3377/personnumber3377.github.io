@@ -2,6 +2,7 @@
 
 Now, I have fuzzed svg files previously using winafl, but that caused some problems with the integration and stuff like that, now I managed to make it work using litecov and just using python:
 
+{% raw %}
 ```
 import zipfile
 import shutil
@@ -529,9 +530,11 @@ if __name__ == "__main__":
     fuzz()
 
 ```
+{% endraw %}
 
 This works and gets coverage nicely, but it is quite slow since it has to open and close microsoft office on every iteration which causes major slowdown. Now, the current idea is to get the coverage and stuff using this program called "what-the-fuzz" which seems to be a tool for snapshot based fuzzing. Now, first we need to figure out where to get the snapshot when fuzzing svg files. There is this AcquireEffectTree function inside the MSOSVG.DLL file:
 
+{% raw %}
 ```
 
 /* WARNING: Function: _guard_dispatch_icall replaced with injection: guard_dispatch_icall */
@@ -634,11 +637,13 @@ LAB_18000529e:
 }
 
 ```
+{% endraw %}
 
 which seems very promising in terms of fuzzing...
 
 Here in windbg at the start of this function we have this here:
 
+{% raw %}
 ```
 Breakpoint 0 hit
 msosvg!Mso::SVG::SVGImage::AcquireEffectTree:
@@ -677,9 +682,11 @@ msosvg!Mso::SVG::SVGImage::AcquireEffectTree:
 0:000> s -u 0 L?7fffffffffff "<svg viewBox"
 000002cd`a6694e48  003c 0073 0076 0067 0020 0076 0069 0065  <.s.v.g. .v.i.e.
 ```
+{% endraw %}
 
 then trying to do the stuff here:
 
+{% raw %}
 ```
 0:000> s -u 0 L?7fffffffffff "<svg viewBox"
 000002cd`a6694e48  003c 0073 0076 0067 0020 0076 0069 0065  <.s.v.g. .v.i.e.
@@ -767,11 +774,13 @@ msosvg!Mso::SVG::CreateSVGImage:
 00007ffa`fd88e495 5b              pop     rbx
 00007ffa`fd88e496 c3              ret
 ```
+{% endraw %}
 
 which seems quite sus...
 
 In the ghidra decompilation it looks like this here:
 
+{% raw %}
 ```
 undefined8 * __thiscall
 Mso::SVG::SVGImageFactory::CreateSVGImage
@@ -782,9 +791,11 @@ Mso::SVG::SVGImageFactory::CreateSVGImage
   return param_1;
 }
 ```
+{% endraw %}
 
 and then here:
 
+{% raw %}
 ```undefined8 * maybe_parse_svg_entrypoint(undefined8 *param_1,IStream *param_2,bool param_3)
 
 {
@@ -803,11 +814,13 @@ and then here:
   return param_1;
 }
 ```
+{% endraw %}
 
 so the thing is the "stream object"...
 
 then there is this stuff here:
 
+{% raw %}
 ```
 
 /* WARNING: Function: _guard_dispatch_icall replaced with injection: guard_dispatch_icall */
@@ -858,11 +871,13 @@ SVGImage * __thiscall Mso::SVG::SVGImage::SVGImage(SVGImage *this,IStream *param
 
 
 ```
+{% endraw %}
 
 so now I am wondering where we should put the breakpoint to get the snapshot. Maybe before the LoadXMLRepresentation function???
 
 Here is the XML loading function:
 
+{% raw %}
 ```
 
 
@@ -1131,11 +1146,13 @@ LAB_180004804:
 
 
 ```
+{% endraw %}
 
 Now, one way would be to use the thing in IStream and patch those in our fuzzing harness:
 
 Definitions of an IStream object taken from the thing:
 
+{% raw %}
 ```
 
 #ifndef __IStream_INTERFACE_DEFINED__
@@ -1419,6 +1436,7 @@ void __RPC_STUB IStream_RemoteCopyTo_Stub(
 
 #endif 	/* __IStream_INTERFACE_DEFINED__ */
 ```
+{% endraw %}
 
 windows 10 sdk...
 
@@ -1428,6 +1446,7 @@ It seems that the SVG parsing is done in two functions, which makes this a lot t
 
 Here is the stuff:
 
+{% raw %}
 ```
 0:000> dq rdx
 000002cd`9cbd3fc0  00007ffb`093f73f0 00007ffb`093f73b0
@@ -1563,9 +1582,11 @@ mso20win32client!CByteStreamWrapperBase::TranslateErrorCode+0x4:
 00007ffb`08de7f86 c3              ret
 
 ```
+{% endraw %}
 
 Here:
 
+{% raw %}
 ```
 0:000> g
 Breakpoint 5 hit
@@ -1592,9 +1613,11 @@ msosvg!Mso::SVG::SVGImage::LoadXMLRepresentation+0x3dc:
 000002cd`a6694ea8  0032002f`00670072 002f0030`00300030
 000002cd`a6694eb8  00270067`00760073 0070003c`000a003e
 ```
+{% endraw %}
 
 but I think this is bad, because we do not control the length of the allocated stuff??? I need to manipulate the length being allocated no??? Here:
 
+{% raw %}
 ```       180004ac3 49 8b c8        MOV        bstr_stuff_output_maybe,R8
        180004ac6 ff 15 a4        CALL       qword ptr [->OLEAUT32.DLL::SysAllocStringLen]    = 8000000000000004
                  16 14 00
@@ -1606,15 +1629,18 @@ but I think this is bad, because we do not control the length of the allocated s
 000002cd`a6694f08  "M52,35l25,58h-16l-8-18h-18z' fil"
 000002cd`a6694f48  "l='#ED1C24'/>.</svg>."
 ```
+{% endraw %}
 
 now, if the svg was larger than x, then we would overflow the buffer. One way to fix this is to just use a big svg file say 20kb or something like that and then just restrict ourselves to that size no? I think that such is the best way to ensure that we do not overflow the buffer magically. Then the next thing which we need to figure out is the address where we need to break the fuzzer. Now, the issue is that the "AcquireEffectTree" function is not called when initializing the svg file, but instead it is called later on. I don't think this is an issue, since we control every part of machine execution no? I think this is the spot where to inject our payload?
 
 Ok, so I think the best strategy is to just break here:
 
+{% raw %}
 ```
     sus_string_stuff = SysAllocStringLen((OLECHAR *)ppppOVar11,(UINT)uVar13);
     bstrString = (BSTR)*puVar3;
 ```
+{% endraw %}
 
 after the call to the SysAllocStringLen and then we have the thing no?
 
@@ -1638,6 +1664,7 @@ after the call to the SysAllocStringLen and then we have the thing no?
 
 and then:
 
+{% raw %}
 ```
 00007ff8`a5a24ad7 49891e          mov     qword ptr [r14],rbx
 00007ff8`a5a24ada ff1568161400    call    qword ptr [msosvg!_imp_SysFreeString (00007ff8`a5b66148)]
@@ -1671,10 +1698,12 @@ msosvg!Mso::SVG::SVGImage::LoadXMLRepresentation+0x3d6:
 0033:00007ff8`a5a24ac6 ff15a4161400    call    qword ptr [msosvg!_imp_SysAllocStringLen (00007ff8`a5b66170)] ds:002b:00007ff8`a5b66170={oleaut32!SysAllocStringLen (00007ff8`cc102b50)}
 
 ```
+{% endraw %}
 
 
 then:
 
+{% raw %}
 ```
 kd> g
 Breakpoint 0 hit
@@ -1746,6 +1775,7 @@ The average transfer rate was 23.5 MB/s.
 Dump successfully written
 [dbgeng-rs] Done!
 ```
+{% endraw %}
 
 
 Ok, so the dump directory "C:\Users\elsku\state_dump5" contains the most important dump that processed the thing the fastest. That I think is the best for fuzzing, since it went on to process the effect tree much quicker than the other ones... It took a couple of seconds to call the AcquireEffectTree function. I think this is decent, but we could do better.
@@ -1756,6 +1786,7 @@ I think that just trying to get the snapshot based fuzzer to at least somewhat w
 
 Here is the stuff again:
 
+{% raw %}
 ```
 45 00000009`9b2ff480 00007ffa`f8594fdc     wwlib!MsgPump::WaitForPostedMessage+0x2b9
 46 00000009`9b2ff500 00007ffa`f8d0738b     wwlib!MsgPump::FMainLoop+0x19c
@@ -1810,9 +1841,11 @@ kd> du rcx + rdx * 2 - 50
 00000137`8bf34cf2  ""50" height="142" fill="#6A84F5""
 00000137`8bf34d32  "/></svg>"
 ```
+{% endraw %}
 
 Ok, so now it has been a few days since I last wrote to this blog. First of all, I had some issues using the newest version of windbg since it produced a newer kernel dump of type "0x0a" instead of the one that I wanted. That sucks, but thankfully I worked through that. The next bug was that my harness actually immediately hit the kernel page fault handler upon execution. This was because some kernel memory maps were disabled and stuff like that, so I had to run the `disable-kva.cmd` script in the wtf scripts directory. This made it actually work. Here is my current vibecoded harness:
 
+{% raw %}
 ```
 // Axel '0vercl0k' Souchet - February 25 2020
 #include "CLI/CLI.hpp"
@@ -2367,6 +2400,7 @@ int main(int argc, const char *argv[]) {
 }
 
 ```
+{% endraw %}
 
 It basically fuzzes the SVG initialization function, but it doesn't fuzz the interesting `AcquireEffectTree` function which has all of the interesting bugs in it.
 
@@ -2376,6 +2410,7 @@ Now, the plan here is to essentially add a manual jump in our harness or some co
 
 See, the first argument to the AcquireEffectTree function is actually the SVGImage object itself:
 
+{% raw %}
 ```
 
 SVGImage * __thiscall
@@ -2420,9 +2455,11 @@ Mso::SVG::SVGImage::SVGImage
   return this;
 }
 ```
+{% endraw %}
 
 and the acquire effect tree function looks like this here:
 
+{% raw %}
 ```
 TAffine3x3<double> * __thiscall
 Mso::SVG::SVGImage::AcquireEffectTree
@@ -2522,11 +2559,13 @@ LAB_18000529e:
 }
 
 ```
+{% endraw %}
 
 so we aren't really interested in the stuff that the param 1 does since it is after the RenderRoot call, but the param 2 stuff is interesting and we need to potentially fake it.
 
 here is the RenderRoot function:
 
+{% raw %}
 ```
 
 
@@ -2655,11 +2694,13 @@ Mso::SVG::EnvironmentRenderer::RenderRoot
 }
 
 ```
+{% endraw %}
 
 now, the color resolver is only used in the postprocessing of the thing.
 
 I think this is the place:
 
+{% raw %}
 ```
 undefined8 * FUN_180006538(undefined8 *param_1,IStream *param_2,bool param_3)
 
@@ -2679,11 +2720,13 @@ undefined8 * FUN_180006538(undefined8 *param_1,IStream *param_2,bool param_3)
   return param_1;
 }
 ```
+{% endraw %}
 
 where we want to jump to the AcquireEffectTree function since the `(undefined8 *)Mso::SVG::SVGImage::SVGImage(this,param_2,param_3);` call returns the SVGImage object...
 
 After a lot of debugging and smashing my head against the wall I came up with this here:
 
+{% raw %}
 ```
 bc *
 
@@ -2721,11 +2764,13 @@ r rip = msosvg!Mso::SVG::SVGImage::AcquireEffectTree;
 gc
 "
 ```
+{% endraw %}
 
 which emulates the fuzzer behaviour inside windbg and it seems to work decently well. I had problems noticing that you actually need to set r9 to zero to avoid a fanthom crash. Also stack alignment took a while to figure out, but now it is at least somewhat working...
 
 In c++ code it would look like this I guess:
 
+{% raw %}
 ```
 
 #include "backend.h"
@@ -3568,6 +3613,7 @@ Target_t MSOSVGTarget("msosvg", Init, InsertTestcase);
 } // namespace MSOSVG
 
 ```
+{% endraw %}
 
 Ok, so to store the traces I need to run `x msosvg!*` and then run `x nt!*` and redirect those to a log file.
 

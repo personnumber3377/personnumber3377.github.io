@@ -5,14 +5,17 @@ Ok, so I want to use darthshader to actually run the shaders on the thing and th
 
 Let's see what happens if I just try this out without the python custom mutator alltogether... it seems to speedup...
 
+{% raw %}
 ```
 
 ```
+{% endraw %}
 
 ## Trying to make darthshader into a shader library instead of standalone program...
 
 So, the issue is that I want to call the darthshader mutator just from the libfuzzer fuzzing target and I want to just use the mutation part of darthshader to fuzz dawn.
 
+{% raw %}
 ```
 
 error[E0599]: no variant or associated item named `from_bytes` found for enum `LayeredInput` in the current scope
@@ -102,9 +105,11 @@ error[E0282]: type annotations needed
 57 |         Ok(s) => s.into_bytes(),
    |                  ^ cannot infer type
 ```
+{% endraw %}
 
 with this code here:
 
+{% raw %}
 ```
 
 use std::slice;
@@ -193,11 +198,13 @@ pub extern "C" fn darthshader_free(ptr: *mut u8, size: usize) {
 }
 
 ```
+{% endraw %}
 
 ## Porting the darthshader stuff to a library...
 
 So I finally managed to make a library out of darthshader and I put it on github here: https://github.com/personnumber3377/dawn_fuzzing in darthshader_lib subdirectory, now I want to just integrate it into the fuzzer which I have here:
 
+{% raw %}
 ```
 // fuzz_wgsl_combo_pipeline.cpp
 #include <cstddef>
@@ -547,6 +554,7 @@ int main(int argc, char** argv) {
 }
 
 ```
+{% endraw %}
 
 I am now on commit 4d6a2cfb71b6e09e3610bbc2504f7871de0f741f of the thing...
 
@@ -554,6 +562,7 @@ I am now on commit 4d6a2cfb71b6e09e3610bbc2504f7871de0f741f of the thing...
 
 I am now getting this crash here:
 
+{% raw %}
 ```
 
 For bug reporting instructions, please see:
@@ -654,12 +663,14 @@ __pthread_kill_implementation (no_tid=0, signo=6, threadid=140737343823488) at .
 --Type <RET> for more, q to quit, c to continue without paging--
 
 ```
+{% endraw %}
 
 
 this is because the rust build system uses the different c++ thing than what the dawn shit uses...
 
 Let's change the build.rs file in the darthshader thing:
 
+{% raw %}
 ```
 use std::path::PathBuf;
 
@@ -682,12 +693,15 @@ fn main() {
 }
 
 ```
+{% endraw %}
 
 to
 
+{% raw %}
 ```
 
 ```
+{% endraw %}
 
 ## Improving the darthshader custom mutator
 
@@ -712,6 +726,7 @@ There is the `test/tint/builtins/gen/gen.wgsl.tmpl` file in the dawn source tree
 
 I have this stuff here:
 
+{% raw %}
 ```
 // webgsl_translator.cpp
 
@@ -870,9 +885,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 }
 
 ```
+{% endraw %}
 
 Here is the corrected code:
 
+{% raw %}
 ```
 // webgsl_translator.cpp
 // Standalone ANGLE GLSL → WGSL translator (header-driven)
@@ -1091,11 +1108,13 @@ int main(int argc, char** argv)
     return 0;
 }
 ```
+{% endraw %}
 
 Also as a sidenote, remember to put the fuzzer stuff into the `/home/oof/chromiumstuff/source/src/testing/libfuzzer/fuzzers` directory too...
 
 The shitfuck bug was that these two statements were the other way around:
 
+{% raw %}
 ```
     if "VALID" in output:
         return "VALID"
@@ -1104,11 +1123,13 @@ The shitfuck bug was that these two statements were the other way around:
         if line.startswith("ERROR:"):
             return line.replace("ERROR: ", "").strip()
 ```
+{% endraw %}
 
 ## Trying to improve the passthrough rate...
 
 Ok, so now roughly 30 percent of the corpus files even reach the HLSL compiler, so I need to basically do the stuff...
 
+{% raw %}
 ```
 // webgsl_translator.cpp
 // Standalone ANGLE GLSL → WGSL translator (header-driven)
@@ -1321,9 +1342,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 }
 
 ```
+{% endraw %}
 
 this now is this:
 
+{% raw %}
 ```
 // webgsl_translator.cpp
 // Standalone ANGLE GLSL → WGSL translator (header-driven)
@@ -1557,9 +1580,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     return 0;
 }
 ```
+{% endraw %}
 
 The statistics before the thing were these here:
 
+{% raw %}
 ```
 ==== Statistics ====
 Total files: 8145
@@ -1571,6 +1596,7 @@ TINT_PARSE_FAILED: 3597
 TRANSLATOR_NONZERO_EXIT: 376
 VALID: 2396
 ```
+{% endraw %}
 
 ## Getting coverage information
 
@@ -1580,6 +1606,7 @@ Ok, so now I decided to spin up a coverage build of the thing and let's see what
 
 I did this script here:
 
+{% raw %}
 ```
 import os
 import random
@@ -1609,6 +1636,7 @@ for filename in selected:
 
 print(f"Copied {len(selected)} files.")
 ```
+{% endraw %}
 
 and let's see if I can find something with it...
 
