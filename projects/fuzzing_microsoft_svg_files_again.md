@@ -3619,6 +3619,48 @@ Ok, so to store the traces I need to run `x msosvg!*` and then run `x nt!*` and 
 
 Now, there are cases when taking the snapshot that we end up calling KeStackAttachProcess for some reason during the XML parsing. This is of course not ideal. I think this may have to do with some cache stuff when loading SVG files that screw up our attempt. The LoadXMLRepresentation function get's called like four times before any actual loading takes place. Therefore taking a snapshot on the previous ones is futile and leads to bad stuff...
 
+The snapshots are now in the "final_maybe_new" folder on the home directory on the laptop...
+
+## Debugging some more...
+
+So, as it turns out, there is a boatload of issues to still solve. First of all, there are these "delayed load" stuff in the msosvg and it turns out that the "gfx.dll" file is delay loaded meaning that
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
